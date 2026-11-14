@@ -11,6 +11,15 @@ import com.example.data.CareerSaveSummary
 import com.example.data.FootballLifeDatabase
 import com.example.data.SettingsRepository
 import com.example.data.UserSettings
+import com.example.engine.LivingWorldEngine
+import com.example.engine.CinematicEngine
+import com.example.engine.MedicalEngine
+import com.example.engine.TransferEngine
+import com.example.model.ContractTerms
+import com.example.model.SceneStatus
+import com.example.model.SceneType
+import com.example.model.NotificationStatus
+import kotlinx.coroutines.channels.Channel
 import com.example.engine.CareerEngine
 import com.example.engine.LiveMatchUiState
 import com.example.engine.MatchPhase
@@ -92,6 +101,38 @@ class FootballLifeViewModel(
     private val soundManager: SoundAndHapticsManager
 ) : ViewModel() {
 
+    private sealed interface PersistenceCommand {
+        data class Save(val state: CareerSaveState) : PersistenceCommand
+        data class Delete(val slotId: Int) : PersistenceCommand
+        data class Barrier(val done: kotlinx.coroutines.CompletableDeferred<Unit>) : PersistenceCommand
+    }
+    private val saveQueue = Channel<PersistenceCommand>(Channel.UNLIMITED)
+    init {
+        viewModelScope.launch {
+            for (command in saveQueue) {
+                try {
+                    when (command) {
+                        is PersistenceCommand.Save -> {
+                            val state = command.state
+                            saveRepository.saveCareer(state, CareerEngine.formatGameDate(state.currentDayIndex, state.currentSeasonYear))
+                            settingsRepository.setLastActiveSlot(state.saveSlotId)
+                        }
+                        is PersistenceCommand.Delete -> saveRepository.deleteCareerSlot(command.slotId)
+                        is PersistenceCommand.Barrier -> command.done.complete(Unit)
+                    }
+                } catch (failure: Exception) {
+                    if (failure is kotlinx.coroutines.CancellationException) throw failure
+                    showToast("Kariyer kaydedilemedi; tekrar kaydetmek için bir işlem yap. Kayıtlı yedek korundu.")
+                }
+            }
+        }
+    }
+
+    private val dialogueGateway = com.example.data.DialogueGateway()
+    private var dialogueEndpoint = ""
+    private var dialogueToken = ""
+    private val dialogueJobs = mutableMapOf<String, Job>()
+
     private val matchEngine = MatchSimulationEngine()
     private var matchLoopJob: Job? = null
 
@@ -172,6 +213,10 @@ class FootballLifeViewModel(
     }
 
     fun handleBackNavigation(): Boolean {
+        val career = _activeCareer.value
+        if (career?.livingWorld?.activeScene?.status?.let { it != SceneStatus.SUSPENDED && it != SceneStatus.COMPLETED } == true) {
+            suspendScene(); return true
+        }
         if (_rootScreen.value == RootScreen.CAREER_HUB_SHELL) {
             if (_overlayScreen.value != HubOverlayScreen.NONE) {
                 _overlayScreen.value = HubOverlayScreen.NONE
@@ -221,6 +266,7 @@ class FootballLifeViewModel(
     fun continueMostRecentCareer() {
         playSfx(GameSoundEffect.MENU_TAP)
         viewModelScope.launch {
+            awaitPendingSaves()
             val loaded = saveRepository.loadMostRecentCareer()
             if (loaded != null) {
                 _activeCareer.value = loaded
@@ -237,6 +283,7 @@ class FootballLifeViewModel(
     fun loadCareerSlot(slotId: Int) {
         playSfx(GameSoundEffect.MENU_TAP)
         viewModelScope.launch {
+            awaitPendingSaves()
             val loaded = saveRepository.loadCareerSlot(slotId)
             if (loaded != null) {
                 settingsRepository.setLastActiveSlot(slotId)
@@ -252,7 +299,7 @@ class FootballLifeViewModel(
     fun deleteCareerSlot(slotId: Int) {
         playSfx(GameSoundEffect.MENU_TAP)
         viewModelScope.launch {
-            saveRepository.deleteCareerSlot(slotId)
+            saveQueue.send(PersistenceCommand.Delete(slotId))
             if (_activeCareer.value?.saveSlotId == slotId) {
                 _activeCareer.value = null
             }
@@ -353,7 +400,7 @@ class FootballLifeViewModel(
         val (updated, feedback) = CareerEngine.advanceToNextDay(current)
         if (updated != current) {
             playSfx(GameSoundEffect.MENU_TAP)
-            val resetClock = updated.copy(currentHour = 9)
+            val resetClock = MedicalEngine.afterDay(updated.copy(currentHour = 9))
             _activeCareer.value = resetClock
             persistCareerState(resetClock)
         }
@@ -377,7 +424,7 @@ class FootballLifeViewModel(
         while (current.todayUserFixture == null && safetySteps < 6) {
             val (next, _) = CareerEngine.advanceToNextDay(current)
             if (next == current) break
-            current = next
+            current = MedicalEngine.afterDay(next)
             safetySteps++
         }
         playSfx(GameSoundEffect.MENU_TAP)
@@ -419,12 +466,35 @@ class FootballLifeViewModel(
         showToast(msg)
     }
 
+    fun configureDialogueSession(endpoint: String, token: String) {
+        dialogueJobs.values.forEach { it.cancel() }
+        dialogueEndpoint = endpoint.trim()
+        dialogueToken = token.trim()
+        showToast(if (dialogueEndpoint.isBlank()) "Yerel karakter konuşmaları etkin." else "Oturum yapılandırıldı. Bağlantı ilk mesajda denenecek; hizmet yoksa yerel konuşma sürer.")
+    }
+
     fun sendNpcMessage(npcId: String, text: String) {
         val current = _activeCareer.value ?: return
-        val updated = CareerEngine.sendDialogueMessageToNpc(current, npcId, text)
+        val clean = text.trim().take(2000)
+        if (clean.isBlank()) return
+        val local = CareerEngine.sendDialogueMessageToNpc(current, npcId, clean)
         playSfx(GameSoundEffect.PHONE_MESSAGE)
-        _activeCareer.value = updated
-        persistCareerState(updated)
+        persistCareerState(local)
+        if (dialogueEndpoint.isBlank() || dialogueToken.isBlank()) return
+        val replyId = local.npcs.find { it.id == npcId }?.messages?.lastOrNull()?.id ?: return
+        val sceneId = current.livingWorld.activeScene?.sceneId
+        dialogueJobs[npcId]?.cancel()
+        dialogueJobs[npcId] = viewModelScope.launch {
+            val remote = dialogueGateway.reply(dialogueEndpoint, dialogueToken, current, npcId, clean) ?: return@launch
+            val latest = _activeCareer.value ?: return@launch
+            if (latest.player.id != current.player.id || latest.saveSlotId != current.saveSlotId || latest.currentDayIndex != current.currentDayIndex ||
+                latest.npcs.find { it.id == npcId }?.messages?.lastOrNull()?.id != replyId || latest.livingWorld.activeScene?.sceneId != sceneId) return@launch
+            val replace: (com.example.model.ChatMessage) -> com.example.model.ChatMessage = { message ->
+                if (message.id == replyId) message.copy(text = remote, dialogueSource = "GEMINI") else message
+            }
+            persistCareerState(latest.copy(npcs = latest.npcs.map { if (it.id == npcId) it.copy(messages = it.messages.map(replace)) else it },
+                livingWorld = latest.livingWorld.copy(activeScene = latest.livingWorld.activeScene?.copy(transcript = latest.livingWorld.activeScene.transcript.map(replace)))))
+        }
     }
 
     fun markNpcMessagesRead(npcId: String) {
@@ -465,12 +535,7 @@ class FootballLifeViewModel(
     }
 
     fun acceptTransferOffer(offer: TransferOffer) {
-        val current = _activeCareer.value ?: return
-        val (updated, msg) = CareerEngine.acceptTransferOffer(current, offer)
-        playSfx(GameSoundEffect.GOAL_CELEBRATION)
-        _activeCareer.value = updated
-        persistCareerState(updated)
-        showToast(msg)
+        openWorldTask("TASK:TRANSFER:${offer.id}")
     }
 
     fun askAgentForTransferOffers() {
@@ -493,7 +558,7 @@ class FootballLifeViewModel(
             while (temp.currentDayIndex < fixture.dayIndex) {
                 val (stepped, _) = CareerEngine.advanceToNextDay(temp)
                 if (stepped == temp) break
-                temp = stepped
+                temp = MedicalEngine.afterDay(stepped)
             }
             _activeCareer.value = temp
             persistCareerState(temp)
@@ -503,6 +568,11 @@ class FootballLifeViewModel(
         }
 
         val targetFixture = readyCareer.todayUserFixture ?: readyCareer.nextUnplayedUserFixture ?: return
+        val taskId = "TASK:MATCH:${targetFixture.id}"
+        if ("DECISION:SCENE:$taskId" !in readyCareer.livingWorld.appliedEventIds) {
+            openWorldTask(taskId)
+            return
+        }
         val homeClub = readyCareer.clubs.find { it.id == targetFixture.homeClubId } ?: readyCareer.currentClub
         val awayClub = readyCareer.clubs.find { it.id == targetFixture.awayClubId } ?: readyCareer.clubs.last()
 
@@ -764,6 +834,10 @@ class FootballLifeViewModel(
         viewModelScope.launch { settingsRepository.updateGraphicsQuality(quality) }
     }
 
+    fun setTargetFrameRate(rate: Int) {
+        viewModelScope.launch { settingsRepository.updateTargetFrameRate(rate) }
+    }
+
     fun setSkipIntro(skip: Boolean) {
         viewModelScope.launch { settingsRepository.updateSkipIntro(skip) }
     }
@@ -775,16 +849,71 @@ class FootballLifeViewModel(
         }
     }
 
+    fun openWorldTask(taskId: String) {
+        val state = LivingWorldEngine.reconcile(_activeCareer.value ?: return)
+        val task = state.livingWorld.tasks.find { it.id == taskId && it.isActive } ?: return
+        if (task.action == "TRAINING") { openOverlay(HubOverlayScreen.TRAINING_CENTER); return }
+        persistCareerState(LivingWorldEngine.startScene(state, taskId))
+    }
+
+    fun readWorldNotification(id: String) {
+        val state = _activeCareer.value ?: return
+        persistCareerState(LivingWorldEngine.markNotification(state, id, NotificationStatus.READ))
+    }
+
+    fun advanceScene(skip: Boolean = false) {
+        persistCareerState(LivingWorldEngine.advanceScene(_activeCareer.value ?: return, skip))
+    }
+
+    fun suspendScene() {
+        persistCareerState(LivingWorldEngine.suspendScene(_activeCareer.value ?: return))
+    }
+
+    fun sendSceneMessage(text: String) {
+        val state = _activeCareer.value ?: return
+        val task = state.livingWorld.tasks.find { it.id == state.livingWorld.activeScene?.taskId } ?: return
+        sendNpcMessage(task.npcId ?: return, text)
+    }
+
+    fun chooseSceneOption(id: String) {
+        val (state, feedback) = CinematicEngine.choose(_activeCareer.value ?: return, id)
+        persistCareerState(state)
+        playSfx(GameSoundEffect.MENU_TAP)
+        showToast(feedback)
+    }
+
+    fun continueAfterScene() {
+        val state = _activeCareer.value ?: return
+        val scene = state.livingWorld.activeScene ?: return
+        if (scene.status != SceneStatus.COMPLETED) return
+        persistCareerState(LivingWorldEngine.dismissCompletedScene(state))
+        if (scene.sceneType == SceneType.PRE_MATCH) prepareMatchForTodayOrNext()
+    }
+
+    fun submitTransferTerms(terms: ContractTerms) {
+        val state = _activeCareer.value ?: return
+        val task = state.livingWorld.tasks.find { it.id == state.livingWorld.activeScene?.taskId } ?: return
+        val (updated, feedback) = TransferEngine.negotiate(state, task.entityId ?: return, terms)
+        persistCareerState(updated)
+        showToast(feedback)
+    }
+
+    private suspend fun awaitPendingSaves() {
+        val done = kotlinx.coroutines.CompletableDeferred<Unit>()
+        saveQueue.send(PersistenceCommand.Barrier(done))
+        done.await()
+    }
+
     private fun persistCareerState(state: CareerSaveState) {
-        viewModelScope.launch {
-            val dateLabel = CareerEngine.formatGameDate(state.currentDayIndex, state.currentSeasonYear)
-            saveRepository.saveCareer(state, dateLabel)
-            settingsRepository.setLastActiveSlot(state.saveSlotId)
-        }
+        val normalized = LivingWorldEngine.reconcile(state)
+        _activeCareer.value = normalized
+        saveQueue.trySend(PersistenceCommand.Save(normalized))
     }
 
     override fun onCleared() {
         matchLoopJob?.cancel()
+        dialogueJobs.values.forEach { it.cancel() }
+        saveQueue.close()
         super.onCleared()
     }
 

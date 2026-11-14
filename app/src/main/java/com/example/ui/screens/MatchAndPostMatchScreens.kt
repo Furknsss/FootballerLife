@@ -1,5 +1,11 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import com.example.engine.MatchRenderInterpolation
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -919,6 +925,16 @@ private fun HybridPitch2DCanvas(
     graphicsQuality: GraphicsQuality,
     modifier: Modifier = Modifier
 ) {
+    var previousFrame by remember { mutableStateOf(matchState) }
+    var renderFrom by remember { mutableStateOf(matchState) }
+    val interpolation = remember { Animatable(1f) }
+    val priorPlayers = remember(renderFrom) { renderFrom.players.associateBy { it.id } }
+    LaunchedEffect(matchState) {
+        renderFrom = previousFrame
+        previousFrame = matchState
+        interpolation.snapTo(0f)
+        interpolation.animateTo(1f, tween(MatchRenderInterpolation.SIMULATION_STEP_MS, easing = LinearEasing))
+    }
     val homePrimary = parseHexColor(matchState.homeClub.primaryColorHex, Color(0xFFE74C3C))
     val awayPrimary = parseHexColor(matchState.awayClub.primaryColorHex, Color(0xFF3498DB))
 
@@ -933,6 +949,7 @@ private fun HybridPitch2DCanvas(
     }
 
     Canvas(modifier = modifier) {
+        val fraction = interpolation.value
         val w = size.width
         val h = size.height
 
@@ -1114,8 +1131,9 @@ private fun HybridPitch2DCanvas(
             // 2. Draw all 22 Players with 3D-shaded markers & clear team colors
             val playerRadius = (pitchH * 0.036f).coerceIn(11f, 20f)
             matchState.players.forEach { p ->
-                val px = pad + (p.x / 100f) * pitchW
-                val py = pad + (p.y / 100f) * pitchH
+                val prior = priorPlayers[p.id] ?: p
+                val px = pad + (MatchRenderInterpolation.coordinate(prior.x, p.x, fraction) / 100f) * pitchW
+                val py = pad + (MatchRenderInterpolation.coordinate(prior.y, p.y, fraction) / 100f) * pitchH
                 val fill = if (p.isHome) homePrimary else awayPrimary
 
                 // User Highlight Halo
@@ -1178,8 +1196,8 @@ private fun HybridPitch2DCanvas(
             }
 
             // 3. Draw High-Visibility Ball with subtle halo
-            val ballPxX = pad + (matchState.ball.x / 100f) * pitchW
-            val ballPxY = pad + (matchState.ball.y / 100f) * pitchH
+            val ballPxX = pad + (MatchRenderInterpolation.coordinate(renderFrom.ball.x, matchState.ball.x, fraction) / 100f) * pitchW
+            val ballPxY = pad + (MatchRenderInterpolation.coordinate(renderFrom.ball.y, matchState.ball.y, fraction) / 100f) * pitchH
             val ballRadius = playerRadius * 0.58f
 
             drawCircle(

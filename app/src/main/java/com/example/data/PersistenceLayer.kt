@@ -17,6 +17,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 import com.example.model.CareerSaveState
 import com.example.model.GraphicsQuality
 import com.squareup.moshi.Moshi
@@ -36,7 +37,8 @@ data class UserSettings(
     val graphicsQuality: GraphicsQuality = GraphicsQuality.HIGH,
     val skipIntroAnimation: Boolean = false,
     val lastActiveSlotId: Int = 1,
-    val accountDisplayName: String = "Misafir Oyuncu (Yerel Kariyer)"
+    val accountDisplayName: String = "Misafir Oyuncu (Yerel Kariyer)",
+    val targetFrameRate: Int = 0
 )
 
 class SettingsRepository(private val context: Context) {
@@ -48,6 +50,7 @@ class SettingsRepository(private val context: Context) {
         val SKIP_INTRO = booleanPreferencesKey("skip_intro")
         val LAST_SLOT = intPreferencesKey("last_active_slot")
         val ACCOUNT_NAME = stringPreferencesKey("account_display_name")
+        val FRAME_RATE = intPreferencesKey("target_frame_rate")
     }
 
     val settingsFlow: Flow<UserSettings> = context.settingsDataStore.data.map { prefs ->
@@ -60,7 +63,8 @@ class SettingsRepository(private val context: Context) {
             graphicsQuality = gfx,
             skipIntroAnimation = prefs[Keys.SKIP_INTRO] ?: false,
             lastActiveSlotId = prefs[Keys.LAST_SLOT] ?: 1,
-            accountDisplayName = prefs[Keys.ACCOUNT_NAME] ?: "Misafir Oyuncu (Yerel Kariyer)"
+            accountDisplayName = prefs[Keys.ACCOUNT_NAME] ?: "Misafir Oyuncu (Yerel Kariyer)",
+            targetFrameRate = prefs[Keys.FRAME_RATE] ?: 0
         )
     }
 
@@ -78,6 +82,11 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun updateGraphicsQuality(quality: GraphicsQuality) {
         context.settingsDataStore.edit { it[Keys.GRAPHICS] = quality.name }
+    }
+
+    suspend fun updateTargetFrameRate(rate: Int) {
+        require(rate == 0 || rate in 30..240)
+        context.settingsDataStore.edit { it[Keys.FRAME_RATE] = rate }
     }
 
     suspend fun updateSkipIntro(skip: Boolean) {
@@ -140,8 +149,24 @@ interface CareerSaveDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSave(entity: CareerSaveEntity)
 
+    @Transaction
+    suspend fun replaceKeepingBackup(entity: CareerSaveEntity) {
+        val previous = getSaveBySlot(entity.slotId)
+        val backup = when {
+            previous != null && CareerSnapshotCodec.isValid(previous.stateJson) -> previous.stateJson
+            previous?.backupStateJson != null && CareerSnapshotCodec.isValid(previous.backupStateJson) -> previous.backupStateJson
+            else -> entity.stateJson
+        }
+        upsertSave(entity.copy(backupStateJson = backup))
+    }
+
     @Query("DELETE FROM career_saves WHERE slotId = :slotId")
     suspend fun deleteSlot(slotId: Int)
+}
+
+object CareerSnapshotCodec {
+    private val adapter = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build().adapter(CareerSaveState::class.java)
+    fun isValid(json: String): Boolean = runCatching { adapter.fromJson(json) != null }.getOrDefault(false)
 }
 
 @Database(entities = [CareerSaveEntity::class], version = 1, exportSchema = false)
@@ -158,7 +183,7 @@ abstract class FootballLifeDatabase : RoomDatabase() {
                     context.applicationContext,
                     FootballLifeDatabase::class.java,
                     "football_life_career.db"
-                ).fallbackToDestructiveMigration(true).build().also { INSTANCE = it }
+                ).build().also { INSTANCE = it }
             }
         }
     }
@@ -191,7 +216,6 @@ class CareerSaveRepository(private val dao: CareerSaveDao) {
     }
 
     suspend fun saveCareer(state: CareerSaveState, dateLabel: String) = withContext(Dispatchers.IO) {
-        val existing = dao.getSaveBySlot(state.saveSlotId)
         val json = stateAdapter.toJson(state)
         val club = state.currentClub
         val entity = CareerSaveEntity(
@@ -208,9 +232,9 @@ class CareerSaveRepository(private val dao: CareerSaveDao) {
             balanceEur = state.balanceEur,
             updatedAtMs = System.currentTimeMillis(),
             stateJson = json,
-            backupStateJson = existing?.stateJson ?: json
+            backupStateJson = json
         )
-        dao.upsertSave(entity)
+        dao.replaceKeepingBackup(entity)
     }
 
     suspend fun loadCareerSlot(slotId: Int): CareerSaveState? = withContext(Dispatchers.IO) {
@@ -242,6 +266,6 @@ class CareerSaveRepository(private val dao: CareerSaveDao) {
     }
 
     private fun migrateIfNeeded(state: CareerSaveState): CareerSaveState {
-        return com.example.engine.CareerEngine.ensureVersion3EnrichedState(state)
+        return com.example.engine.LivingWorldEngine.migrate(com.example.engine.CareerEngine.ensureVersion3EnrichedState(state))
     }
 }

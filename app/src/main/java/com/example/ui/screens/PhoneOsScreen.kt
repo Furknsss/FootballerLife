@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.TextButton
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
@@ -184,13 +187,19 @@ fun PhoneOsScreen(
     onUpdateSfx: (Boolean) -> Unit,
     onUpdateHaptics: (Boolean) -> Unit,
     onUpdateGraphics: (GraphicsQuality) -> Unit,
-    onBackToHub: () -> Unit
+    onBackToHub: () -> Unit,
+    onOpenWorldTask: (String) -> Unit = {},
+    onReadNpc: (String) -> Unit = {}
 ) {
     var currentApp by rememberSaveable { mutableStateOf<PhoneAppId?>(null) }
     var selectedChatNpcId by rememberSaveable { mutableStateOf<String?>(null) }
     var activeStoryId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedNewsArticleId by rememberSaveable { mutableStateOf<String?>(null) }
     var activeCallRecordId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(selectedChatNpcId, state.npcs.find { it.id == selectedChatNpcId }?.unreadCount) {
+        selectedChatNpcId?.let { id -> if (state.npcs.any { it.id == id && it.unreadCount > 0 }) onReadNpc(id) }
+    }
 
     // Hierarchical Back Navigation: Sub-screen -> App Home -> Phone Home -> Hub
     BackHandler {
@@ -235,6 +244,14 @@ fun PhoneOsScreen(
                 },
                 isInsideApp = currentApp != null
             )
+
+            if (currentApp == null) {
+                state.livingWorld.tasks.firstOrNull { it.isActive && it.sceneType != null && it.dayIndex <= state.currentDayIndex }?.let { task ->
+                    TextButton(onClick = { onOpenWorldTask(task.id) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        Text("GÖRÜŞME • ${task.title}", color = AccentBright)
+                    }
+                }
+            }
 
             // Main Content Area
             Box(modifier = Modifier.weight(1f)) {

@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.layout.heightIn
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -125,7 +127,9 @@ fun PlayerHubScreen(
     onPlayNextMatch: () -> Unit,
     onAdvanceNextDay: () -> Unit,
     onAdvanceToMatchDay: () -> Unit,
-    onResolveDilemma: (DynamicStoryChoice) -> Unit
+    onResolveDilemma: (DynamicStoryChoice) -> Unit,
+    onOpenWorldTask: (String) -> Unit = {},
+    onReadWorldNotification: (String) -> Unit = {}
 ) {
     val player = career.player
     val club = career.currentClub
@@ -787,76 +791,7 @@ fun PlayerHubScreen(
                         )
                     }
 
-                    // Active Dilemma / Meeting notification if any
-                    career.activeDilemma?.let { dilemma ->
-                        Surface(
-                            color = SurfaceElevated,
-                            shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.dp, AccentBright),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("dilemma_card")
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = "KRİTİK KARAR • ${dilemma.speakerName} (${dilemma.speakerRole})",
-                                    fontFamily = SpaceGroteskFontFamily,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 10.5.sp,
-                                    color = AccentBright
-                                )
-                                Text(dilemma.title, style = MaterialTheme.typography.titleSmall, color = TextPrimary, fontWeight = FontWeight.Bold)
-                                Text(dilemma.narrative, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                                dilemma.choices.forEach { choice ->
-                                    Surface(
-                                        color = BackgroundPrimary,
-                                        shape = RoundedCornerShape(10.dp),
-                                        border = BorderStroke(1.dp, StrokePremiumStrong),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { onResolveDilemma(choice) }
-                                            .testTag("dilemma_choice_${choice.id}")
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(choice.label, style = MaterialTheme.typography.labelMedium, color = AccentBright, fontWeight = FontWeight.Bold)
-                                            Text("Seç ▸", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // 1. Antrenman Bildirimi
-                    HubNotificationRow(
-                        icon = Icons.Default.FitnessCenter,
-                        timeTag = "11:00",
-                        title = if (career.trainedToday) "Günlük Antrenman Tamamlandı ✓" else "${club.name} Tesisleri • Antrenman Programı",
-                        subtitle = if (career.trainedToday) "Teknik heyet bugünkü çalışmanı kaydetti." else "Bireysel ve taktik gelişim çalışması için tesislere git.",
-                        badgeText = if (career.trainedToday) "TAMAM" else "BEKLİYOR",
-                        badgeColor = if (career.trainedToday) TextSecondary else AccentBright,
-                        onClick = onOpenTraining,
-                        testTag = "btn_open_training"
-                    )
-
-                    // 2. Menajer & Transfer Toplantısı Bildirimi
-                    HubNotificationRow(
-                        icon = Icons.Default.SwapHoriz,
-                        timeTag = "15:00",
-                        title = if (career.transferOffers.isNotEmpty()) "Menajer Toplantısı: ${career.transferOffers.size} Resmi Teklif Var!" else "Sözleşme & Menajerlik Dosyası",
-                        subtitle = "Menajerin ${career.contract.agentName} ile transfer ve maaş (${FLFormatters.formatWage(career.contract.weeklyWageEur)}) gündemi.",
-                        badgeText = if (career.transferOffers.isNotEmpty()) "${career.transferOffers.size} TEKLİF" else "GÖRÜŞ",
-                        badgeColor = if (career.transferOffers.isNotEmpty()) GoldPrimary else TextPrimary,
-                        onClick = onOpenTransfers,
-                        testTag = "btn_open_transfers"
-                    )
+                    WorldAgenda(career, onOpenWorldTask, onReadWorldNotification)
 
                     // 3. Sosyal Yaşam & Transfermarkt Hızlı Erişim Satırı
                     Row(
@@ -1476,7 +1411,8 @@ fun CalendarScreen(
     onAdvanceNextDay: () -> Unit,
     onAdvanceToMatchDay: () -> Unit,
     onPlayMatchToday: () -> Unit,
-    onOpenTraining: () -> Unit = {}
+    onOpenTraining: () -> Unit = {},
+    onOpenWorldTask: (String) -> Unit = {}
 ) {
     var viewMode by remember { mutableStateOf("AYLIK") } // Default: AYLIK (7-column FC calendar)
     var selectedMonthIdx by remember(career.currentDayIndex) {
@@ -1509,6 +1445,11 @@ fun CalendarScreen(
             .testTag("calendar_screen"),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        item {
+            career.livingWorld.tasks.filter { it.isActive && it.dayIndex == selectedDayIndex && it.sceneType != null }.forEach { task ->
+                OutlinedButton(onClick = { onOpenWorldTask(task.id) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(task.title) }
+            }
+        }
         // 1. Coated Schedule Header + Custom Segmented AYLIK / HAFTALIK Switcher
         item {
             Surface(
@@ -1684,8 +1625,8 @@ fun CalendarScreen(
                                 color = BackgroundPrimary.copy(alpha = 0.85f),
                                 shape = RoundedCornerShape(10.dp),
                                 border = BorderStroke(1.dp, StrokePremium),
-                                modifier = Modifier.clickable(enabled = selectedMonthIdx < 9) {
-                                    selectedMonthIdx = (selectedMonthIdx + 1).coerceAtMost(9)
+                                modifier = Modifier.clickable {
+                                    selectedMonthIdx = (selectedMonthIdx + 1)
                                 }
                             ) {
                                 Text(
@@ -1693,7 +1634,7 @@ fun CalendarScreen(
                                     fontFamily = SpaceGroteskFontFamily,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
-                                    color = if (selectedMonthIdx < 9) TextPrimary else TextSecondary.copy(alpha = 0.4f),
+                                    color = TextPrimary,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                                 )
                             }

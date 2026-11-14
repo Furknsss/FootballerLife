@@ -1,0 +1,38 @@
+[
+  {
+    "file": "app/src/main/res/drawable-nodpi/cast_player_light.png",
+    "tool": "image_gen built-in",
+    "transparent_background": true,
+    "prompt": "Original fictional young adult male professional footballer, 22 years old, athletic build, light olive warm complexion, short textured dark brown hair, clean shaven, attentive thoughtful natural expression, head turned subtly to viewer right, waist-up including full shoulders and arms, simple charcoal gray unbranded crew neck training t-shirt, realistic anatomy and photographic skin, soft warm daylight from front right, premium cinematic sports career game character render. Isolated full cutout on genuine transparent background, no scenery, no lettering, no logos, no watermark, no cropped head or shoulders, centered 1024x1536 portrait."
+  },
+  {
+    "file": "app/src/main/res/drawable-nodpi/cast_player_dark.png",
+    "tool": "image_gen built-in",
+    "transparent_background": true,
+    "prompt": "Original fictional young adult male professional footballer, 23 years old, athletic build, deep brown complexion, short natural black hair, clean shaven, attentive thoughtful natural expression, head turned subtly to viewer right, waist-up including full shoulders and arms, simple charcoal gray unbranded crew neck training t-shirt, realistic anatomy and photographic skin, soft warm daylight from front right, premium cinematic sports career game character render. Isolated full cutout on genuine transparent background, no scenery, no lettering, no logos, no watermark, no cropped head or shoulders, centered 1024x1536 portrait."
+  },
+  {
+    "file": "app/src/main/res/drawable-nodpi/cast_coach.png",
+    "tool": "image_gen built-in",
+    "transparent_background": true,
+    "prompt": "Original fictional professional football head coach, man age 52, handsome weathered face, short salt and pepper hair, subtle stubble, composed serious attentive expression, head turned slightly to viewer left, waist-up including full shoulders and arms, plain dark forest green coaching polo shirt without badges or lettering, arms naturally relaxed, believable photographic anatomy and natural skin detail, soft warm daylight from front left. Premium cinematic sports career game realistic character render isolated on genuine transparent background, no environment, no text, no logos, no watermark, no cropped head or shoulders, centered 1024x1536 portrait."
+  },
+  {
+    "file": "app/src/main/res/drawable-nodpi/cast_doctor.png",
+    "tool": "image_gen built-in",
+    "transparent_background": true,
+    "prompt": "Original fictional professional football club sports physician, woman age 39, dark brown hair neatly tied back, calm professional compassionate expression, head turned slightly to viewer left, waist-up including full shoulders and arms, white medical coat over muted blue scrubs, stethoscope around neck, realistic photographic anatomy and skin detail, soft cool daylight from front left. Premium cinematic sports career game realistic character render isolated on genuine transparent background, no environment, no text, no logos, no watermark, no cropped head or shoulders, centered 1024x1536 portrait."
+  },
+  {
+    "file": "app/src/main/res/drawable-nodpi/cast_agent.png",
+    "tool": "image_gen built-in",
+    "transparent_background": true,
+    "prompt": "Original fictional football player agent, man age 43, short neatly combed dark hair, light olive skin, subtle beard, composed intelligent attentive expression, head turned slightly to viewer left, waist-up including full shoulders and arms, tailored charcoal blazer over cream open collar shirt, no tie, arms naturally relaxed, realistic photographic anatomy and natural skin detail, soft warm daylight from front left. Premium cinematic sports career game realistic character render isolated on genuine transparent background, no environment, no text, no logos, no watermark, no cropped head or shoulders, centered 1024x1536 portrait."
+  },
+  {
+    "file": "app/src/main/res/drawable-nodpi/cast_family.png",
+    "tool": "image_gen built-in",
+    "transparent_background": true,
+    "prompt": "Original fictional father of a young professional footballer, man age 56, warm Mediterranean face, gently graying short brown hair, kind subtle smile, head turned slightly to viewer left, waist-up including full shoulders and arms, understated warm taupe knit sweater over cream shirt, arms naturally relaxed, realistic photographic anatomy and skin detail, soft warm evening light from front left. Premium cinematic football life game realistic character render isolated on genuine transparent background, no environment, no text, no logos, no watermark, no cropped head or shoulders, centered 1024x1536 portrait."
+  }
+]

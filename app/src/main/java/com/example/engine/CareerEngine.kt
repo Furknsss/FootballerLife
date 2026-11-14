@@ -71,21 +71,9 @@ object CareerEngine {
         "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"
     )
 
-    fun formatGameDate(dayIndex: Int, seasonYear: Int = 2026): String {
-        val zeroBased = (dayIndex - 1).coerceAtLeast(0)
-        val dayOfMonth = (10 + zeroBased) % 30 + 1
-        val monthIdx = ((10 + zeroBased) / 30) % monthNamesTr.size
-        val year = if (monthIdx >= 5) seasonYear + 1 else seasonYear
-        val weekday = dayNamesTr[zeroBased % 7]
-        return "$dayOfMonth ${monthNamesTr[monthIdx]} $year, $weekday"
-    }
+    fun formatGameDate(dayIndex: Int, seasonYear: Int = 2026): String = GameClock.full(dayIndex, seasonYear)
 
-    fun formatShortDate(dayIndex: Int): String {
-        val zeroBased = (dayIndex - 1).coerceAtLeast(0)
-        val dayOfMonth = (10 + zeroBased) % 30 + 1
-        val monthIdx = ((10 + zeroBased) / 30) % monthNamesTr.size
-        return "$dayOfMonth ${monthNamesTr[monthIdx].take(3)}"
-    }
+    fun formatShortDate(dayIndex: Int): String = GameClock.short(dayIndex)
 
     fun createBalancedCustomAttributes(
         primaryPosition: Position,
@@ -435,7 +423,7 @@ object CareerEngine {
                 )
             )
         )
-        return ensureVersion3EnrichedState(baseState)
+        return LivingWorldEngine.migrate(ensureVersion3EnrichedState(baseState.copy(saveVersion = 2)))
     }
 
     /**
@@ -816,9 +804,9 @@ object CareerEngine {
         val newEnergy = (p.energy - drill.energyCost).coerceIn(10, 100)
         // Check small injury risk if energy was very low
         val rng = Random(state.currentDayIndex * 73L + drill.id.hashCode())
-        val effectiveInjuryRisk = if (newEnergy < 35) drill.injuryRiskPct * 2 else drill.injuryRiskPct / 2
+        val effectiveInjuryRisk = MedicalEngine.trainingRisk(state, drill.injuryRiskPct, drill.energyCost)
         val injuredNow = drill.energyCost > 0 && rng.nextInt(100) < effectiveInjuryRisk
-        val injuryDays = if (injuredNow) 3 else max(0, p.injuryDaysRemaining - (if (drill.id == "DRILL_RECOVERY") 1 else 0))
+        val injuryDays = if (injuredNow) 3 else p.injuryDaysRemaining
 
         val newMorale = if (injuredNow) (p.morale - 8).coerceAtLeast(20) else (p.morale + 3).coerceAtMost(100)
         val newForm = (p.form + (if (drill.id == "DRILL_RECOVERY") 2 else 4)).coerceIn(30, 100)
@@ -943,7 +931,7 @@ object CareerEngine {
             ) + state.injuryHistory
         } else state.injuryHistory
 
-        return state.copy(
+        return LivingWorldEngine.reconcile(MedicalEngine.afterTraining(state.copy(
             updatedAtMs = System.currentTimeMillis(),
             player = updatedPlayer,
             managerTrust = newTrust,
@@ -955,7 +943,7 @@ object CareerEngine {
             attributeHistory = updatedAttrHistory,
             injuryHistory = updatedInjuries,
             eventHistory = listOf(gameEvent) + state.eventHistory
-        ) to summaryText
+        ), drill.energyCost)) to summaryText
     }
 
     /**
@@ -1424,7 +1412,7 @@ object CareerEngine {
             state.instaDmThreads
         }
 
-        return state.copy(
+        return MedicalEngine.afterMatch(state, state.copy(
             updatedAtMs = System.currentTimeMillis(),
             currentHour = 21,
             player = updatedPlayer,
@@ -1459,7 +1447,7 @@ object CareerEngine {
                     appliedEffects = "Reyting: $ratingStr, Gol: ${report.userGoals}, Asist: ${report.userAssists}, Prim: +${FLFormatters.formatCurrency(totalBonusEarned)}"
                 )
             ) + state.eventHistory
-        )
+        ), report)
     }
 
     fun recomputeStandingsFromFixtures(
@@ -1532,7 +1520,8 @@ object CareerEngine {
         }
 
         // Penalty if player skipped training on a non-match day without injury
-        val skippedTrainingPenalty = if (!state.trainedToday && state.player.injuryDaysRemaining == 0) -2 else 0
+        val hadMatchToday = state.fixtures.any { it.dayIndex == state.currentDayIndex && (it.homeClubId == state.contract.clubId || it.awayClubId == state.contract.clubId) }
+        val skippedTrainingPenalty = if (!state.trainedToday && !hadMatchToday && state.player.injuryDaysRemaining == 0) -2 else 0
         val nextDay = state.currentDayIndex + 1
         val nextDateLabel = formatGameDate(nextDay, state.currentSeasonYear)
         val shortDate = formatShortDate(nextDay)
@@ -1558,7 +1547,7 @@ object CareerEngine {
         // Weekly wage & passive dividend payout every 7th day
         var newBalance = state.balanceEur
         val newTxList = state.transactions.toMutableList()
-        if (nextDay % 7 == 0) {
+        if (nextDay % 7 == 0 && state.transactions.none { it.id == "TX_WAGE_D$nextDay" }) {
             val totalWeeklyIncome = state.contract.weeklyWageEur + passiveDividendEur
             newBalance += totalWeeklyIncome
             newTxList.add(
@@ -1610,7 +1599,7 @@ object CareerEngine {
 
         // Check for dynamic story dilemma on specific days
         val dilemmas = WorldDataCatalog.buildDynamicDilemmas(state.currentClub.name, state.currentClub.managerName)
-        val triggeredDilemma = state.activeDilemma ?: dilemmas.find { it.dayIndex == nextDay }
+        val triggeredDilemma = state.activeDilemma ?: dilemmas.find { it.dayIndex == nextDay && state.eventHistory.none { event -> event.id == "DILEMMA_DONE:${it.id}" } }
 
         val dayTransitionNote = buildString {
             append("$nextDateLabel gününe geçildi. Enerji: %$recoveredEnergy")
@@ -1619,7 +1608,7 @@ object CareerEngine {
             }
         }
 
-        return state.copy(
+        return LivingWorldEngine.reconcile(MedicalEngine.afterDay(state.copy(
             updatedAtMs = System.currentTimeMillis(),
             currentDayIndex = nextDay,
             player = updatedPlayer,
@@ -1631,7 +1620,7 @@ object CareerEngine {
             npcs = updatedNpcs,
             transactions = newTxList,
             activeDilemma = triggeredDilemma
-        ) to dayTransitionNote
+        ))) to dayTransitionNote
     }
 
     fun executeSocialVenueAction(
@@ -1756,478 +1745,20 @@ object CareerEngine {
      * Handles both preset dialogue choices and custom free-text messages written by the user to any NPC in WhatsApp.
      * Uses multi-topic natural Turkish contextual analysis so any free-text message receives a realistic, personalized response.
      */
-    fun sendDialogueMessageToNpc(
-        state: CareerSaveState,
-        npcId: String,
-        userText: String
-    ): CareerSaveState {
-        val cleanText = userText.trim()
-        if (cleanText.isEmpty()) return state
-        val targetNpc = state.npcs.find { it.id == npcId } ?: return state
-        val clockStr = state.formattedClockTime
+    fun sendDialogueMessageToNpc(state: CareerSaveState, npcId: String, userText: String): CareerSaveState =
+        NpcDialogueEngine.send(state, npcId, userText)
 
-        val userMsg = ChatMessage(
-            id = "MSG_USR_${System.currentTimeMillis()}",
-            senderName = state.player.firstName,
-            isFromUser = true,
-            text = cleanText,
-            dayIndex = state.currentDayIndex,
-            timeLabel = clockStr
-        )
-
-        val lower = cleanText.lowercase()
-        val isRespectfulOrHardworking = listOf(
-            "hocam", "hazırım", "çalış", "elimden", "teşekkür", "sağ ol", "baba", "kaptan",
-            "takım", "odak", "saygı", "sözleşme", "destek", "antrenman", "inşallah", "eyvallah", "abi"
-        ).any { lower.contains(it) }
-
-        val isAggressiveOrDisrespectful = listOf(
-            "saçma", "oynatmıyorsun", "istifa", "nefret", "umrumda değil", "bıktım", "kötü", "rezalet", "aptal"
-        ).any { lower.contains(it) }
-
-        val isGreeting = listOf("selam", "merhaba", "nasılsın", "naber", "günaydın", "iyi akşamlar", "alo").any { lower.contains(it) }
-        val isQuestion = cleanText.contains("?") || listOf("ne zaman", "nasıl", "kim", "neden", "mi ", "mı ", "mu ", "mü ").any { lower.contains(it) }
-
-        val affinityDelta = when {
-            isAggressiveOrDisrespectful -> -6
-            isRespectfulOrHardworking -> +5
-            else -> +2
-        }
-        val trustDelta = when {
-            isAggressiveOrDisrespectful -> -5
-            isRespectfulOrHardworking -> +4
-            else -> +1
-        }
-
-        val nextMatch = state.todayUserFixture ?: state.nextUnplayedUserFixture
-        val nextOpponent = nextMatch?.let {
-            if (it.homeClubId == state.contract.clubId) it.awayClubName else it.homeClubName
-        } ?: "rakibimiz"
-
-        var updatedPlayer = state.player
-        var updatedBalance = state.balanceEur
-        var updatedContract = state.contract
-        var updatedOffers = state.transferOffers
-        var updatedTransactions = state.transactions
-        var updatedXPosts = state.xPosts
-        var updatedNews = state.newsEvents
-        var updatedTeamChemistry = state.teamChemistry
-        var extraImpactNote: String? = null
-        var forcedStartingStatus: StartingStatus? = null
-
-        val replyText = when (targetNpc.id) {
-            "NPC_MANAGER" -> when {
-                isAggressiveOrDisrespectful -> {
-                    forcedStartingStatus = StartingStatus.BENCH
-                    extraImpactNote = "Kadro Durumu: Yedek Kulübesi (Disiplin Uyarısı)"
-                    "Bu üslubun ${state.currentClub.name} disiplinine hiç uymuyor ${state.player.firstName}! Seni bu haftaki maçta yedek kulübesine çekiyorum. Cevabını lafla değil idman sahasında ver!"
-                }
-                lower.contains("11") || lower.contains("forma") || lower.contains("oyna") || lower.contains("kadro") || lower.contains("hazırım") -> {
-                    if (state.managerTrust >= 48 && state.player.energy >= 55 && state.player.injuryDaysRemaining == 0) {
-                        forcedStartingStatus = StartingStatus.STARTER
-                        extraImpactNote = "Kadro Kararı: İLK 11'e Alındın!"
-                        "Gözlerindeki o hırsı ve idman verilerini (%${state.player.energy} kondisyon) beğeniyorum ${state.player.firstName}! $nextOpponent maçında seni İLK 11 listesine yazdım. Çık ve formanın hakkını ver!"
-                    } else {
-                        "Formayı istemen güzel ${state.player.firstName} ama İlk 11 için güvenimi (%${state.managerTrust}/48) ve kondisyonunu (%${state.player.energy}/55) yukarı çekmelisin. Bugün tesislerde ekstra antrenman yap!"
-                    }
-                }
-                lower.contains("duran top") || lower.contains("frikik") || lower.contains("penaltı") || lower.contains("sorumluluk") || lower.contains("taktik") -> {
-                    updatedPlayer = updatedPlayer.copy(
-                        attributes = updatedPlayer.attributes.copy(
-                            tactics = (updatedPlayer.attributes.tactics + 1).coerceAtMost(99)
-                        ),
-                        morale = (updatedPlayer.morale + 3).coerceAtMost(100)
-                    )
-                    extraImpactNote = "Taktik +1 • Moral +3"
-                    "Sorumluluk almanı seviyorum ${state.player.firstName}! $nextOpponent maçında hücum organizasyonlarında ve duran toplarda merkezde sen olacaksın."
-                }
-                lower.contains("yorgun") || lower.contains("dinlen") || lower.contains("izin") || lower.contains("ağrı") -> {
-                    updatedPlayer = updatedPlayer.copy(
-                        energy = (updatedPlayer.energy + 8).coerceAtMost(100)
-                    )
-                    extraImpactNote = "Rejenerasyon Programı: Enerji +8"
-                    "Fizyoterapistlerle konuştum ${state.player.firstName}, sana bugün özel yenilenme programı uyguluyoruz (+8 Enerji). Maç gününe zinde çıkmanı istiyorum."
-                }
-                lower.contains("antrenman") || lower.contains("idman") || lower.contains("çalış") ->
-                    "Tesislerdeki ekstra çalışmalarını yardımcı hocalarımız raporluyor. Reytingin (${updatedPlayer.overallRating}) yükseldikçe sahadaki liderliğin de artacak."
-                isGreeting ->
-                    "Merhaba ${state.player.firstName}. Tesislerde $nextOpponent maçı video analizlerini inceliyorum. Sen de zihinsel olarak maça odaklan."
-                isQuestion ->
-                    "Sorduğun konuyu teknik ekiple değerlendiriyoruz ${state.player.firstName}. Şu an tek odağımız $nextOpponent karşısında alacağımız 3 puan."
-                else ->
-                    "Anlaşıldı ${state.player.firstName}. \"$cleanText\" yaklaşımını sahada da görmek istiyorum. Disiplini bozmadan devam!"
-            }
-            "NPC_FAMILY" -> when {
-                lower.contains("hediye") || lower.contains("sürpriz") || lower.contains("gönder") || lower.contains("destek") -> {
-                    if (updatedBalance >= 1_500L) {
-                        val giftAmount = 1_500L
-                        updatedBalance -= giftAmount
-                        updatedPlayer = updatedPlayer.copy(morale = (updatedPlayer.morale + 10).coerceAtMost(100))
-                        updatedTransactions = listOf(
-                            FinancialTransaction(
-                                id = "TX_FAM_${System.currentTimeMillis()}",
-                                dayIndex = state.currentDayIndex,
-                                dateLabel = formatGameDate(state.currentDayIndex, state.currentSeasonYear),
-                                category = "YAŞAM_TARZI",
-                                amountEur = -giftAmount,
-                                description = "Aileye Destek & Sürpriz Hediye",
-                                balanceAfterEur = updatedBalance
-                            )
-                        ) + updatedTransactions
-                        extraImpactNote = "Aile Desteği (-1.500 €) • Moral +10"
-                        "Canım oğlum ne gerek vardı! Gönderdiğin sürpriz annenle bizi mutluluktan ağlattı. Allah ayağına taş değdirmesin, seninle gurur duyuyoruz! ❤️🙏"
-                    } else {
-                        "Düşünmen yeter aslan oğlum! Sen önce kendi birikimini yap, senin sağlığın bize en büyük hediye ❤️"
-                    }
-                }
-                lower.contains("maç") || lower.contains("gol") || lower.contains("forma") || lower.contains("tribün") -> {
-                    updatedPlayer = updatedPlayer.copy(morale = (updatedPlayer.morale + 4).coerceAtMost(100))
-                    extraImpactNote = "Aile Desteği: Moral +4"
-                    "Annenle formalarımızı hazırladık, $nextOpponent maçında gözümüz kulağımız sende evladım. Sahaya çıkınca dualarımız seninle!"
-                }
-                lower.contains("yorgun") || lower.contains("zor") || lower.contains("moral") || lower.contains("stres") -> {
-                    updatedPlayer = updatedPlayer.copy(morale = (updatedPlayer.morale + 6).coerceAtMost(100))
-                    extraImpactNote = "Moral +6"
-                    "Futbolculuk sabır işidir aslan oğlum. Moralini yüksek tut, uykuna ve beslenmene dikkat et. Biz her zaman arkandayız."
-                }
-                isGreeting ->
-                    "Hoş geldin gözümüzün nuru! Annen de tam seni soruyordu, tesislerde her şey yolunda mı?"
-                else ->
-                    "Canım evladım, mesajın bizi çok mutlu etti. Mahallede herkes senin ${state.currentClub.name} formasıyla yaptıklarını konuşuyor, gururumuzsun! ❤️"
-            }
-            "NPC_AGENT" -> when {
-                lower.contains("transfer") || lower.contains("teklif") || lower.contains("kulüp") || lower.contains("avrupa") || lower.contains("gözlemci") || lower.contains("ara") -> {
-                    if (updatedOffers.isEmpty()) {
-                        val candidateClubs = state.clubs.filter {
-                            it.id != state.currentClub.id && it.teamStrength >= state.currentClub.teamStrength - 2
-                        }.shuffled(Random(System.currentTimeMillis()))
-                        val targetClub = candidateClubs.firstOrNull()
-                        if (targetClub != null) {
-                            val offeredWage = max(state.contract.weeklyWageEur + 1_200L, (updatedPlayer.marketValueEur / 95L).coerceAtLeast(2_500L))
-                            val newOffer = TransferOffer(
-                                id = "OFR_AGT_${System.currentTimeMillis()}",
-                                clubId = targetClub.id,
-                                clubName = targetClub.name,
-                                leagueId = targetClub.leagueId,
-                                leagueName = targetClub.leagueName,
-                                clubTier = targetClub.tier,
-                                clubStrength = targetClub.teamStrength,
-                                primaryColorHex = targetClub.primaryColorHex,
-                                offeredWeeklyWageEur = offeredWage,
-                                offeredAppearanceBonusEur = offeredWage / 4,
-                                offeredGoalBonusEur = offeredWage / 3,
-                                contractYears = 3,
-                                promisedRole = SquadRole.STARTER,
-                                transferType = "Bonservisli Transfer",
-                                expiresDayIndex = state.currentDayIndex + 14
-                            )
-                            updatedOffers = listOf(newOffer) + updatedOffers
-                            extraImpactNote = "Yeni Resmi Teklif: ${targetClub.name} (${FLFormatters.formatWage(offeredWage)})"
-                        }
-                    }
-                    val topOffer = updatedOffers.firstOrNull()
-                    if (topOffer != null) {
-                        "Hemen kulüplerle temasa geçtim ${state.player.firstName}! Masamızda şu an **${topOffer.clubName}** (${topOffer.leagueName}) kulübünden haftalık **${FLFormatters.formatCurrency(topOffer.offeredWeeklyWageEur)}** maaşlı resmi teklif var! Alt bardan 'Kariyer > Sözleşme & Teklif' sekmesine girip hemen imzalayabilir veya pazarlık yapabilirsin! 💼🔥"
-                    } else {
-                        "Avrupa ve üst lig sportif direktörleriyle görüştüm ${state.player.firstName}. Güncel piyasa değerin ${FLFormatters.formatMarketValue(updatedPlayer.marketValueEur)}."
-                    }
-                }
-                lower.contains("maaş") || lower.contains("zam") || lower.contains("sözleşme") || lower.contains("kontrat") || lower.contains("prim") -> {
-                    if (state.managerTrust >= 55) {
-                        val raisedWage = (updatedContract.weeklyWageEur * 1.10).toLong()
-                        updatedContract = updatedContract.copy(weeklyWageEur = raisedWage)
-                        extraImpactNote = "Maaş İyileştirmesi: ${FLFormatters.formatWage(raisedWage)}"
-                        "Kulüp yönetimiyle masaya oturdum ${state.player.firstName}! Hocanın sana olan güvenini (%${state.managerTrust}) koz olarak kullandım ve haftalık maaşını ${FLFormatters.formatCurrency(raisedWage)} seviyesine yükselttirdim! 💸✍️"
-                    } else {
-                        "Yönetimle zam için nabız yokladım ancak teknik direktör güveninin (%${state.managerTrust}/55) biraz daha yükselmesini bekliyorlar. $nextOpponent maçında iyi oynarsan masaya yumruğumuzu vururuz!"
-                    }
-                }
-                lower.contains("sponsor") || lower.contains("reklam") || lower.contains("instagram") || lower.contains("takipçi") ->
-                    "Instagram'da ${updatedPlayer.followersCount} takipçiye ulaştın! DM kutundaki İstekler bölümünü mutlaka kontrol et, global markaları kabul edip mesajlaştığında doğrudan banka hesabına sponsorluk ödemesi yatacak."
-                isGreeting ->
-                    "Selam yıldızım! Tam da bir sportif direktörle senin istatistiklerini (${updatedPlayer.currentSeasonStats.goals}G / ${updatedPlayer.currentSeasonStats.assists}A) konuşuyordum. Ne var ne yok?"
-                else ->
-                    "Kesinlikle katılıyorum ${state.player.firstName}. Sen çimlerde şovunu yap, saha dışı tüm kontrat ve PR operasyonunu ben yönetiyorum! 💼⚽"
-            }
-            "NPC_TEAM_GROUP" -> {
-                val captain = state.currentClub.keySquadMembers.firstOrNull { it.isCaptain } ?: state.currentClub.keySquadMembers.first()
-                val mate = state.currentClub.keySquadMembers.lastOrNull() ?: captain
-                updatedTeamChemistry = (updatedTeamChemistry + 3).coerceAtMost(100)
-                updatedPlayer = updatedPlayer.copy(morale = (updatedPlayer.morale + 3).coerceAtMost(100))
-                extraImpactNote = "Takım Kimyası +3 • Moral +3"
-                when {
-                    lower.contains("maç") || lower.contains("kazan") || lower.contains("3 puan") || lower.contains("galibiyet") || lower.contains("saha") ->
-                        "${captain.name}: Aynen öyle kardeşim! $nextOpponent maçında sahayı dar edeceğiz! Takım kimyamız (%$updatedTeamChemistry) zirvede 🔥💪"
-                    lower.contains("yemek") || lower.contains("kahve") || lower.contains("akşam") || lower.contains("benden") ->
-                        "${mate.name}: Kral konuştu! 🥩☕ İdman çıkışı hep beraber gidiyoruz, takımca kenetlenmek bize sahada çok güç katacak!"
-                    lower.contains("idman") || lower.contains("antrenman") || lower.contains("koşu") ->
-                        "${mate.name}: Hoca bugün kondisyonda pestilimizi çıkardı ama $nextOpponent maçında 90 dakika basacağız! 😂⚽"
-                    else ->
-                        "${captain.name}: Adamsın ${state.player.firstName}! Soyunma odasında bu enerji oldukça kimse bizi yıkamaz 👏⚽"
-                }
-            }
-            "NPC_PRESS" -> {
-                val shortDate = formatShortDate(state.currentDayIndex)
-                val pressXp = XPostItem(
-                    id = "XP_PRESS_${System.currentTimeMillis()}",
-                    dayIndex = state.currentDayIndex,
-                    dateLabel = shortDate,
-                    authorName = "Ertan Süzgün",
-                    handle = "@ertansuzgun",
-                    category = "GAZETECİ",
-                    isVerified = true,
-                    text = "🚨 ÖZEL | ${state.currentClub.name} yıldızı ${updatedPlayer.fullName} bana konuştu: \"$cleanText\" 🔥⚽",
-                    likes = 1_450 + updatedPlayer.followersCount / 8,
-                    reposts = 210
-                )
-                val pressNews = NewsEvent(
-                    id = "NEWS_WHATSAPP_${System.currentTimeMillis()}",
-                    dayIndex = state.currentDayIndex,
-                    dateLabel = formatGameDate(state.currentDayIndex, state.currentSeasonYear),
-                    category = "RÖPORTAJ",
-                    headline = "${updatedPlayer.fullName} Basına Konuştu: \"${cleanText.take(45)}\"",
-                    body = "${state.currentClub.name} forması giyen ${updatedPlayer.fullName}, spor muhabiri Ertan Süzgün'e verdiği özel demeçle gündeme oturdu.",
-                    relatedClubName = state.currentClub.name
-                )
-                updatedXPosts = listOf(pressXp) + updatedXPosts
-                updatedNews = listOf(pressNews) + updatedNews
-                updatedPlayer = updatedPlayer.copy(
-                    followersCount = updatedPlayer.followersCount + 340,
-                    fanSupport = (updatedPlayer.fanSupport + 3).coerceIn(0, 100)
-                )
-                extraImpactNote = "X & Haber Manşeti Yayınlandı! (+340 Takipçi, Şöhret +3)"
-                when {
-                    lower.contains("transfer") || lower.contains("teklif") || lower.contains("ayrıl") || lower.contains("avrupa") ->
-                        "Bomba açıklama! 🚨 '${updatedPlayer.fullName} geleceği hakkında konuştu: $cleanText' başlığıyla X'te ve Haberler'de manşetten girdim, gündem sallanıyor! 👀🔥"
-                    else ->
-                        "Harika demeç ${state.player.firstName}! Sözlerini şimdi X'te (@ertansuzgun) ve Futbol Haberleri'nde özel haber olarak yayınladım, taraftarlar etkileşim yağdırıyor! 🎙️⚡"
-                }
-            }
-            else -> {
-                updatedTeamChemistry = (updatedTeamChemistry + 2).coerceAtMost(100)
-                when {
-                    isAggressiveOrDisrespectful -> "Sakin ol kardeşim, hepimiz ${state.currentClub.shortName} arması için ter döküyoruz."
-                    lower.contains("pas") || lower.contains("asist") || lower.contains("gol") || lower.contains("maç") ->
-                        "Merak etme kardeşim, $nextOpponent maçında gözüm hep senin koşularında olacak. Birlikte fişi çekeceğiz! ⚽🔥"
-                    else -> "Eyvallah kardeşim! Soyunma odasında seninle omuz omuza olmak bize güç veriyor."
-                }
-            }
-        }
-
-        val combinedImpact = buildString {
-            append("Yakınlık ${if (affinityDelta >= 0) "+$affinityDelta" else "$affinityDelta"}, Güven ${if (trustDelta >= 0) "+$trustDelta" else "$trustDelta"}")
-            if (extraImpactNote != null) {
-                append(" • $extraImpactNote")
-            }
-        }
-
-        val npcReply = ChatMessage(
-            id = "MSG_NPC_${System.currentTimeMillis() + 1}",
-            senderName = targetNpc.name,
-            isFromUser = false,
-            text = replyText,
-            dayIndex = state.currentDayIndex,
-            timeLabel = clockStr,
-            emotionTag = if (affinityDelta >= 0) "Olumlu" else "Gergin",
-            impactSummary = combinedImpact
-        )
-
-        val newManagerTrust = if (targetNpc.id == "NPC_MANAGER") {
-            (state.managerTrust + trustDelta).coerceIn(5, 100)
-        } else {
-            state.managerTrust
-        }
-
-        val dynamicQuickReplies = when (targetNpc.id) {
-            "NPC_MANAGER" -> listOf(
-                "Hocam $nextOpponent maçında İlk 11'de oynamaya hazırım!",
-                "Duran toplarda ve hücumda sorumluluk almak istiyorum.",
-                "Bugün ekstra bireysel antrenman yapacağım hocam."
-            )
-            "NPC_AGENT" -> listOf(
-                "Bana üst liglerden resmi transfer teklifi bul.",
-                "Kulüp yönetimiyle maaş zammı görüşmesi yapalım.",
-                "Sponsorluk anlaşmalarımızı değerlendirelim."
-            )
-            "NPC_FAMILY" -> listOf(
-                "Dualarınız yeter baba, maça çok iyi hazırlanıyorum.",
-                "Size 1.500 € sürpriz hediye gönderiyorum!",
-                "Bu hafta sonu maça bekliyorum baba!"
-            )
-            "NPC_TEAM_GROUP" -> listOf(
-                "$nextOpponent maçını kazanıp 3 puanı alacağız beyler! 🔥",
-                "İdman çıkışı yemek benden, takımca moral depolayalım!",
-                "Sahada yardımlaşmayı artıralım beyler 💪"
-            )
-            "NPC_PRESS" -> listOf(
-                "Tek hedefimiz ${state.currentClub.name} ile zirveye oynamak!",
-                "Performansımla Avrupa kulüplerinin radarında olmak gurur verici.",
-                "Taraftarımıza bu hafta gol sözü veriyorum!"
-            )
-            else -> targetNpc.quickReplyOptions
-        }
-
-        val updatedNpcs = state.npcs.map { npc ->
-            if (npc.id == npcId) {
-                npc.copy(
-                    affinity = (npc.affinity + affinityDelta).coerceIn(0, 100),
-                    trust = (npc.trust + trustDelta).coerceIn(0, 100),
-                    currentMood = if (affinityDelta >= 0) "Memnun" else "Mesafeli",
-                    quickReplyOptions = dynamicQuickReplies,
-                    messages = npc.messages + userMsg + npcReply,
-                    unreadCount = 0
-                )
-            } else npc
-        }
-
-        val computedNextStatus = forcedStartingStatus ?: computeStartingStatus(updatedPlayer, state.currentClub, newManagerTrust)
-
-        return state.copy(
-            updatedAtMs = System.currentTimeMillis(),
-            player = updatedPlayer,
-            balanceEur = updatedBalance,
-            contract = updatedContract,
-            transferOffers = updatedOffers,
-            transactions = updatedTransactions,
-            xPosts = updatedXPosts,
-            newsEvents = updatedNews,
-            teamChemistry = updatedTeamChemistry,
-            managerTrust = newManagerTrust,
-            nextMatchStartingStatus = computedNextStatus,
-            npcs = updatedNpcs
-        )
-    }
-
-    fun publishPressStatementOrSocialPost(
-        state: CareerSaveState,
-        statementText: String,
-        tone: String // "MÜTEVAZI_TAKIMCI", "İDDİALI_ÖZGÜVENLİ", "TARTIŞMALI_SERT"
-    ): Pair<CareerSaveState, String> {
-        val text = statementText.trim().ifEmpty { "Takım olarak hedefimize odaklandık, taraftarımıza layık olacağız!" }
-        val dateLabel = formatGameDate(state.currentDayIndex, state.currentSeasonYear)
-
-        val (moraleDelta, trustDelta, fanDelta, followersDelta, sentiment) = when (tone) {
-            "MÜTEVAZI_TAKIMCI" -> listOf(4, 5, 6, 380, 1)
-            "İDDİALI_ÖZGÜVENLİ" -> listOf(7, 2, 8, 640, 1)
-            else -> listOf(-2, -7, -6, 820, -1)
-        }
-
-        val sentimentLabel = when (sentiment) {
-            1 -> "Destekleyici"
-            -1 -> "Eleştirel"
-            else -> "Tarafsız"
-        }
-
-        val fanMultiplier = (state.player.followersCount / 35).coerceAtLeast(45)
-        val generatedComments = if (sentiment >= 0) {
-            listOf(
-                InstaCommentItem(
-                    id = "IC_USR_${System.currentTimeMillis()}_1",
-                    authorHandle = "${state.currentClub.shortName.lowercase()}_ultras",
-                    authorName = "${state.currentClub.shortName} Tribün",
-                    isVerified = false,
-                    avatarHex = state.currentClub.primaryColorHex,
-                    text = "Helal olsun sana! Sahada da aynı hırsı bekliyoruz 🔥👏",
-                    timeLabel = "1d",
-                    likesCount = 42
-                ),
-                InstaCommentItem(
-                    id = "IC_USR_${System.currentTimeMillis()}_2",
-                    authorHandle = "futbol_analiz_tr",
-                    authorName = "Futbol Analiz",
-                    isVerified = true,
-                    avatarHex = "#1D9BF0",
-                    text = "Profesyonel duruşuyla fark yaratıyor. Bu sezon çok konuşulacak.",
-                    timeLabel = "3d",
-                    likesCount = 19
-                ),
-                InstaCommentItem(
-                    id = "IC_USR_${System.currentTimeMillis()}_3",
-                    authorHandle = "emre_taraftar19",
-                    authorName = "Emre Kaya",
-                    isVerified = false,
-                    avatarHex = "#10B981",
-                    text = "Kral formanın hakkını veriyor! 👑⚽",
-                    timeLabel = "5d",
-                    likesCount = 11
-                )
-            )
-        } else {
-            listOf(
-                InstaCommentItem(
-                    id = "IC_USR_${System.currentTimeMillis()}_1",
-                    authorHandle = "spor_masasi",
-                    authorName = "Spor Masası",
-                    isVerified = true,
-                    avatarHex = "#EF4444",
-                    text = "Bu açıklamalar soyunma odasında tansiyonu yükseltebilir 👀",
-                    timeLabel = "2d",
-                    likesCount = 64
-                ),
-                InstaCommentItem(
-                    id = "IC_USR_${System.currentTimeMillis()}_2",
-                    authorHandle = "${state.currentClub.shortName.lowercase()}_sevdalisi",
-                    authorName = "Taraftar Sesi",
-                    isVerified = false,
-                    avatarHex = "#F59E0B",
-                    text = "Laf değil sahada gol görmek istiyoruz!",
-                    timeLabel = "4d",
-                    likesCount = 28
-                )
-            )
-        }
-
-        val newPost = SocialMediaPost(
-            id = "SOC_USER_${System.currentTimeMillis()}",
-            dayIndex = state.currentDayIndex,
-            dateLabel = dateLabel,
-            authorName = state.player.fullName,
-            authorHandle = "@${state.player.firstName.lowercase()}${state.player.kitNumber}",
-            isUserPost = true,
-            content = text,
-            likesCount = 320 + followersDelta + fanMultiplier,
-            commentsCount = generatedComments.size + 24,
-            sentiment = sentimentLabel,
-            topFanComments = generatedComments.map { "${it.authorHandle}: ${it.text}" },
-            instaComments = generatedComments,
-            isVerifiedAuthor = true,
-            locationLabel = "${state.currentClub.city}, ${state.currentClub.country}"
-        )
-
-        val newNews = NewsEvent(
-            id = "NEWS_PRESS_${System.currentTimeMillis()}",
-            sourceGameEventId = "EVT_PRESS_${state.currentDayIndex}",
-            dayIndex = state.currentDayIndex,
-            dateLabel = dateLabel,
-            category = "RÖPORTAJ",
-            headline = "${state.player.fullName} Sosyal Medyadan Paylaştı: \"${text.take(48)}...\"",
-            body = "${state.currentClub.name} oyuncusu ${state.player.fullName}'ın paylaşımı kısa sürede binlerce beğeni ve yorum aldı.",
-            relatedClubName = state.currentClub.name,
-            fanReaction = sentimentLabel
-        )
-
-        val updatedPlayer = state.player.copy(
-            morale = (state.player.morale + moraleDelta).coerceIn(10, 100),
-            fanSupport = (state.player.fanSupport + fanDelta).coerceIn(5, 100),
-            followersCount = state.player.followersCount + followersDelta
-        )
-        val newTrust = (state.managerTrust + trustDelta).coerceIn(5, 100)
-
-        return state.copy(
-            updatedAtMs = System.currentTimeMillis(),
-            player = updatedPlayer,
-            managerTrust = newTrust,
-            pressCompletedForLastMatch = true,
-            socialPosts = listOf(newPost) + state.socialPosts,
-            newsEvents = listOf(newNews) + state.newsEvents
-        ) to "Instagram gönderin paylaşıldı! Takipçi +$followersDelta, Taraftar Desteği ${if (fanDelta >= 0) "+$fanDelta" else "$fanDelta"}."
-    }
+    fun publishPressStatementOrSocialPost(state: CareerSaveState, statementText: String, tone: String): Pair<CareerSaveState, String> =
+        PressEngine.publish(state, statementText)
 
     fun resolveDynamicDilemma(
         state: CareerSaveState,
         choice: DynamicStoryChoice
     ): Pair<CareerSaveState, String> {
         val dilemma = state.activeDilemma ?: return state to ""
+        if (dilemma.choices.none { it == choice }) return state to "Geçersiz karar."
+        if (choice.moneyDeltaEur < 0 && state.balanceEur < -choice.moneyDeltaEur) return state to "Bu karar için bakiyen yeterli değil."
+        if (state.eventHistory.any { it.id == "DILEMMA_DONE:${dilemma.id}" }) return state to "Bu olay zaten tamamlandı."
         val dateLabel = formatGameDate(state.currentDayIndex, state.currentSeasonYear)
         val newBalance = state.balanceEur + choice.moneyDeltaEur
 
@@ -2272,7 +1803,8 @@ object CareerEngine {
             nextMatchStartingStatus = computeStartingStatus(updatedPlayer, state.currentClub, newTrust),
             transactions = updatedTx,
             newsEvents = listOf(news) + state.newsEvents,
-            activeDilemma = null
+            activeDilemma = null,
+            eventHistory = listOf(GameEvent("DILEMMA_DONE:${dilemma.id}", state.currentDayIndex, 0, "DILEMMA_COMPLETED", dilemma.title, choice.consequenceHeadline)) + state.eventHistory
         ) to choice.consequenceHeadline
     }
 
@@ -2289,8 +1821,12 @@ object CareerEngine {
             ?: allLeagues.find { it.tier == targetTier }
             ?: allLeagues.first()
 
+        val wageEstimate = (player.marketValueEur / 65L).coerceAtLeast(1_200L)
         val candidateClubs = WorldDataCatalog.clubsForLeague(candidateLeague.id)
-            .filter { it.id != currentClub.id }
+            .filter { it.id != currentClub.id && it.budgetEur >= player.marketValueEur + wageEstimate * 82 &&
+                player.overallRating >= it.teamStrength - 18 &&
+                (player.age <= 24 || player.currentSeasonStats.averageRating >= 6.5) &&
+                (it.keySquadMembers.count { member -> member.position == player.primaryPosition && member.overall > player.overallRating } < 3) }
         if (candidateClubs.isEmpty()) return currentOffers
 
         val interestedClub = candidateClubs[(dayIndex + player.overallRating) % candidateClubs.size]
@@ -2317,57 +1853,54 @@ object CareerEngine {
         return listOf(newOffer) + currentOffers
     }
 
-    fun negotiateTransferOffer(
-        state: CareerSaveState,
-        offerId: String
-    ): Pair<CareerSaveState, String> {
+    fun negotiateTransferOffer(state: CareerSaveState, offerId: String): Pair<CareerSaveState, String> {
         val offer = state.transferOffers.find { it.id == offerId } ?: return state to "Teklif bulunamadı."
-        if (offer.negotiationCount >= 2) {
-            return state to "${offer.clubName} yönetimi son teklifini sunduğunu belirtti, daha fazla artış yapmıyor."
-        }
-        val boostedWage = (offer.offeredWeeklyWageEur * 1.15).toLong()
-        val boostedGoalBonus = (offer.offeredGoalBonusEur * 1.20).toLong()
-        val updatedOffer = offer.copy(
-            offeredWeeklyWageEur = boostedWage,
-            offeredGoalBonusEur = boostedGoalBonus,
-            negotiationCount = offer.negotiationCount + 1
-        )
-        val updatedList = state.transferOffers.map { if (it.id == offerId) updatedOffer else it }
-        return state.copy(
-            updatedAtMs = System.currentTimeMillis(),
-            transferOffers = updatedList
-        ) to "Menajerin ${offer.clubName} ile masaya oturdu! Yeni teklif: Haftalık $boostedWage € + Gol Primi $boostedGoalBonus €."
+        val current = TransferEngine.process(state, offer)
+        return TransferEngine.negotiate(state, offerId, current.terms.copy(weeklyWageEur = (current.terms.weeklyWageEur * 1.15).toLong()))
     }
 
     fun acceptTransferOffer(
         state: CareerSaveState,
         offer: TransferOffer
     ): Pair<CareerSaveState, String> {
+        val storedOffer = state.transferOffers.find { it.id == offer.id } ?: return state to "Teklif artık geçerli değil."
+        if (storedOffer != offer) return state to "Teklif değişti; güncel dosyayı aç."
+        val process = state.livingWorld.transfers.find { it.offerId == offer.id } ?: return state to "Önce transfer görüşmesini tamamla."
+        if (process.stage != com.example.model.TransferStage.REGISTRATION || !process.medicalPassed) return state to "Sağlık, imza ve tescil onayı gerekiyor."
+        if (!RegistrationEngine.isOpen(state, offer.leagueId)) return state to "Hedef ligin tescil dönemi kapalı."
+        val targetClub = TransferEngine.club(state, offer) ?: return state to "Hedef kulüp bulunamadı."
+        if (!TransferEngine.affordable(targetClub.budgetEur, process.feeEur, process.terms)) return state to "Kulüp bütçesi yetersiz."
+        if ("TRANSFER_DONE:${offer.id}" in state.livingWorld.appliedEventIds) return state to "Transfer zaten tamamlandı."
         val newClubs = if (offer.leagueId == state.currentLeagueId) {
             state.clubs
         } else {
             WorldDataCatalog.clubsForLeague(offer.leagueId)
         }
-        val newClub = newClubs.find { it.id == offer.clubId } ?: newClubs.first()
+        val newClub = newClubs.find { it.id == offer.clubId } ?: return state to "Hedef kulüp bulunamadı."
         val newFixtures = if (offer.leagueId == state.currentLeagueId) {
             state.fixtures
         } else {
-            generateLeagueSchedule(offer.leagueId, newClubs)
+            generateLeagueSchedule(offer.leagueId, newClubs).map { fixture ->
+                if (fixture.dayIndex < state.currentDayIndex) {
+                    val rng = Random(fixture.id.hashCode())
+                    fixture.copy(played = true, homeScore = rng.nextInt(0, 4), awayScore = rng.nextInt(0, 3))
+                } else fixture
+            }
         }
         val newStandings = recomputeStandingsFromFixtures(newClubs, newFixtures)
-        val signingBonus = offer.offeredWeeklyWageEur * 2
+        val signingBonus = process.terms.signingBonusEur
         val newBalance = state.balanceEur + signingBonus
         val dateLabel = formatGameDate(state.currentDayIndex, state.currentSeasonYear)
 
         val newContract = Contract(
             clubId = newClub.id,
             clubName = newClub.name,
-            weeklyWageEur = offer.offeredWeeklyWageEur,
-            matchAppearanceBonusEur = offer.offeredAppearanceBonusEur,
-            goalBonusEur = offer.offeredGoalBonusEur,
+            weeklyWageEur = process.terms.weeklyWageEur,
+            matchAppearanceBonusEur = process.terms.appearanceBonusEur,
+            goalBonusEur = process.terms.goalBonusEur,
             startSeasonYear = state.currentSeasonYear,
-            endSeasonYear = state.currentSeasonYear + offer.contractYears,
-            role = offer.promisedRole
+            endSeasonYear = state.currentSeasonYear + process.terms.years,
+            role = process.terms.role
         )
 
         val archiveList = if (state.player.currentSeasonStats.appearances > 0) {
@@ -2390,7 +1923,7 @@ object CareerEngine {
         )
 
         val tx = FinancialTransaction(
-            id = "TX_TRANSFER_${System.currentTimeMillis()}",
+            id = "TX_TRANSFER_${offer.id}",
             dayIndex = state.currentDayIndex,
             dateLabel = dateLabel,
             category = "TRANSFER_İMZA",
@@ -2406,7 +1939,7 @@ object CareerEngine {
             dateLabel = dateLabel,
             category = "TRANSFER",
             headline = "RESMİ TRANSFER: ${updatedPlayer.fullName}, ${newClub.name} İle Sözleşme İmzaladı!",
-            body = "${updatedPlayer.fullName}, haftalık ${offer.offeredWeeklyWageEur} € maaşla ${newClub.name} kadrosuna katıldı.",
+            body = "${updatedPlayer.fullName}, haftalık ${process.terms.weeklyWageEur} € maaşla ${newClub.name} kadrosuna katıldı.",
             relatedClubName = newClub.name,
             fanReaction = "Destekleyici"
         )
@@ -2417,7 +1950,8 @@ object CareerEngine {
                     name = newClub.managerName,
                     personality = "Disiplinli (${newClub.managerTacticalStyle})",
                     trust = 62,
-                    messages = npc.messages + ChatMessage(
+                    importantMemories = emptyList(),
+                    messages = listOf(ChatMessage(
                         id = "MSG_NEW_MGR_${System.currentTimeMillis()}",
                         senderName = newClub.managerName,
                         isFromUser = false,
@@ -2425,8 +1959,8 @@ object CareerEngine {
                         dayIndex = state.currentDayIndex,
                         timeLabel = "${formatShortDate(state.currentDayIndex)} • 14:00",
                         emotionTag = "Hoş Geldin"
-                    ),
-                    unreadCount = npc.unreadCount + 1
+                    )),
+                    unreadCount = 1
                 )
             } else npc
         }
@@ -2443,7 +1977,7 @@ object CareerEngine {
             toClubShortName = newClub.shortName,
             toClubPrimaryHex = newClub.primaryColorHex,
             transferType = offer.transferType,
-            feeEur = if (offer.transferType.contains("Kiralık")) 0L else (updatedPlayer.marketValueEur * 0.85).toLong(),
+            feeEur = process.feeEur,
             marketValueAtTransferEur = updatedPlayer.marketValueEur
         )
 
@@ -2473,12 +2007,12 @@ object CareerEngine {
             handle = "@transfer_merkezi",
             category = "GAZETECİ",
             isVerified = true,
-            text = "🔥 ÖZEL | ${newClub.name}, ${oldClub.name} forması giyen ${updatedPlayer.fullName} ile ${offer.contractYears} yıllık anlaşmaya vardı! Haftalık maaş: ${FLFormatters.formatWage(offer.offeredWeeklyWageEur)}. Resmi imzalar atıldı.",
+            text = "🔥 ÖZEL | ${newClub.name}, ${oldClub.name} forması giyen ${updatedPlayer.fullName} ile ${process.terms.years} yıllık anlaşmaya vardı! Haftalık maaş: ${FLFormatters.formatWage(process.terms.weeklyWageEur)}. Resmi imzalar atıldı.",
             likes = 1_840,
             reposts = 412
         )
 
-        return state.copy(
+        return LivingWorldEngine.reconcile(state.copy(
             updatedAtMs = System.currentTimeMillis(),
             careerTitle = "${updatedPlayer.fullName} • ${newClub.shortName}",
             currentLeagueId = offer.leagueId,
@@ -2486,9 +2020,17 @@ object CareerEngine {
             contract = newContract,
             balanceEur = newBalance,
             managerTrust = 62,
+            activeDilemma = null,
             nextMatchStartingStatus = computeStartingStatus(updatedPlayer, newClub, 62),
-            clubs = newClubs,
+            clubs = newClubs.map { club ->
+                when (club.id) {
+                    newClub.id -> club.copy(budgetEur = club.budgetEur - process.feeEur - signingBonus, keySquadMembers = club.keySquadMembers.filterNot { it.id == state.player.id } + com.example.model.SquadMemberInfo(state.player.id, state.player.fullName, state.player.primaryPosition, state.player.kitNumber, state.player.overallRating, state.player.age))
+                    oldClub.id -> club.copy(budgetEur = club.budgetEur + process.feeEur, keySquadMembers = club.keySquadMembers.filterNot { it.id == state.player.id })
+                    else -> club
+                }
+            },
             standings = newStandings,
+            topScorers = if (offer.leagueId == state.currentLeagueId) state.topScorers.map { if (it.playerId == state.player.id) it.copy(clubId = newClub.id, clubName = newClub.name) else it } else buildInitialScorerPool(newClubs, updatedPlayer),
             fixtures = newFixtures,
             npcs = updatedNpcs,
             calendarEvents = updatedCalendar,
@@ -2498,8 +2040,9 @@ object CareerEngine {
             transferHistory = listOf(transferRecord) + state.transferHistory,
             marketValueHistory = state.marketValueHistory + mvPoint,
             galleryPhotos = listOf(trGallery) + state.galleryPhotos,
-            xPosts = listOf(trXPost) + state.xPosts
-        ) to "Tebrikler! ${newClub.name} ile resmi sözleşme imzaladın (+${FLFormatters.formatCurrency(signingBonus)} imza parası)."
+            xPosts = listOf(trXPost) + state.xPosts,
+            livingWorld = state.livingWorld.copy(archivedNpcs = state.livingWorld.archivedNpcs + state.npcs.filter { it.id == "NPC_MANAGER" }, archivedClubs = state.livingWorld.archivedClubs.filterNot { it.id == oldClub.id } + oldClub.copy(budgetEur = oldClub.budgetEur + process.feeEur, keySquadMembers = oldClub.keySquadMembers.filterNot { it.id == state.player.id }), appliedEventIds = state.livingWorld.appliedEventIds + "TRANSFER_DONE:${offer.id}", transfers = state.livingWorld.transfers.map { if (it.offerId == offer.id) it.copy(stage = com.example.model.TransferStage.COMPLETED) else it })
+        )) to "Tebrikler! ${newClub.name} ile resmi sözleşme imzaladın (+${FLFormatters.formatCurrency(signingBonus)} imza parası)."
     }
 
     fun requestTransferSearchFromAgent(state: CareerSaveState): Pair<CareerSaveState, String> {
@@ -2555,6 +2098,7 @@ object CareerEngine {
     // =========================================================================
 
     fun ensureVersion3EnrichedState(state: CareerSaveState): CareerSaveState {
+        if (state.saveVersion >= 3) return state
         val club = state.currentClub
         val p = state.player
         val shortDate = formatShortDate(state.currentDayIndex)
@@ -3303,7 +2847,7 @@ object CareerEngine {
 
                 // Trigger a dynamic dilemma in the evening if none is active on even days
                 val dilemmas = WorldDataCatalog.buildDynamicDilemmas(state.currentClub.name, state.currentClub.managerName)
-                val eveningDilemma = state.activeDilemma ?: dilemmas.find { it.dayIndex == state.currentDayIndex }
+                val eveningDilemma = state.activeDilemma ?: dilemmas.find { it.dayIndex == state.currentDayIndex && state.eventHistory.none { event -> event.id == "DILEMMA_DONE:${it.id}" } }
 
                 val note = if (unplayedToday != null) {
                     "Saat 19:00 • Stadyum ışıkları yandı! 'MAÇA ÇIK' butonuyla sahaya adım atabilirsin."
@@ -3407,70 +2951,31 @@ object CareerEngine {
     /**
      * Generates a real 7-column Monday-first monthly calendar grid (42 cells = 6 weeks x 7 days).
      */
-    fun getMonthCalendarGrid(
-        state: CareerSaveState,
-        monthOffset: Int
-    ): MonthCalendarGrid {
-        val safeMonthIdx = monthOffset.coerceIn(0, monthNamesTr.lastIndex)
-        val year = if (safeMonthIdx >= 5) state.currentSeasonYear + 1 else state.currentSeasonYear
-        val monthTitle = "${monthNamesTr[safeMonthIdx]} $year"
-
-        val userFixtures = state.fixtures.filter {
-            it.homeClubId == state.contract.clubId || it.awayClubId == state.contract.clubId
-        }
-
-        val firstDayTotalOffset = safeMonthIdx * 30
-        val firstWeekdayMon0 = ((firstDayTotalOffset - 10) % 7 + 7) % 7
-        val daysInMonth = 30
-
-        val cells = mutableListOf<MonthDayCell>()
-        for (cellIdx in 0 until 42) {
-            val dayNum = cellIdx - firstWeekdayMon0 + 1
-            if (dayNum < 1 || dayNum > daysInMonth) {
-                cells.add(MonthDayCell(dayOfMonth = 0, dayIndex = null))
-            } else {
-                val totalOffset = safeMonthIdx * 30 + (dayNum - 1)
-                val mappedDayIndex = totalOffset - 9
-                if (mappedDayIndex < 1) {
-                    cells.add(
-                        MonthDayCell(
-                            dayOfMonth = dayNum,
-                            dayIndex = null
-                        )
-                    )
-                } else {
-                    val dayEvents = state.calendarEvents.filter { it.dayIndex == mappedDayIndex }
-                    val dayFixture = userFixtures.find { it.dayIndex == mappedDayIndex }
-                    val isMatch = dayFixture != null || dayEvents.any { it.eventType == "MAÇ" }
-                    val isTraining = dayEvents.any { it.eventType == "ANTRENMAN" }
-                    val isSocial = dayEvents.any { it.eventType !in listOf("MAÇ", "ANTRENMAN") }
-                    cells.add(
-                        MonthDayCell(
-                            dayOfMonth = dayNum,
-                            dayIndex = mappedDayIndex,
-                            isCurrentDay = mappedDayIndex == state.currentDayIndex,
-                            isMatchDay = isMatch,
-                            isTrainingDay = isTraining,
-                            isSocialOrTransferDay = isSocial,
-                            events = dayEvents,
-                            fixture = dayFixture
-                        )
-                    )
+    fun getMonthCalendarGrid(state: CareerSaveState, monthOffset: Int): MonthCalendarGrid {
+        val offset = monthOffset.coerceAtLeast(0)
+        val month = GameClock.month(offset, state.currentSeasonYear)
+        val first = month.atDay(1)
+        val firstWeekday = first.dayOfWeek.value - 1
+        val userFixtures = state.fixtures.filter { it.homeClubId == state.contract.clubId || it.awayClubId == state.contract.clubId }
+        val cells = (0 until 42).map { index ->
+            val day = index - firstWeekday + 1
+            if (day !in 1..month.lengthOfMonth()) MonthDayCell(0, null)
+            else {
+                val mapped = GameClock.dayIndex(month.atDay(day), state.currentSeasonYear)
+                if (mapped < 1) MonthDayCell(day, null)
+                else {
+                    val events = state.calendarEvents.filter { it.dayIndex == mapped }
+                    val fixture = userFixtures.find { it.dayIndex == mapped }
+                    MonthDayCell(day, mapped, mapped == state.currentDayIndex, fixture != null,
+                        events.any { it.eventType == "ANTRENMAN" }, events.any { it.eventType !in listOf("MAÇ", "ANTRENMAN") }, events, fixture)
                 }
             }
         }
-
-        return MonthCalendarGrid(
-            monthIndex = safeMonthIdx,
-            monthTitleTr = monthTitle,
-            cells = cells
-        )
+        return MonthCalendarGrid(offset, GameClock.monthTitle(offset, state.currentSeasonYear), cells)
     }
 
-    fun getMonthIndexForDay(dayIndex: Int): Int {
-        val zeroBased = (dayIndex - 1).coerceAtLeast(0)
-        return (((10 + zeroBased) / 30) % monthNamesTr.size).coerceIn(0, monthNamesTr.lastIndex)
-    }
+    fun getMonthIndexForDay(dayIndex: Int): Int = java.time.temporal.ChronoUnit.MONTHS.between(
+        java.time.YearMonth.from(GameClock.start()), java.time.YearMonth.from(GameClock.date(dayIndex))).toInt()
 
     fun toggleLikeInstaPost(state: CareerSaveState, postId: String): CareerSaveState {
         val updated = state.socialPosts.map { post ->
@@ -3889,6 +3394,19 @@ object CareerEngine {
         selectedOption: String
     ): Pair<CareerSaveState, String> {
         val call = state.callRecords.find { it.id == callId } ?: return state to "Arama kaydı bulunamadı."
+        if (call.completed || selectedOption !in call.options) return state to "Arama tamamlandı veya seçim geçersiz."
+        if (call.linkedTaskId != null) {
+            val closedCall = state.copy(callRecords = state.callRecords.map { if (it.id == callId) it.copy(completed = true) else it })
+            val task = closedCall.livingWorld.tasks.find { it.id == call.linkedTaskId && it.isActive }
+                ?: return closedCall to "Bu görüşmenin süresi doldu veya tamamlandı."
+            return when (selectedOption) {
+                "Görüşmeye katıl" -> LivingWorldEngine.startScene(closedCall, task.id) to "Görüşmeye geçiliyor."
+                "Reddet" -> LivingWorldEngine.reconcile(closedCall.copy(livingWorld = closedCall.livingWorld.copy(tasks = closedCall.livingWorld.tasks.map {
+                    if (it.id == task.id) it.copy(status = com.example.model.TaskStatus.CANCELLED, outcome = "Görüşme daveti reddedildi.") else it
+                }))) to "Görüşme daveti reddedildi."
+                else -> closedCall to "Görüşme ertelendi; programından daha sonra katılabilirsin."
+            }
+        }
         val updatedCalls = state.callRecords.map {
             if (it.id == callId) it.copy(completed = true) else it
         }
