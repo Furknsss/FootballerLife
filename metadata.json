@@ -1,0 +1,6 @@
+{
+  "name": "Football Life",
+  "description": "Yeni nesil profesyonel futbolcu kariyer ve yaşam simülasyonu oyunu. 2D hibrit maç motoru, dinamik ligler, antrenman, transfer, sosyal hayat ve oyun içi akıllı telefon.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

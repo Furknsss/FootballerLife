@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Football Life</string>
+    <string name="app_slogan">YOUR CAREER. YOUR LIFE. YOUR LEGACY.</string>
+    <string name="menu_start_career">Kariyere Başla</string>
+    <string name="menu_continue_career">Kariyere Devam Et</string>
+    <string name="menu_career_saves">Kariyer Kayıtları</string>
+    <string name="menu_settings">Ayarlar</string>
+    <string name="nav_hub">Hayatım</string>
+    <string name="nav_calendar">Takvim</string>
+    <string name="nav_match">Maç</string>
+    <string name="nav_career">Kariyer</string>
+    <string name="nav_phone">Telefon</string>
+</resources>
