@@ -2,6 +2,8 @@ package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -55,6 +57,10 @@ import com.example.ui.screens.LeagueAndWorldScreen
 import com.example.ui.screens.MainMenuScreen
 import com.example.ui.screens.MatchCenterScreen
 import com.example.ui.screens.PhoneOsScreen
+import com.example.ui.screens.CinematicSceneScreen
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.example.model.SceneStatus
 import com.example.ui.screens.PlayerHubScreen
 import com.example.ui.screens.PlayerProfileArchiveScreen
 import com.example.ui.screens.PostMatchLockerRoomScreen
@@ -111,6 +117,7 @@ fun FootballLifeApp(
         factory = FootballLifeViewModel.Factory(LocalContext.current.applicationContext)
     )
 ) {
+    val context = LocalContext.current
     val rootScreen by viewModel.rootScreen.collectAsStateWithLifecycle()
     val activeHubTab by viewModel.activeHubTab.collectAsStateWithLifecycle()
     val overlayScreen by viewModel.overlayScreen.collectAsStateWithLifecycle()
@@ -122,9 +129,18 @@ fun FootballLifeApp(
     val activeCareer by viewModel.activeCareer.collectAsStateWithLifecycle()
     val liveMatch by viewModel.liveMatchState.collectAsStateWithLifecycle()
     val toastBanner by viewModel.toastBanner.collectAsStateWithLifecycle()
+    val installedDataPacks by viewModel.installedDataPacks.collectAsStateWithLifecycle()
+    val dataPackImportReport by viewModel.dataPackImportReport.collectAsStateWithLifecycle()
+    val dataPackPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.importDataPack(uri)
+    }
 
     BackHandler(enabled = rootScreen != RootScreen.MAIN_MENU && rootScreen != RootScreen.INTRO_SPLASH) {
         viewModel.handleBackNavigation()
+    }
+
+    LaunchedEffect(userSettings.targetFrameRate) {
+        com.example.ui.FrameRateController.activity(context)?.let { com.example.ui.FrameRateController.apply(it, userSettings.targetFrameRate) }
     }
 
     LaunchedEffect(toastBanner) {
@@ -173,7 +189,14 @@ fun FootballLifeApp(
                     onToggleHaptics = { viewModel.setHapticsEnabled(it) },
                     onSelectGraphics = { viewModel.setGraphicsQuality(it) },
                     onToggleSkipIntro = { viewModel.setSkipIntro(it) },
-                    onSaveAccountName = { viewModel.setLocalAccountName(it) }
+                    onSaveAccountName = { viewModel.setLocalAccountName(it) },
+                    onSelectFrameRate = viewModel::setTargetFrameRate,
+                    onConnectDialogue = viewModel::configureDialogueSession,
+                    installedDataPacks = installedDataPacks,
+                    selectedDataPackId = userSettings.selectedDataPackKey,
+                    dataPackImportReport = dataPackImportReport,
+                    onRequestDataPackImport = { dataPackPicker.launch(arrayOf("application/json", "text/csv", "application/zip", "application/x-zip-compressed")) },
+                    onSelectDataPack = viewModel::selectDataPackForNewCareers
                 )
             }
 
@@ -369,7 +392,9 @@ fun FootballLifeApp(
                                                 onPlayNextMatch = { viewModel.prepareMatchForTodayOrNext() },
                                                 onAdvanceNextDay = { viewModel.advanceSynchronizedTime() },
                                                 onAdvanceToMatchDay = { viewModel.advanceUntilNextMatchDay() },
-                                                onResolveDilemma = { viewModel.resolveStoryDilemma(it) }
+                                                onResolveDilemma = { viewModel.resolveStoryDilemma(it) },
+                                                onOpenWorldTask = viewModel::openWorldTask,
+                                                onReadWorldNotification = viewModel::readWorldNotification
                                             )
                                         }
 
@@ -378,7 +403,9 @@ fun FootballLifeApp(
                                                 career = career,
                                                 onAdvanceNextDay = { viewModel.advanceDay() },
                                                 onAdvanceToMatchDay = { viewModel.advanceUntilNextMatchDay() },
-                                                onPlayMatchToday = { viewModel.prepareMatchForTodayOrNext() }
+                                                onPlayMatchToday = { viewModel.prepareMatchForTodayOrNext() },
+                                                onOpenWorldTask = viewModel::openWorldTask,
+                                                onOpenTraining = { viewModel.openOverlay(HubOverlayScreen.TRAINING_CENTER) }
                                             )
                                         }
 
@@ -466,13 +493,36 @@ fun FootballLifeApp(
                                                 onUpdateSfx = { viewModel.setSfxEnabled(it) },
                                                 onUpdateHaptics = { viewModel.setHapticsEnabled(it) },
                                                 onUpdateGraphics = { viewModel.setGraphicsQuality(it) },
-                                                onBackToHub = { viewModel.selectHubTab(HubTab.HAYATIM) }
+                                                onBackToHub = { viewModel.selectHubTab(HubTab.HAYATIM) },
+                                                onOpenWorldTask = viewModel::openWorldTask,
+                                                onReadNpc = viewModel::markNpcMessagesRead
                                             )
                                         }
                                     }
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        if (rootScreen == RootScreen.CAREER_HUB_SHELL) {
+            activeCareer?.let { state ->
+                state.livingWorld.activeScene?.takeIf { it.status != SceneStatus.SUSPENDED }?.let { scene ->
+                    Dialog(onDismissRequest = viewModel::suspendScene,
+                        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+                        val dialogView = androidx.compose.ui.platform.LocalView.current
+                        androidx.compose.runtime.SideEffect {
+                            val dialogWindow = (dialogView.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+                            val activity = com.example.ui.FrameRateController.activity(context)
+                            if (dialogWindow != null && activity != null) com.example.ui.FrameRateController.apply(activity, userSettings.targetFrameRate, dialogWindow)
+                        }
+                        CinematicSceneScreen(state, scene,
+                            onAdvance = { viewModel.advanceScene() }, onSkip = { viewModel.advanceScene(true) },
+                            onSuspend = viewModel::suspendScene, onMessage = viewModel::sendSceneMessage,
+                            onChoose = viewModel::chooseSceneOption, onContinue = viewModel::continueAfterScene,
+                            onNegotiate = viewModel::submitTransferTerms)
                     }
                 }
             }
@@ -506,3 +556,4 @@ fun FootballLifeApp(
         }
     }
 }
+

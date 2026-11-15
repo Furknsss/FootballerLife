@@ -243,12 +243,14 @@ class ExampleUnitTest {
         assertTrue(withOffer.transferOffers.isNotEmpty())
         val firstOffer = withOffer.transferOffers.first()
         val (negotiatedState, _) = CareerEngine.negotiateTransferOffer(withOffer, firstOffer.id)
-        val negotiatedOffer = negotiatedState.transferOffers.first { it.id == firstOffer.id }
-        assertTrue(negotiatedOffer.offeredWeeklyWageEur > firstOffer.offeredWeeklyWageEur)
-
-        val (transferredState, _) = CareerEngine.acceptTransferOffer(negotiatedState, negotiatedOffer)
-        assertEquals(negotiatedOffer.clubId, transferredState.contract.clubId)
-        assertEquals(negotiatedOffer.offeredWeeklyWageEur, transferredState.contract.weeklyWageEur)
+        val process = negotiatedState.livingWorld.transfers.first { it.offerId == firstOffer.id }
+        assertTrue(process.rounds.isNotEmpty())
+        // Signature now follows agreement, medical and league registration validation.
+        val agreed = com.example.engine.TransferEngine.agree(negotiatedState, firstOffer.id).first
+        val cleared = com.example.engine.TransferEngine.medical(agreed, firstOffer.id).first
+        val (transferredState, _) = com.example.engine.TransferEngine.register(cleared, firstOffer.id)
+        assertEquals(firstOffer.clubId, transferredState.contract.clubId)
+        assertEquals(process.terms.weeklyWageEur, transferredState.contract.weeklyWageEur)
         assertTrue(transferredState.transferHistory.size >= 2)
         assertTrue(transferredState.marketValueHistory.size >= 2)
     }

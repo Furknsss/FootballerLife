@@ -36,7 +36,8 @@ enum class StartingStatus(val labelTr: String) {
 }
 
 enum class GraphicsQuality(val labelTr: String, val particleCount: Int) {
-    HIGH("Yüksek (60 FPS + Efektler)", 36),
+    ULTRA("Ultra", 48),
+    HIGH("Yüksek", 36),
     BALANCED("Dengeli", 18),
     PERFORMANCE("Performans", 6)
 }
@@ -304,7 +305,8 @@ data class ChatMessage(
     val dayIndex: Int,
     val timeLabel: String,
     val emotionTag: String = "Doğal",
-    val impactSummary: String? = null
+    val impactSummary: String? = null,
+    val dialogueSource: String = "LOCAL"
 )
 
 @JsonClass(generateAdapter = true)
@@ -618,7 +620,8 @@ data class PhoneCallRecord(
     val topic: String,
     val transcript: String,
     val options: List<String> = emptyList(),
-    val completed: Boolean = false
+    val completed: Boolean = false,
+    val linkedTaskId: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -667,7 +670,10 @@ data class CareerSaveState(
     val callRecords: List<PhoneCallRecord> = emptyList(),
     val instaDmThreads: List<InstaDmThread> = emptyList(),
     val phoneWallpaperId: String = "STADIUM_NIGHT",
-    val completedDailyTaskIds: List<String> = emptyList()
+    val completedDailyTaskIds: List<String> = emptyList(),
+    val livingWorld: LivingWorldState = LivingWorldState(),
+    /** Immutable data-set version captured when a career is created; existing saves default to null. */
+    val selectedDataPackKey: String? = null
 ) {
     val currentClub: Club
         get() = clubs.find { it.id == contract.clubId } ?: clubs.first()
@@ -679,41 +685,17 @@ data class CareerSaveState(
         get() = ((currentDayIndex - 1).coerceAtLeast(0) % 300) + 1
 
     val isTransferWindowOpen: Boolean
-        get() {
-            val d = seasonDayInCycle
-            // Days 1..30: Yaz Transfer Dönemi (Ağustos - 10 Eylül)
-            // Days 140..169: Ocak Ara Transfer Dönemi (1 Ocak - 30 Ocak)
-            // Days 260..300: Sezon Sonu Transfer Dönemi (Mayıs)
-            return d in 1..30 || d in 140..169 || d in 260..300
-        }
+        get() = com.example.engine.RegistrationEngine.isOpen(this, currentLeagueId)
 
     val transferWindowNameTr: String
-        get() {
-            val d = seasonDayInCycle
-            return when {
-                d in 1..30 -> "Yaz Transfer Dönemi"
-                d in 140..169 -> "Ocak Ara Transfer Dönemi"
-                d in 260..300 -> "Sezon Sonu Transfer Dönemi"
-                d in 31..139 -> "Transfer Dönemi Kapalı (Ocak Ara Transfer'e ${140 - d} Gün)"
-                else -> "Transfer Dönemi Kapalı (Yaz Dönemine ${260 - d} Gün)"
-            }
-        }
+        get() = if (isTransferWindowOpen) "Tescil dönemi açık • oyun takvimi" else "Tescil dönemi kapalı • oyun takvimi"
 
     val transferWindowDaysRemaining: Int
-        get() {
-            val d = seasonDayInCycle
-            return when {
-                d in 1..30 -> 31 - d
-                d in 140..169 -> 170 - d
-                d in 260..300 -> 301 - d
-                d in 31..139 -> 140 - d
-                else -> 260 - d
-            }
-        }
+        get() = com.example.engine.RegistrationEngine.daysToBoundary(this, currentLeagueId)
 
     val nextUnplayedUserFixture: LeagueFixture?
         get() = fixtures
-            .filter { !it.played && (it.homeClubId == contract.clubId || it.awayClubId == contract.clubId) }
+            .filter { !it.played && it.dayIndex >= currentDayIndex && (it.homeClubId == contract.clubId || it.awayClubId == contract.clubId) }
             .minByOrNull { it.dayIndex }
 
     val todayUserFixture: LeagueFixture?
@@ -741,3 +723,4 @@ data class CareerSaveState(
     val totalUnreadPhoneItems: Int
         get() = totalUnreadMessages + totalUnreadInstaDms + totalPendingCalls
 }
+

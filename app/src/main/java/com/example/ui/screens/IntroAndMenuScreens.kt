@@ -673,7 +673,14 @@ fun SettingsMenuScreen(
     onToggleHaptics: (Boolean) -> Unit,
     onSelectGraphics: (GraphicsQuality) -> Unit,
     onToggleSkipIntro: (Boolean) -> Unit,
-    onSaveAccountName: (String) -> Unit
+    onSaveAccountName: (String) -> Unit,
+    onSelectFrameRate: (Int) -> Unit = {},
+    onConnectDialogue: (String, String) -> Unit = { _, _ -> },
+    installedDataPacks: List<com.example.datapack.InstalledDataPackEntity> = emptyList(),
+    selectedDataPackId: String? = null,
+    dataPackImportReport: com.example.datapack.DataPackImportReport? = null,
+    onRequestDataPackImport: () -> Unit = {},
+    onSelectDataPack: (String?) -> Unit = {}
 ) {
     var profileInput by remember(settings.accountDisplayName) {
         mutableStateOf(settings.accountDisplayName)
@@ -711,6 +718,16 @@ fun SettingsMenuScreen(
         }
 
         item {
+            DataPackSettingsSection(
+                installed = installedDataPacks,
+                selectedPackKey = selectedDataPackId,
+                latestReport = dataPackImportReport,
+                onImport = onRequestDataPackImport,
+                onSelect = onSelectDataPack
+            )
+        }
+
+        item {
             Surface(
                 color = DeepStadiumGreen,
                 shape = RoundedCornerShape(16.dp),
@@ -735,7 +752,9 @@ fun SettingsMenuScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("GRAFİK VE 60 FPS PERFORMANS PROFİLİ", style = MaterialTheme.typography.labelLarge, color = ChampionshipGold)
+                    Text("GRAFİK KALİTESİ", style = MaterialTheme.typography.labelLarge, color = ChampionshipGold)
+                    DialogueConnectionSettings(onConnectDialogue)
+                    FrameRateSettings(settings.targetFrameRate, onSelectFrameRate)
                     GraphicsQuality.entries.forEach { quality ->
                         val selected = settings.graphicsQuality == quality
                         Surface(
@@ -828,3 +847,4 @@ private fun SettingToggleRow(
         )
     }
 }
+

@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "packId": "tff-super-lig-2026-27-20261114-sample",
+    "season": "2026/27",
+    "snapshotDate": "2026-11-14",
+    "source": "Türkiye Futbol Federasyonu, 2026-2027 Trendyol Süper Lig fikstür listesi; Galatasaray A.Ş. - Arca Çorum FK karşılaşması. https://www.tff.org/Default.aspx?macId=283594&pageId=198",
+    "version": "1.0.0",
+    "checksum": "00c6ba73eb3a91e44f033d44fb784a8b3640cdb617f671ec7f249d86ceaef3ad"
+  },
+  "records": [
+    {
+      "module": "Leagues",
+      "internalId": "tff-league-tr-superlig",
+      "parentInternalId": null,
+      "source": "TFF 2026-2027 Süper Lig resmi fikstür sayfası",
+      "validatedAt": "2026-11-14",
+      "missingValues": [],
+      "data": {
+        "name": "Trendyol Süper Lig Adnan Süvari Sezonu",
+        "country": "Türkiye",
+        "season": "2026/27"
+      }
+    },
+    {
+      "module": "Clubs",
+      "internalId": "tff-club-galatasaray",
+      "parentInternalId": "tff-league-tr-superlig",
+      "source": "TFF 2026-2027 Süper Lig 1. hafta fikstürü",
+      "validatedAt": "2026-11-14",
+      "missingValues": [
+        "crest",
+        "fullSquad",
+        "stadiumMetadata",
+        "financialData"
+      ],
+      "data": {
+        "name": "GALATASARAY A.Ş.",
+        "leagueInternalId": "tff-league-tr-superlig",
+        "country": "Türkiye"
+      }
+    },
+    {
+      "module": "Clubs",
+      "internalId": "tff-club-arca-corum",
+      "parentInternalId": "tff-league-tr-superlig",
+      "source": "TFF 2026-2027 Süper Lig 1. hafta fikstürü",
+      "validatedAt": "2026-11-14",
+      "missingValues": [
+        "crest",
+        "fullSquad",
+        "stadiumMetadata",
+        "financialData"
+      ],
+      "data": {
+        "name": "ARCA ÇORUM FK",
+        "leagueInternalId": "tff-league-tr-superlig",
+        "country": "Türkiye"
+      }
+    }
+  ],
+  "mediaAssets": [],
+  "externalIds": []
+}
+
