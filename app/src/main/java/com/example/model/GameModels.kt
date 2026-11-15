@@ -671,7 +671,9 @@ data class CareerSaveState(
     val instaDmThreads: List<InstaDmThread> = emptyList(),
     val phoneWallpaperId: String = "STADIUM_NIGHT",
     val completedDailyTaskIds: List<String> = emptyList(),
-    val livingWorld: LivingWorldState = LivingWorldState()
+    val livingWorld: LivingWorldState = LivingWorldState(),
+    /** Immutable data-set version captured when a career is created; existing saves default to null. */
+    val selectedDataPackKey: String? = null
 ) {
     val currentClub: Club
         get() = clubs.find { it.id == contract.clubId } ?: clubs.first()
@@ -721,3 +723,4 @@ data class CareerSaveState(
     val totalUnreadPhoneItems: Int
         get() = totalUnreadMessages + totalUnreadInstaDms + totalPendingCalls
 }
+

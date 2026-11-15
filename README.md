@@ -66,3 +66,5 @@ cevap korunur. Model çıktısı hiçbir ekonomik veya kariyer değişikliğini 
 - `docs/IMPLEMENTATION_STATUS.md`: doğrulanan kapsam ve gerçek sınırlamalar.
 - `docs/CONTINUATION.md`: sonraki geliştirme turu için somut işler.
 - `docs/SCENE_ASSETS.md`: özgün görseller ve üretim istemleri.
+- `docs/DATA_PACKS.md`: JSON/CSV/ZIP şeması, doğrulama ve 2026/27 örnek paket kapsamı.
+

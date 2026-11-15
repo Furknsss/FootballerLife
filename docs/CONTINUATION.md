@@ -38,6 +38,13 @@ Ana yönergenin bütün AAA sunum ve futbol dünyası kapsamının tamamlandığ
 11. Performans: fiziksel 60/90/120/144 Hz cihazlarda kare süreleri, sıcaklık, pil ve bellek
     ölç. Özellikle sahne ilk görsel yüklemesini, kalabalık telefon içeriklerini ve uzun
     oturumları profille. Emülatör sonucunu fiziksel tablet 90 FPS garantisi diye sunma.
+12. DataPack dünya adaptörü: verified source packs from providers/federations must supply
+    complete gameplay fields before imported leagues/clubs/players can replace the current
+    `WorldDataCatalog` in career setup. Implement pack-version selection in the picker,
+    record completeness/license/source audits, and map full squads/contracts without
+    manufacturing missing ratings or media. The 2026/27 fixture currently proves import
+    mechanics only (one TFF competition and two clubs); it is not world coverage.
 
 Her madde için önce mevcut testleri çalıştır; kod, kabul ölçütü ve gerçek test sonucunu
 birlikte kaydet. Çalışan modülü değiştirmeden yeni kapsamın durumunu açıkça belirt.
+

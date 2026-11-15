@@ -1,6 +1,7 @@
 package com.example.viewmodel
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,9 @@ import com.example.data.CareerSaveSummary
 import com.example.data.FootballLifeDatabase
 import com.example.data.SettingsRepository
 import com.example.data.UserSettings
+import com.example.datapack.DataPackImportReport
+import com.example.datapack.DataPackRepository
+import com.example.datapack.InstalledDataPackEntity
 import com.example.engine.LivingWorldEngine
 import com.example.engine.CinematicEngine
 import com.example.engine.MedicalEngine
@@ -98,7 +102,8 @@ data class CustomPlayerDraft(
 class FootballLifeViewModel(
     private val saveRepository: CareerSaveRepository,
     private val settingsRepository: SettingsRepository,
-    private val soundManager: SoundAndHapticsManager
+    private val soundManager: SoundAndHapticsManager,
+    private val dataPackRepository: DataPackRepository? = null
 ) : ViewModel() {
 
     private sealed interface PersistenceCommand {
@@ -172,6 +177,17 @@ class FootballLifeViewModel(
     private val _toastBanner = MutableStateFlow<String?>(null)
     val toastBanner: StateFlow<String?> = _toastBanner.asStateFlow()
 
+    private val _installedDataPacks = MutableStateFlow<List<InstalledDataPackEntity>>(emptyList())
+    val installedDataPacks: StateFlow<List<InstalledDataPackEntity>> = _installedDataPacks.asStateFlow()
+    private val _dataPackImportReport = MutableStateFlow<DataPackImportReport?>(null)
+    val dataPackImportReport: StateFlow<DataPackImportReport?> = _dataPackImportReport.asStateFlow()
+
+    init {
+        dataPackRepository?.let { repository ->
+            viewModelScope.launch { repository.installedPacks.collect { _installedDataPacks.value = it } }
+        }
+    }
+
     fun dismissToast() {
         _toastBanner.value = null
     }
@@ -179,6 +195,30 @@ class FootballLifeViewModel(
     fun showToast(message: String) {
         if (message.isNotBlank()) {
             _toastBanner.value = message
+        }
+    }
+
+    fun importDataPack(uri: Uri) {
+        val repository = dataPackRepository ?: run { showToast("DataPack veritabanı kullanılamıyor."); return }
+        viewModelScope.launch {
+            val report = runCatching { repository.importUri(uri) }.getOrElse { failure ->
+                DataPackImportReport(null, false, null, emptyList(), listOf(com.example.datapack.DataPackIssue(
+                    com.example.datapack.ImportSeverity.ERROR, "IMPORT_FAILED", "file", failure.message?.take(240) ?: "Paket içe aktarılamadı."
+                )))
+            }
+            _dataPackImportReport.value = report
+            showToast(if (report.accepted) "DataPack doğrulandı ve ${report.importedAt?.take(10) ?: "yerel dünyaya"} kuruldu." else "DataPack kurulmadı: ${report.errorCount} hata.")
+        }
+    }
+
+    fun selectDataPackForNewCareers(packId: String?) {
+        if (packId != null && installedDataPacks.value.none { it.packKey == packId }) {
+            showToast("Seçilen DataPack kurulu değil.")
+            return
+        }
+        viewModelScope.launch {
+            settingsRepository.selectDataPackForNewCareers(packId)
+            showToast(if (packId == null) "Yeni kariyerlerde varsayılan oyun dünyası seçildi." else "DataPack $packId yeni kariyerler için seçildi.")
         }
     }
 
@@ -340,7 +380,7 @@ class FootballLifeViewModel(
         val preset = _selectedRealPreset.value
         val draft = _customDraft.value
 
-        val newState = if (preset != null) {
+        val newState = (if (preset != null) {
             CareerEngine.createNewCareerFromRealPreset(
                 slotId = slotId,
                 preset = preset,
@@ -368,7 +408,7 @@ class FootballLifeViewModel(
                 selectedLeagueId = leagueId,
                 selectedClubId = clubId
             )
-        }
+        }).copy(selectedDataPackKey = userSettings.value.selectedDataPackKey)
 
         _activeCareer.value = newState
         _liveMatchState.value = null
@@ -924,7 +964,10 @@ class FootballLifeViewModel(
             val saveRepo = CareerSaveRepository(db.careerSaveDao())
             val settingsRepo = SettingsRepository(appContext)
             val soundMgr = SoundAndHapticsManager(appContext)
-            return FootballLifeViewModel(saveRepo, settingsRepo, soundMgr) as T
+            val worldDataDb = com.example.datapack.WorldDataDatabase.getInstance(appContext)
+            val dataPackRepo = DataPackRepository(appContext.contentResolver, worldDataDb, appContext.filesDir)
+            return FootballLifeViewModel(saveRepo, settingsRepo, soundMgr, dataPackRepo) as T
         }
     }
 }
+

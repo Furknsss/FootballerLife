@@ -96,9 +96,12 @@ saha migrasyon matrisi henüz oluşturulmamıştır.
 
 ## 10. Gerçekten çalıştırılan testler
 
-- 30 JVM/Robolectric testi: mevcut kariyer testleri, takvim, görev, hafıza, tescil,
-  pazarlık sınırları, karar tekrarları, sahne devamı, Room/yedek kurtarma ve bütünleşik
-  antrenman → görüşme → maç → sakatlık → tedavi → transfer → yeniden yükleme akışı.
+- Son DataPack değişikliğiyle 38 JVM/Robolectric testi geçti, hata yok. Buna JSON/CSV/ZIP
+  parse/bozulma ve ID doğrulaması, zorunlu alan/missing-rate raporu, örnek TFF paketinin
+  Room'a kurulması, iki sürümün yan yana saklanması ve kariyer Room kaydının korunması dahildir.
+- Önceki Living World tesliminde altı sahne ve gerçek Activity/ViewModel/Room kariyer
+  akışı için 8 Android emülatör testi ile 6 Node HTTP testi de geçmişti. Bu son DataPack
+  eklemesinden sonra bunlar yeniden çalıştırılmadı.
 - 8 Android emülatör testi: altı temel sahne, gerçek MainActivity/ViewModel/Room akışı
   ve uygulama bağlamı. Metin girişi, kaydırma, karar, görev kapatma ve ödeme kontrolleri.
 - 6 Node sunucu testi: imzalı oturum/sona erme, yetkilendirme, kota, yapılandırma yokluğu,
@@ -139,8 +142,10 @@ bir performans ölçümü üretmedi; sayısal performans sonucu uydurulmamışt�
 AAA karakter animasyonu ve bütün sahne koreografileri; canlı Gemini dağıtımı; kapsamlı
 federasyon/kiralık/ön sözleşme kuralları; tüm NPC hedef/sözlerinin otomatik takibi; gelişmiş
 sağlık aşamaları; sezon/milli takım/ödül yönetimi; fiziksel cihaz performans profili.
-DataPack indirilmedi; dış kimlik ve kaynak tarihi alanları gelecekteki entegrasyon için
-ayrılmıştır. Yeni veri paketi mevcut kariyere kendiliğinden uygulanmaz.
+Tam dünya/oyuncu/medya verisi ve sağlayıcı entegrasyonu tamamlanmadı. Doğrulanmış TFF
+örnek paketinde yalnızca 1 lig ve fikstürde adı geçen 2 kulüp vardır. Yeni kariyer seçilen
+`packId@version` değerini saklar; playable kariyer lig/kulüp üreticisi henüz imported
+records yerine legacy `WorldDataCatalog` kullanır. Bu veri adaptörü sonraki kapsamdır.
 
 ## 15. Devam dosyası ve teknik referanslar
 
@@ -152,3 +157,18 @@ Uygulanan platform yaklaşımının referansları:
 [Android adaptif yenileme](https://developer.android.com/develop/ui/views/animations/adaptive-refresh-rate),
 [Gemini generateContent](https://ai.google.dev/api/generate-content),
 [Gemini yapılandırılmış çıktı](https://ai.google.dev/gemini-api/docs/structured-output).
+
+## 16. World DataPack altyapısı (15 Kasım 2026)
+
+Kariyer DB'den ayrı `football_life_world_data.db` Room veritabanı, 12 modül şeması, stable
+internal IDs, provider external-ID eşlemeleri, checksum/provenance alanları, JSON/CSV/ZIP
+import doğrulaması, güvenli ZIP açma, ID tabanlı medya dosyası saklama ve rapor ekranı
+eklendi. Android belge seçici JSON/CSV/ZIP alır. Android yeni paketleri `packId@version`
+anahtarıyla ayrı saklar ve bundan sonra başlayacak kariyere seçebilir. Mevcut kariyerlerin
+otomatik güncellenmesi yoktur.
+
+Gerçek fixture: [TFF 2026-2027 Süper Lig fikstür listesi](https://www.tff.org/Default.aspx?macId=283594&pageId=198).
+Oyuncu, değerleme, kadro, logo veya portre fixture'a eklenmedi; veri kapsamı bilerek küçük
+tutuldu. JSON ve ZIP örnekleri `data-packs/examples/` altındadır. Şema ve checksum
+sözleşmesi `docs/DATA_PACKS.md` içindedir.
+

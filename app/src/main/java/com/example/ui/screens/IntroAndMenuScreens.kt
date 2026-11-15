@@ -675,7 +675,12 @@ fun SettingsMenuScreen(
     onToggleSkipIntro: (Boolean) -> Unit,
     onSaveAccountName: (String) -> Unit,
     onSelectFrameRate: (Int) -> Unit = {},
-    onConnectDialogue: (String, String) -> Unit = { _, _ -> }
+    onConnectDialogue: (String, String) -> Unit = { _, _ -> },
+    installedDataPacks: List<com.example.datapack.InstalledDataPackEntity> = emptyList(),
+    selectedDataPackId: String? = null,
+    dataPackImportReport: com.example.datapack.DataPackImportReport? = null,
+    onRequestDataPackImport: () -> Unit = {},
+    onSelectDataPack: (String?) -> Unit = {}
 ) {
     var profileInput by remember(settings.accountDisplayName) {
         mutableStateOf(settings.accountDisplayName)
@@ -710,6 +715,16 @@ fun SettingsMenuScreen(
                     )
                 }
             }
+        }
+
+        item {
+            DataPackSettingsSection(
+                installed = installedDataPacks,
+                selectedPackKey = selectedDataPackId,
+                latestReport = dataPackImportReport,
+                onImport = onRequestDataPackImport,
+                onSelect = onSelectDataPack
+            )
         }
 
         item {
@@ -832,3 +847,4 @@ private fun SettingToggleRow(
         )
     }
 }
+

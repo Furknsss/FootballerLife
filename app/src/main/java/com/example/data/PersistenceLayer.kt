@@ -38,7 +38,8 @@ data class UserSettings(
     val skipIntroAnimation: Boolean = false,
     val lastActiveSlotId: Int = 1,
     val accountDisplayName: String = "Misafir Oyuncu (Yerel Kariyer)",
-    val targetFrameRate: Int = 0
+    val targetFrameRate: Int = 0,
+    val selectedDataPackKey: String? = null
 )
 
 class SettingsRepository(private val context: Context) {
@@ -51,6 +52,7 @@ class SettingsRepository(private val context: Context) {
         val LAST_SLOT = intPreferencesKey("last_active_slot")
         val ACCOUNT_NAME = stringPreferencesKey("account_display_name")
         val FRAME_RATE = intPreferencesKey("target_frame_rate")
+        val SELECTED_DATA_PACK = stringPreferencesKey("selected_data_pack_key")
     }
 
     val settingsFlow: Flow<UserSettings> = context.settingsDataStore.data.map { prefs ->
@@ -64,7 +66,8 @@ class SettingsRepository(private val context: Context) {
             skipIntroAnimation = prefs[Keys.SKIP_INTRO] ?: false,
             lastActiveSlotId = prefs[Keys.LAST_SLOT] ?: 1,
             accountDisplayName = prefs[Keys.ACCOUNT_NAME] ?: "Misafir Oyuncu (Yerel Kariyer)",
-            targetFrameRate = prefs[Keys.FRAME_RATE] ?: 0
+            targetFrameRate = prefs[Keys.FRAME_RATE] ?: 0,
+            selectedDataPackKey = prefs[Keys.SELECTED_DATA_PACK]
         )
     }
 
@@ -87,6 +90,12 @@ class SettingsRepository(private val context: Context) {
     suspend fun updateTargetFrameRate(rate: Int) {
         require(rate == 0 || rate in 30..240)
         context.settingsDataStore.edit { it[Keys.FRAME_RATE] = rate }
+    }
+
+    suspend fun selectDataPackForNewCareers(packId: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (packId == null) prefs.remove(Keys.SELECTED_DATA_PACK) else prefs[Keys.SELECTED_DATA_PACK] = packId
+        }
     }
 
     suspend fun updateSkipIntro(skip: Boolean) {
@@ -269,3 +278,4 @@ class CareerSaveRepository(private val dao: CareerSaveDao) {
         return com.example.engine.LivingWorldEngine.migrate(com.example.engine.CareerEngine.ensureVersion3EnrichedState(state))
     }
 }
+

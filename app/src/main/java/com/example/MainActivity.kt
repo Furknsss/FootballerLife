@@ -2,6 +2,8 @@ package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -127,6 +129,11 @@ fun FootballLifeApp(
     val activeCareer by viewModel.activeCareer.collectAsStateWithLifecycle()
     val liveMatch by viewModel.liveMatchState.collectAsStateWithLifecycle()
     val toastBanner by viewModel.toastBanner.collectAsStateWithLifecycle()
+    val installedDataPacks by viewModel.installedDataPacks.collectAsStateWithLifecycle()
+    val dataPackImportReport by viewModel.dataPackImportReport.collectAsStateWithLifecycle()
+    val dataPackPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.importDataPack(uri)
+    }
 
     BackHandler(enabled = rootScreen != RootScreen.MAIN_MENU && rootScreen != RootScreen.INTRO_SPLASH) {
         viewModel.handleBackNavigation()
@@ -184,7 +191,12 @@ fun FootballLifeApp(
                     onToggleSkipIntro = { viewModel.setSkipIntro(it) },
                     onSaveAccountName = { viewModel.setLocalAccountName(it) },
                     onSelectFrameRate = viewModel::setTargetFrameRate,
-                    onConnectDialogue = viewModel::configureDialogueSession
+                    onConnectDialogue = viewModel::configureDialogueSession,
+                    installedDataPacks = installedDataPacks,
+                    selectedDataPackId = userSettings.selectedDataPackKey,
+                    dataPackImportReport = dataPackImportReport,
+                    onRequestDataPackImport = { dataPackPicker.launch(arrayOf("application/json", "text/csv", "application/zip", "application/x-zip-compressed")) },
+                    onSelectDataPack = viewModel::selectDataPackForNewCareers
                 )
             }
 
@@ -544,3 +556,4 @@ fun FootballLifeApp(
         }
     }
 }
+
