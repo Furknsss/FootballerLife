@@ -18,6 +18,9 @@ class DataPackParserTest {
     private val sampleBytes by lazy {
         javaClass.classLoader!!.getResourceAsStream("datapacks/tff-super-lig-2026-27-sample.json")!!.use { it.readBytes() }
     }
+    private val sampleZipBytes by lazy {
+        javaClass.classLoader!!.getResourceAsStream("datapacks/tff-super-lig-2026-27-sample.zip")!!.use { it.readBytes() }
+    }
     private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
     private val documentAdapter = moshi.adapter(DataPackDocument::class.java)
 
@@ -82,6 +85,9 @@ class DataPackParserTest {
     }
 
     @Test fun zipPackageReadsItsManifestAndRejectsPathTraversal() {
+        val shippedZip = DataPackParser.parse("tff-sample.zip", sampleZipBytes)
+        assertTrue(shippedZip.report.issues.joinToString { it.message }, shippedZip.report.accepted)
+        assertEquals(3, shippedZip.document!!.records.size)
         val validZip = zipOf("datapack.json" to sampleBytes)
         val valid = DataPackParser.parse("sample.zip", validZip)
         assertTrue(valid.report.issues.joinToString { it.message }, valid.report.accepted)
