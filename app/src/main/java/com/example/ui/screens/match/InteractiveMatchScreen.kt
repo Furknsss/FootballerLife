@@ -409,7 +409,7 @@ fun InteractiveMatchScreen(
                 }
 
                 // Goal Celebration Broadcast Overlay
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visible = liveMatch.goalScorerBanner != null,
                     enter = fadeIn(),
                     exit = fadeOut(),

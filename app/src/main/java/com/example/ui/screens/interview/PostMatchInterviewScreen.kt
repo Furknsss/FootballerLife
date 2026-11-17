@@ -1405,7 +1405,7 @@ private fun SideBySideAnswerBoxesRow(
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Stretch
+        verticalAlignment = Alignment.CenterVertically
     ) {
         options.take(3).forEachIndexed { idx, option ->
             val (accentCol, badgeBg, iconVec) = when (option.tone) {
