@@ -169,7 +169,7 @@ object TransferMarketEngine {
         // 1. Kulübün Bonservis Talebi ve Anlaşma Olasılığı
         // Alt lig kulüpleri sözleşmesi süren oyuncularını ucuza bırakmaz
         val contractBuyoutDemand = (player.marketValueEur * LeagueDifficultyCalculator.getProfileForTier(currentTier).contractBuyoutMultiplier).toLong()
-        val clubCanAfford = interestedClub.transferBudgetEur >= contractBuyoutDemand / 2
+        val clubCanAfford = interestedClub.budgetEur >= contractBuyoutDemand / 2
 
         if (!clubCanAfford && interestedClub.tier < currentTier) {
             // Talip kulübün bütçesi yetersiz, teklif masaya gelmeden iptal olur
@@ -192,7 +192,7 @@ object TransferMarketEngine {
         val promisedRole = when {
             player.overallRating >= interestedClub.teamStrength - 1 -> SquadRole.STARTER
             player.overallRating >= interestedClub.teamStrength - 5 -> SquadRole.ROTATION
-            else -> SquadRole.SQUAD_DEPTH
+            else -> SquadRole.RESERVE
         }
 
         val contractYears = when {

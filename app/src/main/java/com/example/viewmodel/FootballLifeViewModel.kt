@@ -25,6 +25,7 @@ import com.example.model.GraphicsQuality
 import com.example.model.LifestylePurchaseItem
 import com.example.model.LifestyleVenueAction
 import com.example.model.PlayerAppearance
+import com.example.model.PlayerAttributes
 import com.example.model.Position
 import com.example.model.PreferredFoot
 import com.example.model.TransferOffer
