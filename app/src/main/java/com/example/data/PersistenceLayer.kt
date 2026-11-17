@@ -36,7 +36,10 @@ data class UserSettings(
     val graphicsQuality: GraphicsQuality = GraphicsQuality.HIGH,
     val skipIntroAnimation: Boolean = false,
     val lastActiveSlotId: Int = 1,
-    val accountDisplayName: String = "Misafir Oyuncu (Yerel Kariyer)"
+    val accountDisplayName: String = "Misafir Oyuncu (Yerel Kariyer)",
+    val geminiApiKey: String = "",
+    val geminiModel: String = "gemini-2.5-flash",
+    val aiDialoguesEnabled: Boolean = true
 )
 
 class SettingsRepository(private val context: Context) {
@@ -48,6 +51,9 @@ class SettingsRepository(private val context: Context) {
         val SKIP_INTRO = booleanPreferencesKey("skip_intro")
         val LAST_SLOT = intPreferencesKey("last_active_slot")
         val ACCOUNT_NAME = stringPreferencesKey("account_display_name")
+        val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
+        val GEMINI_MODEL = stringPreferencesKey("gemini_model")
+        val AI_ENABLED = booleanPreferencesKey("ai_dialogues_enabled")
     }
 
     val settingsFlow: Flow<UserSettings> = context.settingsDataStore.data.map { prefs ->
@@ -60,7 +66,10 @@ class SettingsRepository(private val context: Context) {
             graphicsQuality = gfx,
             skipIntroAnimation = prefs[Keys.SKIP_INTRO] ?: false,
             lastActiveSlotId = prefs[Keys.LAST_SLOT] ?: 1,
-            accountDisplayName = prefs[Keys.ACCOUNT_NAME] ?: "Misafir Oyuncu (Yerel Kariyer)"
+            accountDisplayName = prefs[Keys.ACCOUNT_NAME] ?: "Misafir Oyuncu (Yerel Kariyer)",
+            geminiApiKey = prefs[Keys.GEMINI_API_KEY] ?: "",
+            geminiModel = prefs[Keys.GEMINI_MODEL] ?: "gemini-2.5-flash",
+            aiDialoguesEnabled = prefs[Keys.AI_ENABLED] ?: true
         )
     }
 
@@ -90,6 +99,18 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun updateAccountName(name: String) {
         context.settingsDataStore.edit { it[Keys.ACCOUNT_NAME] = name }
+    }
+
+    suspend fun updateGeminiApiKey(key: String) {
+        context.settingsDataStore.edit { it[Keys.GEMINI_API_KEY] = key.trim() }
+    }
+
+    suspend fun updateGeminiModel(model: String) {
+        context.settingsDataStore.edit { it[Keys.GEMINI_MODEL] = model.trim() }
+    }
+
+    suspend fun updateAiDialoguesEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.AI_ENABLED] = enabled }
     }
 }
 

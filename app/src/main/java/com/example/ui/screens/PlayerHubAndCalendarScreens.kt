@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Groups
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.SportsSoccer
@@ -122,6 +124,9 @@ fun PlayerHubScreen(
     onOpenProfileCard: () -> Unit,
     onOpenPhone: () -> Unit,
     onOpenLeague: () -> Unit = {},
+    onOpenCoachMeeting: () -> Unit = {},
+    onOpenVoiceCall: (String?) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     onPlayNextMatch: () -> Unit,
     onAdvanceNextDay: () -> Unit,
     onAdvanceToMatchDay: () -> Unit,
@@ -281,6 +286,25 @@ fun PlayerHubScreen(
                                             contentDescription = "Saati İlerle",
                                             tint = Color(0xFF04150D),
                                             modifier = Modifier.size(15.dp)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    color = BackgroundPrimary.copy(alpha = 0.92f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, StrokePremiumStrong),
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clickable { onOpenSettings() }
+                                        .testTag("btn_hub_open_settings")
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Settings,
+                                            contentDescription = "Ayarlar & Gemini AI",
+                                            tint = AccentBright,
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
@@ -856,6 +880,36 @@ fun PlayerHubScreen(
                         badgeColor = if (career.transferOffers.isNotEmpty()) GoldPrimary else TextPrimary,
                         onClick = onOpenTransfers,
                         testTag = "btn_open_transfers"
+                    )
+
+                    // 2b. Teknik Direktör Odası (Canlı AI Görüşme & Kadro/Taktik Tartışması)
+                    HubNotificationRow(
+                        icon = Icons.Default.Groups,
+                        timeTag = "16:30",
+                        title = "Teknik Direktör Odası • ${club.managerName}",
+                        subtitle = "İlk 11 talebi, taktik sorumluluk veya hoca ile birebir serbest diyalog başlat.",
+                        badgeText = "ODAYA GİT",
+                        badgeColor = AccentBright,
+                        onClick = onOpenCoachMeeting,
+                        testTag = "btn_open_coach_meeting"
+                    )
+
+                    // 2c. Canlı Sesli Telefon Görüşmesi (Menajer, Aile, Başkan, Hoca, Basın)
+                    val pendingCall = career.callRecords.firstOrNull { !it.completed }
+                    HubNotificationRow(
+                        icon = Icons.Default.Call,
+                        timeTag = "18:00",
+                        title = if (pendingCall != null) {
+                            "Gelen Çağrı: ${pendingCall.callerName} (${pendingCall.callerRole})"
+                        } else {
+                            "Canlı Telefon Görüşmesi • Menajer, Aile, Başkan & Hoca"
+                        },
+                        subtitle = pendingCall?.topic
+                            ?: "Menajerin, ailen, kulüp başkanı veya teknik direktör ile sesli konuş.",
+                        badgeText = if (pendingCall != null) "YANITLA" else "SESLİ ARA",
+                        badgeColor = if (pendingCall != null) GoldPrimary else AccentBright,
+                        onClick = { onOpenVoiceCall(pendingCall?.id) },
+                        testTag = "btn_open_voice_call"
                     )
 
                     // 3. Sosyal Yaşam & Transfermarkt Hızlı Erişim Satırı

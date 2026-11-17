@@ -673,158 +673,26 @@ fun SettingsMenuScreen(
     onToggleHaptics: (Boolean) -> Unit,
     onSelectGraphics: (GraphicsQuality) -> Unit,
     onToggleSkipIntro: (Boolean) -> Unit,
-    onSaveAccountName: (String) -> Unit
+    onSaveAccountName: (String) -> Unit,
+    onSaveGeminiApiKey: (String) -> Unit = {},
+    onSelectGeminiModel: (String) -> Unit = {},
+    onToggleAiDialogues: (Boolean) -> Unit = {},
+    externalConnectionStatus: String? = null,
+    onTestGeminiConnection: ((String, String) -> Unit)? = null
 ) {
-    var profileInput by remember(settings.accountDisplayName) {
-        mutableStateOf(settings.accountDisplayName)
-    }
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DarkPitchSurface)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack, modifier = Modifier.testTag("btn_back_from_settings")) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Geri", tint = PrimaryWhite)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "OYUN VE SİSTEM AYARLARI",
-                        fontFamily = TekoFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 32.sp,
-                        color = PrimaryWhite
-                    )
-                    Text(
-                        text = "Ses, grafik performansı, titreşim ve yerel hesap yönetimi",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = SecondaryMintGray
-                    )
-                }
-            }
-        }
-
-        item {
-            Surface(
-                color = DeepStadiumGreen,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, CrispWhiteBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("SES VE HAPTİK GERİ BİLDİRİM", style = MaterialTheme.typography.labelLarge, color = ChampionshipGold)
-                    SettingToggleRow("Stadyum Atmosferi ve Ambiyans", settings.stadiumAmbienceEnabled, onToggleAmbience)
-                    SettingToggleRow("Maç Düdüğü, Top ve Menü Ses Efektleri", settings.soundEffectsEnabled, onToggleSfx)
-                    SettingToggleRow("Haptik Titreşim Geri Bildirimi", settings.hapticsEnabled, onToggleHaptics)
-                    SettingToggleRow("Açılış Stadyum Animasyonunu Otomatik Geç", settings.skipIntroAnimation, onToggleSkipIntro)
-                }
-            }
-        }
-
-        item {
-            Surface(
-                color = DeepStadiumGreen,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, CrispWhiteBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("GRAFİK VE 60 FPS PERFORMANS PROFİLİ", style = MaterialTheme.typography.labelLarge, color = ChampionshipGold)
-                    GraphicsQuality.entries.forEach { quality ->
-                        val selected = settings.graphicsQuality == quality
-                        Surface(
-                            color = if (selected) DarkTurfGreen else DarkPitchSurface,
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(
-                                1.dp,
-                                if (selected) VibrantFootballGreen else CrispWhiteBorder
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelectGraphics(quality) }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(quality.labelTr, style = MaterialTheme.typography.bodyMedium, color = PrimaryWhite)
-                                if (selected) {
-                                    Text("AKTİF", style = MaterialTheme.typography.labelMedium, color = BrightNeonGreen)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            Surface(
-                color = DeepStadiumGreen,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, CrispWhiteBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("KARİYER HESAP KİMLİĞİ (ÇEVRİMDIŞI & YEREL MOD)", style = MaterialTheme.typography.labelLarge, color = ChampionshipGold)
-                    Text(
-                        text = "Çevrimdışı misafir modu ve yerel Room veritabanı tam kapasiteyle aktiftir.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = SecondaryMintGray
-                    )
-                    OutlinedTextField(
-                        value = profileInput,
-                        onValueChange = { profileInput = it },
-                        label = { Text("Oyuncu / Hesap Görünür Adı") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Button(
-                        onClick = { onSaveAccountName(profileInput) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = VibrantFootballGreen,
-                            contentColor = DarkPitchSurface
-                        )
-                    ) {
-                        Text("PROFİL ADINI KAYDET", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingToggleRow(
-    title: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyMedium,
-            color = PrimaryWhite,
-            modifier = Modifier.weight(1f)
-        )
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = DarkPitchSurface,
-                checkedTrackColor = VibrantFootballGreen
-            )
-        )
-    }
+    com.example.ui.screens.settings.SettingsScreen(
+        settings = settings,
+        onBack = onBack,
+        onSaveGeminiApiKey = onSaveGeminiApiKey,
+        onSelectGeminiModel = onSelectGeminiModel,
+        onToggleAiDialogues = onToggleAiDialogues,
+        onToggleAmbience = onToggleAmbience,
+        onToggleSfx = onToggleSfx,
+        onToggleHaptics = onToggleHaptics,
+        onSelectGraphics = onSelectGraphics,
+        onToggleSkipIntro = onToggleSkipIntro,
+        onSaveAccountName = onSaveAccountName,
+        externalConnectionStatus = externalConnectionStatus,
+        onTestGeminiConnection = onTestGeminiConnection
+    )
 }

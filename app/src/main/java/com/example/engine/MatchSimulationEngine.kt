@@ -1,5 +1,9 @@
 package com.example.engine
 
+import com.example.engine.match.GestureActionKind
+import com.example.engine.match.GestureTrajectoryInput
+import com.example.engine.match.PitchPoint
+import com.example.engine.match.TrajectoryAnalyzer
 import com.example.model.Club
 import com.example.model.CompletedMatchReport
 import com.example.model.LeagueFixture
@@ -37,7 +41,13 @@ data class PitchPlayerNode(
     val y: Float,
     val targetX: Float,
     val targetY: Float,
-    val hasBall: Boolean = false
+    val hasBall: Boolean = false,
+    val runTargetX: Float = targetX,
+    val runTargetY: Float = targetY,
+    val isMakingRun: Boolean = false,
+    val isDivingOrSliding: Boolean = false,
+    val diveDirectionY: Float = 0f,
+    val roleTag: String = ""
 )
 
 data class PitchBallState(
@@ -46,7 +56,21 @@ data class PitchBallState(
     val targetX: Float = 50f,
     val targetY: Float = 50f,
     val speed: Float = 0.35f,
-    val isShotInFlight: Boolean = false
+    val isShotInFlight: Boolean = false,
+    val z: Float = 0f, // 0..60 ball height above pitch
+    val startX: Float = 50f,
+    val startY: Float = 50f,
+    val controlX: Float = 50f,
+    val controlY: Float = 50f,
+    val curveSpin: Float = 0f, // -45..+45 degrees
+    val peakHeightZ: Float = 0f,
+    val flightProgress: Float = 1f, // 0f..1f along Bezier curve
+    val flightStepPerTick: Float = 0.09f,
+    val trailPoints: List<PitchPoint> = emptyList(),
+    val secondStageTargetX: Float? = null,
+    val secondStageTargetY: Float? = null,
+    val secondStageControlX: Float? = null,
+    val secondStageControlY: Float? = null
 )
 
 data class TacticalDecisionOption(
@@ -57,8 +81,25 @@ data class TacticalDecisionOption(
     val keyAttributeValue: Int,
     val successProbabilityPct: Int,
     val riskLevel: String, // "Düşük Risk", "Dengeli", "Yüksek Risk / Yüksek Ödül"
-    val actionType: String // "FINESSE_SHOT", "POWER_SHOT", "THROUGH_PASS", "DRIBBLE_KEEPER", "TACKLE", "CROSS"
-)
+    val actionType: String, // "FINESSE_SHOT", "POWER_SHOT", "THROUGH_PASS", "DRIBBLE_KEEPER", "TACKLE", "CROSS"
+    val gestureInput: GestureTrajectoryInput? = null
+) {
+    companion object {
+        fun fromGesture(gesture: GestureTrajectoryInput): TacticalDecisionOption {
+            return TacticalDecisionOption(
+                id = "GESTURE_${gesture.inferredKind.name}",
+                title = gesture.inferredKind.labelTr,
+                subtitle = "Parmağınla çizilen falsolu rota",
+                keyAttributeLabel = gesture.inferredKind.labelTr,
+                keyAttributeValue = gesture.powerPct,
+                successProbabilityPct = 75,
+                riskLevel = "Canlı Çizim",
+                actionType = gesture.inferredKind.legacyActionType,
+                gestureInput = gesture
+            )
+        }
+    }
+}
 
 data class CriticalMomentContext(
     val id: String,
@@ -67,7 +108,14 @@ data class CriticalMomentContext(
     val situationDescription: String,
     val ballX: Float,
     val ballY: Float,
-    val options: List<TacticalDecisionOption>
+    val options: List<TacticalDecisionOption>,
+    val scenarioType: String = "ATTACK_OPEN_PLAY",
+    val isDefensive: Boolean = false,
+    val slowMoFactor: Float = 0.14f,
+    val windSpeedKmh: Int = 0,
+    val windDirectionDeg: Float = 0f,
+    val hintTextTr: String = "Parmağınla topun falsolu rotasını çiz: Kaleye şut, arkadaşına pas veya boşluğa çalım!",
+    val chainStep: Int = 1
 )
 
 data class LiveMatchUiState(
@@ -107,11 +155,17 @@ data class LiveMatchUiState(
     val cameraFocusY: Float = 50f,
     val cameraZoom: Float = 1.0f,
     val activeDecision: CriticalMomentContext? = null,
-    val latestBannerText: String = " Stadyumda son hazırlıklar tamamlandı!",
+    val latestBannerText: String = "Stadyumda son hazırlıklar tamamlandı!",
     val goalScorerBanner: String? = null,
     val commentaryFeed: List<MatchEventRecord> = emptyList(),
     val resolutionTicksRemaining: Int = 0,
-    val pendingReport: CompletedMatchReport? = null
+    val pendingReport: CompletedMatchReport? = null,
+    val resolutionOutcomeType: String = "",
+    val pendingGoalForHome: Boolean? = null,
+    val pendingGoalBannerText: String? = null,
+    val pendingChainedMoment: CriticalMomentContext? = null,
+    val lastGesturePreview: GestureTrajectoryInput? = null,
+    val crowdExcitementLevel: Float = 0.52f
 )
 
 class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
@@ -146,7 +200,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             players = nodes,
             ball = PitchBallState(50f, 50f, 50f, 50f),
             latestBannerText = if (userStarts) {
-                "İlk 11'de sahaya çıkıyorsun! Maç başlamaya hazır."
+                "İlk 11'de sahaya çıkıyorsun! Top sana geldiğinde parmağınla falsolu çizgi çekerek oyna."
             } else {
                 "Maça yedek kulübesinde başlıyorsun. Hoca ikinci yarıda seni oyuna alabilir."
             }
@@ -169,7 +223,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             cameraZoom = 1.0f,
             cameraFocusX = 50f,
             cameraFocusY = 50f,
-            latestBannerText = "1' — Karşılaşma başladı!",
+            latestBannerText = "1' — Karşılaşma başladı! Top sana geldiğinde çizerek şut, pas veya çalım yap.",
             commentaryFeed = listOf(kickOffEvent)
         )
     }
@@ -219,8 +273,46 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
     }
 
     /**
-     * Advances the 2D pitch simulation by one animation frame (approx 50ms).
-     * Moves players and ball smoothly, and advances match minute every 8 ticks.
+     * Skips minutes between playable moments until our player gets the ball (CRITICAL_DECISION),
+     * a goal celebration occurs, or half-time / full-time is reached.
+     */
+    fun skipToNextPlayableMoment(
+        state: LiveMatchUiState,
+        userPlayer: PlayerProfile
+    ): LiveMatchUiState {
+        if (state.phase != MatchPhase.LIVE_PLAY) return state
+        var current = state
+        var safety = 0
+        while (safety < 120) {
+            current = advanceMatchMinute(current.copy(subSecondTick = 0), userPlayer)
+            safety++
+            if (current.phase == MatchPhase.GOAL_CELEBRATION) {
+                current = current.copy(
+                    phase = MatchPhase.LIVE_PLAY,
+                    goalScorerBanner = null,
+                    resolutionTicksRemaining = 0,
+                    ball = current.ball.copy(
+                        x = 50f,
+                        y = 50f,
+                        targetX = 50f,
+                        targetY = 50f,
+                        z = 0f,
+                        isShotInFlight = false
+                    )
+                )
+                continue
+            }
+            if (current.phase != MatchPhase.LIVE_PLAY) {
+                break
+            }
+        }
+        return current
+    }
+
+    /**
+     * Advances the 2D pitch simulation by one animation frame.
+     * During ACTION_RESOLUTION, animates the ball along the curved Bezier path with 3D height,
+     * goalkeeper dives, teammate one-touch finishes, and transitions to GOAL_CELEBRATION or chained plays!
      */
     fun stepAnimationFrame(
         state: LiveMatchUiState,
@@ -230,9 +322,144 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             MatchPhase.PRE_MATCH, MatchPhase.CRITICAL_DECISION, MatchPhase.HALF_TIME, MatchPhase.FULL_TIME -> {
                 return state
             }
-            MatchPhase.ACTION_RESOLUTION, MatchPhase.GOAL_CELEBRATION -> {
-                val movedPlayers = interpolatePlayers(state.players, stepFactor = 0.24f)
-                val movedBall = interpolateBall(state.ball, stepFactor = 0.28f)
+
+            MatchPhase.ACTION_RESOLUTION -> {
+                val movedPlayers = interpolatePlayers(state.players, stepFactor = 0.25f)
+                val movedBall = stepBezierBallFlight(state.ball)
+                val remaining = state.resolutionTicksRemaining - 1
+
+                // Check if this is a 2-stage pass -> teammate shot play at the halfway tick
+                if (remaining == 8 && state.ball.secondStageTargetX != null && state.ball.secondStageTargetY != null) {
+                    val stage2StartX = movedBall.x
+                    val stage2StartY = movedBall.y
+                    val stage2EndX = state.ball.secondStageTargetX
+                    val stage2EndY = state.ball.secondStageTargetY
+                    val stage2CtrlX = state.ball.secondStageControlX ?: ((stage2StartX + stage2EndX) * 0.5f)
+                    val stage2CtrlY = state.ball.secondStageControlY ?: ((stage2StartY + stage2EndY) * 0.5f)
+
+                    // Animate opponent GK diving toward the teammate's shot corner
+                    val playersWithGkDive = movedPlayers.map { p ->
+                        if (p.position == Position.GK && p.isHome != state.userIsHome) {
+                            val diveY = if (stage2EndY < 50f) 41f else 59f
+                            p.copy(
+                                targetY = diveY,
+                                isDivingOrSliding = true,
+                                diveDirectionY = if (stage2EndY < 50f) -1f else 1f
+                            )
+                        } else {
+                            p
+                        }
+                    }
+
+                    val stage2Ball = movedBall.copy(
+                        startX = stage2StartX,
+                        startY = stage2StartY,
+                        controlX = stage2CtrlX,
+                        controlY = stage2CtrlY,
+                        targetX = stage2EndX,
+                        targetY = stage2EndY,
+                        flightProgress = 0f,
+                        flightStepPerTick = 0.14f,
+                        peakHeightZ = 26f,
+                        isShotInFlight = true,
+                        secondStageTargetX = null,
+                        secondStageTargetY = null
+                    )
+
+                    return state.copy(
+                        players = playersWithGkDive,
+                        ball = stage2Ball,
+                        cameraFocusX = (stage2StartX + stage2EndX) * 0.5f,
+                        cameraFocusY = (stage2StartY + stage2EndY) * 0.5f,
+                        resolutionTicksRemaining = remaining
+                    )
+                }
+
+                if (remaining > 0) {
+                    return state.copy(
+                        players = movedPlayers,
+                        ball = movedBall,
+                        cameraFocusX = movedBall.x.coerceIn(15f, 85f),
+                        cameraFocusY = movedBall.y.coerceIn(20f, 80f),
+                        resolutionTicksRemaining = remaining
+                    )
+                }
+
+                // Flight finished! Check if a pending goal now crosses the line into GOAL_CELEBRATION
+                if (state.pendingGoalForHome != null) {
+                    val goalHome = state.pendingGoalForHome
+                    val newHomeScore = state.homeScore + (if (goalHome) 1 else 0)
+                    val newAwayScore = state.awayScore + (if (!goalHome) 1 else 0)
+                    val formattedBanner = state.latestBannerText.replace(
+                        "(SCORE_PLACEHOLDER)",
+                        "($newHomeScore-$newAwayScore)"
+                    )
+                    val updatedFeed = state.commentaryFeed.mapIndexed { index, record ->
+                        if (index == 0) record.copy(description = formattedBanner) else record
+                    }
+                    return state.copy(
+                        phase = MatchPhase.GOAL_CELEBRATION,
+                        homeScore = newHomeScore,
+                        awayScore = newAwayScore,
+                        players = movedPlayers.map { it.copy(isDivingOrSliding = false, roleTag = "") },
+                        ball = movedBall.copy(z = 0f, flightProgress = 1f),
+                        latestBannerText = formattedBanner,
+                        goalScorerBanner = state.pendingGoalBannerText ?: "GOOOL!",
+                        commentaryFeed = updatedFeed,
+                        pendingGoalForHome = null,
+                        pendingGoalBannerText = null,
+                        crowdExcitementLevel = 1.0f,
+                        resolutionTicksRemaining = 15
+                    )
+                }
+
+                // Check if this action chains into a follow-up Playable Moment (e.g., after a dribble or 1-2 pass!)
+                val chained = state.pendingChainedMoment
+                if (chained != null) {
+                    val positionedPlayers = positionPlayersForScenario(
+                        players = movedPlayers,
+                        context = chained,
+                        userIsHome = state.userIsHome
+                    )
+                    return state.copy(
+                        phase = MatchPhase.CRITICAL_DECISION,
+                        players = positionedPlayers,
+                        ball = PitchBallState(
+                            x = chained.ballX,
+                            y = chained.ballY,
+                            targetX = chained.ballX,
+                            targetY = chained.ballY,
+                            startX = chained.ballX,
+                            startY = chained.ballY
+                        ),
+                        cameraFocusX = chained.ballX,
+                        cameraFocusY = chained.ballY,
+                        cameraZoom = 1.42f,
+                        activeDecision = chained,
+                        pendingChainedMoment = null,
+                        latestBannerText = "${state.minute}' — ZİNCİRLEME POZİSYON: ${chained.title}",
+                        crowdExcitementLevel = 0.88f,
+                        resolutionTicksRemaining = 0
+                    )
+                }
+
+                // Otherwise return smoothly to live play
+                return state.copy(
+                    phase = MatchPhase.LIVE_PLAY,
+                    players = movedPlayers.map { it.copy(isDivingOrSliding = false, isMakingRun = false, roleTag = "") },
+                    ball = movedBall.copy(isShotInFlight = false, z = 0f, trailPoints = emptyList()),
+                    cameraZoom = 1.0f,
+                    cameraFocusX = 50f,
+                    cameraFocusY = 50f,
+                    goalScorerBanner = null,
+                    crowdExcitementLevel = 0.55f,
+                    resolutionTicksRemaining = 0
+                )
+            }
+
+            MatchPhase.GOAL_CELEBRATION -> {
+                val movedPlayers = interpolatePlayers(state.players, stepFactor = 0.18f)
+                val movedBall = interpolateBall(state.ball, stepFactor = 0.22f)
                 val remaining = state.resolutionTicksRemaining - 1
                 if (remaining > 0) {
                     return state.copy(
@@ -243,28 +470,32 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 }
                 return state.copy(
                     phase = MatchPhase.LIVE_PLAY,
-                    players = movedPlayers,
-                    ball = movedBall,
+                    players = movedPlayers.map { it.copy(isDivingOrSliding = false, isMakingRun = false, roleTag = "") },
+                    ball = movedBall.copy(x = 50f, y = 50f, targetX = 50f, targetY = 50f, z = 0f, isShotInFlight = false, trailPoints = emptyList()),
                     cameraZoom = 1.0f,
                     cameraFocusX = 50f,
                     cameraFocusY = 50f,
                     goalScorerBanner = null,
+                    crowdExcitementLevel = 0.60f,
                     resolutionTicksRemaining = 0
                 )
             }
+
             MatchPhase.LIVE_PLAY -> {
-                val movedPlayers = interpolatePlayers(state.players, stepFactor = 0.18f)
-                val movedBall = interpolateBall(state.ball, stepFactor = 0.24f)
+                val movedPlayers = interpolatePlayers(state.players, stepFactor = 0.20f)
+                val movedBall = interpolateBall(state.ball, stepFactor = 0.26f)
                 val ticksPerMinute = when (state.speedMultiplier) {
-                    3 -> 3
-                    2 -> 5
-                    else -> 8
+                    3 -> 2
+                    2 -> 4
+                    else -> 7
                 }
                 val nextSubTick = state.subSecondTick + 1
                 if (nextSubTick < ticksPerMinute) {
                     return state.copy(
                         players = movedPlayers,
                         ball = movedBall,
+                        cameraFocusX = (50f + (movedBall.x - 50f) * 0.35f).coerceIn(28f, 72f),
+                        cameraFocusY = (50f + (movedBall.y - 50f) * 0.30f).coerceIn(30f, 70f),
                         subSecondTick = nextSubTick
                     )
                 }
@@ -322,29 +553,29 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             )
         }
 
-        // Sub in user at minute 58 if still on bench
+        // Sub in user at minute 55 if still on bench
         var userOnPitch = state.userOnPitch
         val events = state.commentaryFeed.toMutableList()
         var banner = state.latestBannerText
 
-        if (!userOnPitch && nextMinute == 58 && state.userStartingStatus != StartingStatus.OUT_OF_SQUAD) {
+        if (!userOnPitch && nextMinute == 55 && state.userStartingStatus != StartingStatus.OUT_OF_SQUAD) {
             userOnPitch = true
-            banner = "58' — Oyuna giriyorsun! Teknik direktör senden skora katkı bekliyor."
+            banner = "55' — Oyuna giriyorsun! Teknik direktör senden skora katkı bekliyor."
             events.add(
                 0,
                 MatchEventRecord(
-                    minute = 58,
+                    minute = 55,
                     type = "DEĞİŞİKLİK",
                     teamId = if (state.userIsHome) state.homeClub.id else state.awayClub.id,
                     playerName = userPlayer.fullName,
-                    description = "58' — ${userPlayer.fullName} kenardan oyuna dahil oldu!",
+                    description = "55' — ${userPlayer.fullName} kenardan oyuna dahil oldu!",
                     involvesUser = true
                 )
             )
         }
 
         // Compute tactical possession shift
-        val homeStr = state.homeClub.teamStrength + 2 // small home advantage
+        val homeStr = state.homeClub.teamStrength + 2
         val awayStr = state.awayClub.teamStrength
         val homeProb = (0.50 + (homeStr - awayStr) * 0.01).coerceIn(0.28, 0.72)
         val homeAttacksThisMinute = rng.nextDouble() < homeProb
@@ -352,7 +583,6 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         val newPossession = ((state.homePossessionPct * 0.85) + (if (homeAttacksThisMinute) 60 else 40) * 0.15)
             .roundToInt().coerceIn(32, 68)
 
-        // Update 22 player target positions and ball carrier
         val (updatedPlayers, updatedBall) = computeTacticalPositionsForMinute(
             players = state.players,
             homeAttacks = homeAttacksThisMinute,
@@ -379,8 +609,8 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             state.userLiveEnergy
         }
 
-        // Passive pass participation for user
-        if (userOnPitch && rng.nextInt(100) < 35) {
+        // Passive pass participation for user during simulation minutes
+        if (userOnPitch && rng.nextInt(100) < 32) {
             userPassesAtt += 1
             val passChance = (58 + userPlayer.attributes.passing / 3).coerceIn(60, 94)
             if (rng.nextInt(100) < passChance) {
@@ -389,10 +619,10 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             }
         }
 
-        // Check if a Critical Interactive Moment should trigger for the User!
-        // Guaranteed at least 3-4 exciting critical moments per match when user is on pitch
-        val isPrimeDecisionMinute = nextMinute in listOf(14, 29, 39, 53, 66, 78, 86)
-        val randomDecisionTrigger = rng.nextInt(100) < 6 && state.userDecisionsTotal < 5
+        // Trigger NSS / Soccer Superstar Playable Moments when ball comes to our player!
+        // Guaranteed at prime minutes (including minute 14 for unit test compatibility) + dynamic triggers
+        val isPrimeDecisionMinute = nextMinute in listOf(8, 14, 24, 34, 42, 52, 61, 71, 80, 87)
+        val randomDecisionTrigger = rng.nextInt(100) < 8 && state.userDecisionsTotal < 8
         if (userOnPitch && (isPrimeDecisionMinute || randomDecisionTrigger)) {
             val criticalContext = createCriticalMoment(
                 minute = nextMinute,
@@ -400,20 +630,11 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 userPlayer = userPlayer,
                 rng = rng
             )
-            // Position user and ball at the critical spot
-            val focusedPlayers = updatedPlayers.map { node ->
-                if (node.isUser) {
-                    node.copy(
-                        x = criticalContext.ballX,
-                        y = criticalContext.ballY,
-                        targetX = criticalContext.ballX,
-                        targetY = criticalContext.ballY,
-                        hasBall = true
-                    )
-                } else {
-                    node.copy(hasBall = false)
-                }
-            }
+            val focusedPlayers = positionPlayersForScenario(
+                players = updatedPlayers,
+                context = criticalContext,
+                userIsHome = state.userIsHome
+            )
             return state.copy(
                 phase = MatchPhase.CRITICAL_DECISION,
                 minute = nextMinute,
@@ -428,13 +649,16 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                     x = criticalContext.ballX,
                     y = criticalContext.ballY,
                     targetX = criticalContext.ballX,
-                    targetY = criticalContext.ballY
+                    targetY = criticalContext.ballY,
+                    startX = criticalContext.ballX,
+                    startY = criticalContext.ballY
                 ),
                 cameraFocusX = criticalContext.ballX,
                 cameraFocusY = criticalContext.ballY,
-                cameraZoom = 1.38f,
+                cameraZoom = 1.40f,
                 activeDecision = criticalContext,
-                latestBannerText = "${nextMinute}' — KRİTİK POZİSYON: ${criticalContext.title}",
+                latestBannerText = "${nextMinute}' — TOP SENDE: ${criticalContext.title}",
+                crowdExcitementLevel = 0.85f,
                 commentaryFeed = events
             )
         }
@@ -442,18 +666,17 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         // Otherwise check AI team match events (shots, saves, goals, corners, cards)
         val eventRoll = rng.nextInt(100)
         when {
-            eventRoll < 7 -> {
-                // Shot attempt by attacking team
+            eventRoll < 6 -> {
                 val attackingClub = if (homeAttacksThisMinute) state.homeClub else state.awayClub
                 val defendingClub = if (homeAttacksThisMinute) state.awayClub else state.homeClub
                 val attackerSquad = attackingClub.keySquadMembers.filter { it.position != Position.GK }
                 val shooter = attackerSquad.ifEmpty { attackingClub.keySquadMembers }.random(rng)
 
                 if (homeAttacksThisMinute) homeShots++ else awayShots++
-                val onTarget = rng.nextInt(100) < 52
+                val onTarget = rng.nextInt(100) < 50
                 if (onTarget) {
                     if (homeAttacksThisMinute) homeOnTarget++ else awayOnTarget++
-                    val goalChance = (22 + (attackingClub.teamStrength - defendingClub.teamStrength)).coerceIn(12, 38)
+                    val goalChance = (20 + (attackingClub.teamStrength - defendingClub.teamStrength)).coerceIn(10, 35)
                     if (rng.nextInt(100) < goalChance) {
                         if (homeAttacksThisMinute) homeScore++ else awayScore++
                         val goalX = if (homeAttacksThisMinute) 97f else 3f
@@ -487,6 +710,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                             latestBannerText = msg,
                             goalScorerBanner = "GOL! ${shooter.name.uppercase()} ($nextMinute')",
                             commentaryFeed = events,
+                            crowdExcitementLevel = 0.95f,
                             resolutionTicksRemaining = 14
                         )
                     } else {
@@ -508,7 +732,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                     banner = "${nextMinute}' — ${attackingClub.shortName} atağında ${shooter.name}'in şutu auta çıktı."
                 }
             }
-            eventRoll in 7..10 -> {
+            eventRoll in 6..9 -> {
                 if (homeAttacksThisMinute) awayFouls++ else homeFouls++
                 val foulingClub = if (homeAttacksThisMinute) state.awayClub else state.homeClub
                 if (rng.nextInt(100) < 28) {
@@ -555,11 +779,702 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
     }
 
     /**
-     * Resolves the user's chosen option during a Hybrid 2D Match Critical Moment.
-     * Calculates outcome from player attributes, energy, morale, and opponent defense,
-     * then animates the ball and updates match score/stats/rating deterministically.
+     * Resolves a playable moment either from a finger-drawn trajectory ([TacticalDecisionOption.gestureInput])
+     * or a tactical action option (used by unit tests).
      */
     fun resolveCriticalDecision(
+        state: LiveMatchUiState,
+        chosenOption: TacticalDecisionOption,
+        userPlayer: PlayerProfile
+    ): LiveMatchUiState {
+        val gesture = chosenOption.gestureInput
+        if (gesture != null) {
+            return resolveGestureTrajectory(state, gesture, userPlayer)
+        }
+        return resolveLegacyOption(state, chosenOption, userPlayer)
+    }
+
+    /**
+     * Full NSS / Soccer Superstar physical trajectory resolution engine:
+     * Evaluates the finger-drawn Bezier curve, spin (Magnus effect), power, loft height,
+     * defender interceptions along the curve, goalkeeper dive reactions, teammate runs,
+     * and chained multi-touch plays (dribble -> shoot, or build-up pass -> shoot).
+     */
+    fun resolveGestureTrajectory(
+        state: LiveMatchUiState,
+        gesture: GestureTrajectoryInput,
+        userPlayer: PlayerProfile
+    ): LiveMatchUiState {
+        val active = state.activeDecision ?: return state.copy(phase = MatchPhase.LIVE_PLAY)
+        val rng = Random(
+            baseSeed +
+                state.fixture.id.hashCode() +
+                state.minute * 137L +
+                gesture.endX.roundToInt() * 19L +
+                gesture.endY.roundToInt() * 23L +
+                gesture.powerPct * 7L +
+                state.userDecisionsTotal * 31L
+        )
+
+        val attackingRight = state.userIsHome
+        val goalX = if (attackingRight) 97.2f else 2.8f
+        val userClub = if (state.userIsHome) state.homeClub else state.awayClub
+        val oppClub = if (state.userIsHome) state.awayClub else state.homeClub
+        val attr = userPlayer.attributes
+        val oppDefPenalty = ((oppClub.teamStrength - 55) * 0.38).roundToInt()
+        val energyMod = ((state.userLiveEnergy - 65) * 0.18).roundToInt()
+        val moraleMod = ((userPlayer.morale - 65) * 0.14).roundToInt()
+
+        var homeShots = state.homeShots
+        var awayShots = state.awayShots
+        var homeOnTarget = state.homeShotsOnTarget
+        var awayOnTarget = state.awayShotsOnTarget
+        var homeCorners = state.homeCorners
+        var awayCorners = state.awayCorners
+        var userGoals = state.userGoals
+        var userAssists = state.userAssists
+        var userShots = state.userShots
+        var userPassesComp = state.userPassesCompleted
+        var userPassesAtt = state.userPassesAttempted
+        var userRating = state.userLiveRating
+
+        var finalEndX = gesture.endX
+        var finalEndY = gesture.endY
+        var finalControlX = gesture.controlX
+        var finalControlY = gesture.controlY
+        var peakZ = (gesture.loftHeight * 52f).coerceIn(2f, 52f)
+
+        // Apply environmental wind drift (Magnus + crosswind) to airborne shots, free kicks, and crosses
+        val isWindAffected = gesture.inferredKind !in listOf(
+            GestureActionKind.DRIBBLE_RUN,
+            GestureActionKind.SLIDE_TACKLE
+        )
+        if (isWindAffected && active.windSpeedKmh > 0) {
+            val windRad = active.windDirectionDeg * (kotlin.math.PI / 180.0)
+            val windStrength = (active.windSpeedKmh / 14f) * (0.30f + gesture.loftHeight * 0.90f)
+            val windDriftX = (cos(windRad).toFloat() * windStrength * 2.4f)
+            val windDriftY = (sin(windRad).toFloat() * windStrength * 4.2f)
+            finalControlX = (finalControlX + windDriftX * 0.55f).coerceIn(1f, 99f)
+            finalControlY = (finalControlY + windDriftY * 0.55f).coerceIn(2f, 98f)
+            finalEndY = (finalEndY + windDriftY).coerceIn(10f, 90f)
+            // Keep shot endpoint pinned on the goal line while wind shifts lateral placement
+            val isShotKind = gesture.inferredKind in listOf(
+                GestureActionKind.CURVED_FINESSE_SHOT,
+                GestureActionKind.DRIVEN_POWER_SHOT,
+                GestureActionKind.CHIP_SHOT
+            )
+            if (isShotKind) {
+                finalEndX = goalX
+                finalEndY = finalEndY.coerceIn(18f, 82f)
+            } else {
+                finalEndX = (finalEndX + windDriftX).coerceIn(2f, 98f)
+            }
+        }
+
+        var outcomeType: String
+        var bannerText: String
+        var pendingGoalHome: Boolean? = null
+        var pendingGoalBanner: String? = null
+        var pendingChain: CriticalMomentContext? = null
+        var secondStageX: Float? = null
+        var secondStageY: Float? = null
+        var secondStageCtrlX: Float? = null
+        var secondStageCtrlY: Float? = null
+        var succeeded = false
+        var updatedPlayers = state.players.toList()
+        val newEvents = state.commentaryFeed.toMutableList()
+
+        // 1. Check if an opponent outfield defender intercepts along the actual wind-adjusted curve!
+        val opponents = state.players.filter { it.isHome != state.userIsHome && it.position != Position.GK }
+        var interceptingDefender: PitchPlayerNode? = null
+
+        if (gesture.inferredKind != GestureActionKind.SLIDE_TACKLE && gesture.inferredKind != GestureActionKind.DRIBBLE_RUN) {
+            for (step in 2..15) {
+                val t = step / 16f
+                val (bx, by) = TrajectoryAnalyzer.evaluateBezier(
+                    t,
+                    gesture.startX,
+                    gesture.startY,
+                    finalControlX,
+                    finalControlY,
+                    finalEndX,
+                    finalEndY
+                )
+                val bz = TrajectoryAnalyzer.evaluateBallHeightZ(t, peakZ)
+                // If ball is lofted high over the wall/defender (bz >= 25f), ground defenders cannot reach it
+                if (bz < 25f) {
+                    val reachRadius = if (active.scenarioType == "FREE_KICK_CURVE" && t < 0.45f) 3.4f else 3.1f
+                    val hitDef = opponents.firstOrNull { opp ->
+                        hypot(opp.x - bx, opp.y - by) <= reachRadius
+                    }
+                    if (hitDef != null) {
+                        // High curve or high dribbling/passing/shooting can bend around the defender's leg!
+                        val skillBypassChance = (
+                            abs(gesture.curveSpinDegrees) * 1.4f +
+                                (attr.passing + attr.dribbling + attr.shooting) / 5f -
+                                oppDefPenalty
+                            ).roundToInt().coerceIn(15, 82)
+                        if (rng.nextInt(100) >= skillBypassChance) {
+                            interceptingDefender = hitDef
+                            finalEndX = bx
+                            finalEndY = by
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
+        if (interceptingDefender != null) {
+            // Ball intercepted/blocked by defender along the trajectory!
+            succeeded = false
+            outcomeType = "INTERCEPTED_BY_DEF"
+            if (gesture.inferredKind in listOf(
+                    GestureActionKind.CURVED_FINESSE_SHOT,
+                    GestureActionKind.DRIVEN_POWER_SHOT,
+                    GestureActionKind.CHIP_SHOT
+                )
+            ) {
+                userShots += 1
+                if (state.userIsHome) homeShots += 1 else awayShots += 1
+                bannerText = "${state.minute}' — ${userPlayer.fullName} vurdu ancak savunmada ${interceptingDefender.name} yatarak şutu blokladı!"
+            } else {
+                userPassesAtt += 1
+                bannerText = "${state.minute}' — ${userPlayer.fullName} pası çıkardı fakat ${interceptingDefender.name} son anda araya girip topu kesti!"
+            }
+            userRating = (userRating - 0.12).coerceAtLeast(5.2)
+            updatedPlayers = updatedPlayers.map { p ->
+                if (p.id == interceptingDefender.id) {
+                    p.copy(targetX = finalEndX, targetY = finalEndY, isDivingOrSliding = true, roleTag = "BLOK!")
+                } else {
+                    p
+                }
+            }
+            newEvents.add(
+                0,
+                MatchEventRecord(
+                    minute = state.minute,
+                    type = "KRİTİK_KARAR",
+                    teamId = userClub.id,
+                    playerName = userPlayer.fullName,
+                    description = bannerText,
+                    involvesUser = true
+                )
+            )
+        } else {
+            when (gesture.inferredKind) {
+                GestureActionKind.CURVED_FINESSE_SHOT,
+                GestureActionKind.DRIVEN_POWER_SHOT,
+                GestureActionKind.CHIP_SHOT -> {
+                    userShots += 1
+                    if (state.userIsHome) homeShots += 1 else awayShots += 1
+
+                    // Project wind-adjusted shot onto the goal line
+                    finalEndX = goalX
+                    val goalMouthY = finalEndY.coerceIn(18f, 82f)
+                    finalEndY = goalMouthY
+
+                    // Goal frame is y in 36.5..63.5 (center 50, corners at 38 and 62)
+                    val distFromCenter = abs(goalMouthY - 50f)
+                    val isInsideFrameY = goalMouthY in 36.8f..63.2f
+                    val isNearPostEdge = goalMouthY in 35.2f..37.6f || goalMouthY in 62.4f..64.8f
+                    val overPoweredSky = gesture.powerPct >= 95 && rng.nextInt(100) > (attr.shooting + 15)
+
+                    // Opponent Goalkeeper reaction
+                    val gkDiveY = goalMouthY.coerceIn(39f, 61f)
+                    updatedPlayers = updatedPlayers.map { p ->
+                        if (p.position == Position.GK && p.isHome != state.userIsHome) {
+                            p.copy(
+                                targetY = gkDiveY,
+                                isDivingOrSliding = true,
+                                diveDirectionY = if (goalMouthY < 50f) -1f else 1f,
+                                roleTag = "UÇUYOR!"
+                            )
+                        } else {
+                            p
+                        }
+                    }
+
+                    if (!isInsideFrameY || overPoweredSky) {
+                        if (isNearPostEdge && !overPoweredSky) {
+                            // Hit the goalpost / crossbar!
+                            outcomeType = "HIT_POST"
+                            userRating = (userRating + 0.05).coerceAtMost(10.0)
+                            val spinDesc = if (abs(gesture.curveSpinDegrees) >= 12f) "falsolu vuruşunda" else "sert şutunda"
+                            bannerText = "${state.minute}' — DİREKTEN DÖNDÜ! ${userPlayer.fullName} $spinDesc kaleciyi geçti ama top yan direkten oyun alanına döndü!"
+                        } else {
+                            outcomeType = "SHOT_WIDE"
+                            userRating = (userRating - 0.14).coerceAtLeast(5.2)
+                            bannerText = if (overPoweredSky) {
+                                "${state.minute}' — ${userPlayer.fullName} çok sert yüklendi, top üstten auta çıktı."
+                            } else {
+                                "${state.minute}' — ${userPlayer.fullName} köşeyi düşündü ancak şut direğin yanından auta çıktı."
+                            }
+                        }
+                        newEvents.add(
+                            0,
+                            MatchEventRecord(
+                                minute = state.minute,
+                                type = "ŞUT",
+                                teamId = userClub.id,
+                                playerName = userPlayer.fullName,
+                                description = bannerText,
+                                involvesUser = true
+                            )
+                        )
+                    } else {
+                        // Shot is ON TARGET! Calculate goal vs GK diving save from placement + curve + power + player stats
+                        if (state.userIsHome) homeOnTarget += 1 else awayOnTarget += 1
+
+                        val cornerPlacementBonus = (distFromCenter * 1.9f).roundToInt() // up to +24 for corners!
+                        val curveBonus = (abs(gesture.curveSpinDegrees) * 0.65f).roundToInt() // up to +29 for banana curl!
+                        val powerBonus = ((gesture.powerPct - 55) * 0.25f).roundToInt()
+                        val shootingSkill = (attr.shooting * 0.48 + attr.setPieces * 0.12).roundToInt()
+                        val goalProbability = (
+                            26 + shootingSkill + cornerPlacementBonus + curveBonus + powerBonus +
+                                energyMod + moraleMod - oppDefPenalty
+                            ).coerceIn(22, 92)
+
+                        val scored = rng.nextInt(100) < goalProbability
+                        if (scored) {
+                            succeeded = true
+                            outcomeType = "GOAL_USER"
+                            userGoals += 1
+                            userRating = (userRating + 1.15).coerceAtMost(10.0)
+                            pendingGoalHome = state.userIsHome
+                            val shotStyleText = when {
+                                abs(gesture.curveSpinDegrees) >= 15f -> "inanılmaz bir falsoyla (${gesture.curveSpinDegrees.roundToInt()}°)"
+                                gesture.inferredKind == GestureActionKind.CHIP_SHOT -> "usta işi bir aşırtmayla"
+                                gesture.powerPct >= 80 -> "füze gibi bir vuruşla (%${gesture.powerPct} güç)"
+                                else -> "klas bir plaseyle"
+                            }
+                            bannerText = "${state.minute}' — GOOOL! ${userPlayer.fullName} $shotStyleText topu doksana astı! (SCORE_PLACEHOLDER)"
+                            pendingGoalBanner = "GOOOL! ${userPlayer.kitName.uppercase()} (${state.minute}')"
+                            newEvents.add(
+                                0,
+                                MatchEventRecord(
+                                    minute = state.minute,
+                                    type = "GOL",
+                                    teamId = userClub.id,
+                                    playerName = userPlayer.fullName,
+                                    description = bannerText,
+                                    involvesUser = true
+                                )
+                            )
+                        } else {
+                            succeeded = false
+                            outcomeType = "SAVED_BY_GK"
+                            if (state.userIsHome) homeCorners += 1 else awayCorners += 1
+                            userRating = (userRating + 0.12).coerceAtMost(10.0)
+                            finalEndX = if (attackingRight) 94.5f else 5.5f
+                            bannerText = "${state.minute}' — ${userPlayer.fullName} (${gesture.inferredKind.labelTr}) harika vurdu, kaleci son anda uzanıp kornere çeldi!"
+                            newEvents.add(
+                                0,
+                                MatchEventRecord(
+                                    minute = state.minute,
+                                    type = "KURTARIŞ",
+                                    teamId = userClub.id,
+                                    playerName = userPlayer.fullName,
+                                    description = bannerText,
+                                    involvesUser = true
+                                )
+                            )
+                        }
+                    }
+                }
+
+                GestureActionKind.THROUGH_PASS,
+                GestureActionKind.CROSS_PASS,
+                GestureActionKind.SHORT_PASS -> {
+                    userPassesAtt += 1
+                    val teammates = state.players.filter { it.isHome == state.userIsHome && !it.isUser && it.position != Position.GK }
+                    val targetTm = teammates.find { it.id == gesture.targetTeammateId }
+                        ?: teammates.minByOrNull { hypot(it.x - gesture.endX, it.y - gesture.endY) }
+
+                    val distToTm = if (targetTm != null) {
+                        minOf(
+                            hypot(targetTm.x - gesture.endX, targetTm.y - gesture.endY),
+                            hypot(targetTm.runTargetX - gesture.endX, targetTm.runTargetY - gesture.endY)
+                        )
+                    } else {
+                        18f
+                    }
+
+                    val accuracyBonus = (16f - distToTm).coerceIn(-12f, 14f).roundToInt()
+                    val curvePassBonus = (abs(gesture.curveSpinDegrees) * 0.35f).roundToInt()
+                    val passSkill = (attr.passing * 0.42 + attr.vision * 0.22).roundToInt()
+                    val passSuccessProb = (38 + passSkill + accuracyBonus + curvePassBonus + moraleMod - oppDefPenalty)
+                        .coerceIn(28, 93)
+
+                    if (targetTm != null && rng.nextInt(100) < passSuccessProb) {
+                        succeeded = true
+                        userPassesComp += 1
+                        val receiveX = gesture.endX.coerceIn(12f, 92f)
+                        val receiveY = gesture.endY.coerceIn(10f, 90f)
+                        finalEndX = receiveX
+                        finalEndY = receiveY
+
+                        // Move the receiving teammate onto the endpoint of the pass
+                        updatedPlayers = updatedPlayers.map { p ->
+                            if (p.id == targetTm.id) {
+                                p.copy(targetX = receiveX, targetY = receiveY, hasBall = true, roleTag = "ALDI!")
+                            } else if (p.isUser) {
+                                // User also makes a supporting forward run!
+                                val userRunX = if (attackingRight) (p.x + 12f).coerceAtMost(84f) else (p.x - 12f).coerceAtLeast(16f)
+                                p.copy(targetX = userRunX, hasBall = false)
+                            } else {
+                                p.copy(hasBall = false)
+                            }
+                        }
+
+                        val isInShootingZone = (attackingRight && receiveX >= 68f) || (!attackingRight && receiveX <= 32f)
+                        if (isInShootingZone) {
+                            // Teammate takes a one-touch shot toward goal in Stage 2 of ACTION_RESOLUTION!
+                            if (state.userIsHome) homeShots += 1 else awayShots += 1
+                            val cornerY = if (receiveY < 50f) 41f else 59f
+                            secondStageX = goalX
+                            secondStageY = cornerY
+                            secondStageCtrlX = (receiveX + goalX) * 0.5f
+                            secondStageCtrlY = receiveY
+
+                            val finishChance = (54 + (userClub.teamStrength - oppClub.teamStrength) / 2 + curvePassBonus / 2)
+                                .coerceIn(42, 82)
+                            if (rng.nextInt(100) < finishChance) {
+                                if (state.userIsHome) homeOnTarget += 1 else awayOnTarget += 1
+                                outcomeType = "GOAL_ASSIST"
+                                userAssists += 1
+                                userRating = (userRating + 0.90).coerceAtMost(10.0)
+                                pendingGoalHome = state.userIsHome
+                                bannerText = "${state.minute}' — ASİST VE GOL! ${userPlayer.fullName} milimetrik bir falsolu pas bıraktı, ${targetTm.name} tek vuruşla ağları sarstı! (SCORE_PLACEHOLDER)"
+                                pendingGoalBanner = "ASİST: ${userPlayer.kitName.uppercase()} • GOL: ${targetTm.name.uppercase()}"
+                                newEvents.add(
+                                    0,
+                                    MatchEventRecord(
+                                        minute = state.minute,
+                                        type = "ASİST",
+                                        teamId = userClub.id,
+                                        playerName = userPlayer.fullName,
+                                        description = bannerText,
+                                        involvesUser = true
+                                    )
+                                )
+                            } else {
+                                if (state.userIsHome) homeOnTarget += 1 else awayOnTarget += 1
+                                outcomeType = "SAVED_BY_GK"
+                                userRating = (userRating + 0.32).coerceAtMost(10.0)
+                                bannerText = "${state.minute}' — ${userPlayer.fullName} harika bir kilit pas çıkardı, ${targetTm.name} bekletmeden vurdu ancak kaleci çıkardı!"
+                                newEvents.add(
+                                    0,
+                                    MatchEventRecord(
+                                        minute = state.minute,
+                                        type = "KRİTİK_KARAR",
+                                        teamId = userClub.id,
+                                        playerName = userPlayer.fullName,
+                                        description = bannerText,
+                                        involvesUser = true
+                                    )
+                                )
+                            }
+                        } else if (active.chainStep == 1) {
+                            // Build-up pass in midfield: Teammate plays a 1-2 wall pass back to our player near the box!
+                            outcomeType = "PASS_COMPLETED_CHAIN"
+                            userRating = (userRating + 0.25).coerceAtMost(10.0)
+                            val nextBallX = if (attackingRight) (receiveX + 14f).coerceIn(72f, 84f) else (receiveX - 14f).coerceIn(16f, 28f)
+                            val nextBallY = (receiveY + (50f - receiveY) * 0.4f).coerceIn(28f, 72f)
+                            secondStageX = nextBallX
+                            secondStageY = nextBallY
+                            bannerText = "${state.minute}' — VER-KAÇ! ${targetTm.name} duvar oldu ve topu ceza sahası önüne tekrar senin koşu yoluna bıraktı!"
+                            pendingChain = createChainedFinishingMoment(
+                                minute = state.minute,
+                                ballX = nextBallX,
+                                ballY = nextBallY,
+                                title = "${state.minute}' — Ver-Kaç Sonrası Şut Açısı!",
+                                desc = "${targetTm.name} ile harika bir duvar pası yaptın! Şimdi ceza sahası önünde kaleyi cepheden görüyorsun, şutunu çiz!",
+                                userPlayer = userPlayer
+                            )
+                        } else {
+                            outcomeType = "PASS_COMPLETED"
+                            userRating = (userRating + 0.22).coerceAtMost(10.0)
+                            bannerText = "${state.minute}' — ${userPlayer.fullName}, ${targetTm.name} ile isabetli paslaştı ve takımını ileri taşıdı."
+                        }
+                    } else {
+                        succeeded = false
+                        outcomeType = "INTERCEPTED_BY_DEF"
+                        userRating = (userRating - 0.14).coerceAtLeast(5.2)
+                        bannerText = "${state.minute}' — ${userPlayer.fullName}'in pası biraz hızlı gitti, rakip savunma topu kontrol etti."
+                        newEvents.add(
+                            0,
+                            MatchEventRecord(
+                                minute = state.minute,
+                                type = "KRİTİK_KARAR",
+                                teamId = userClub.id,
+                                playerName = userPlayer.fullName,
+                                description = bannerText,
+                                involvesUser = true
+                            )
+                        )
+                    }
+                }
+
+                GestureActionKind.DRIBBLE_RUN -> {
+                    val dribbleSkill = (attr.dribbling * 0.42 + attr.agility * 0.22 + attr.pace * 0.15).roundToInt()
+                    val dribbleProb = (36 + dribbleSkill + energyMod - oppDefPenalty).coerceIn(28, 88)
+                    if (rng.nextInt(100) < dribbleProb) {
+                        succeeded = true
+                        outcomeType = "DRIBBLE_SUCCESS_CHAIN"
+                        userRating = (userRating + 0.35).coerceAtMost(10.0)
+                        val newX = gesture.endX.coerceIn(14f, 88f)
+                        val newY = gesture.endY.coerceIn(14f, 86f)
+                        finalEndX = newX
+                        finalEndY = newY
+                        peakZ = 2f
+
+                        updatedPlayers = updatedPlayers.map { p ->
+                            if (p.isUser) {
+                                p.copy(targetX = newX, targetY = newY, hasBall = true, roleTag = "ÇALIM!")
+                            } else {
+                                p
+                            }
+                        }
+
+                        if (active.chainStep == 1) {
+                            bannerText = "${state.minute}' — BİRE BİRDE GEÇTİN! Rakibi çalımladın, şimdi son vuruş veya final pası için çiz!"
+                            pendingChain = createChainedFinishingMoment(
+                                minute = state.minute,
+                                ballX = newX,
+                                ballY = newY,
+                                title = "${state.minute}' — Çalım Sonrası Kaleciyle Karşı Karşıya!",
+                                desc = "Rakip savunmacıyı bilek hareketiyle oyundan düşürdün! Şimdi köşeye falsolu şutunu veya boştaki arkadaşına pasını çiz!",
+                                userPlayer = userPlayer
+                            )
+                        } else {
+                            // Already in chain step 2 and dribbled into the box -> finishes into empty net!
+                            userShots += 1
+                            userGoals += 1
+                            if (state.userIsHome) {
+                                homeShots += 1
+                                homeOnTarget += 1
+                            } else {
+                                awayShots += 1
+                                awayOnTarget += 1
+                            }
+                            userRating = (userRating + 0.95).coerceAtMost(10.0)
+                            pendingGoalHome = state.userIsHome
+                            finalEndX = goalX
+                            finalEndY = 50f
+                            bannerText = "${state.minute}' — GOOOL! ${userPlayer.fullName} kaleciyi de çalımlayıp topu boş ağlara bıraktı! (SCORE_PLACEHOLDER)"
+                            pendingGoalBanner = "GOOOL! ${userPlayer.kitName.uppercase()} (${state.minute}')"
+                            newEvents.add(
+                                0,
+                                MatchEventRecord(
+                                    minute = state.minute,
+                                    type = "GOL",
+                                    teamId = userClub.id,
+                                    playerName = userPlayer.fullName,
+                                    description = bannerText,
+                                    involvesUser = true
+                                )
+                            )
+                        }
+                    } else {
+                        succeeded = false
+                        outcomeType = "INTERCEPTED_BY_DEF"
+                        userRating = (userRating - 0.16).coerceAtLeast(5.2)
+                        bannerText = "${state.minute}' — ${userPlayer.fullName} çalım denedi ancak rakip savunmacı vücudunu koyup topu kazandı."
+                        newEvents.add(
+                            0,
+                            MatchEventRecord(
+                                minute = state.minute,
+                                type = "KRİTİK_KARAR",
+                                teamId = userClub.id,
+                                playerName = userPlayer.fullName,
+                                description = bannerText,
+                                involvesUser = true
+                            )
+                        )
+                    }
+                }
+
+                GestureActionKind.SLIDE_TACKLE -> {
+                    val attacker = state.players.firstOrNull {
+                        it.isHome != state.userIsHome && (it.hasBall || it.roleTag == "ATAKTA!")
+                    }
+                    // Measure closest approach of the drawn tackle trajectory to the attacker & their run lane
+                    var minTackleDist = 15f
+                    var directionalDot = 0f
+                    if (attacker != null) {
+                        for (step in 0..10) {
+                            val t = step / 10f
+                            val (tx, ty) = TrajectoryAnalyzer.evaluateBezier(
+                                t,
+                                gesture.startX,
+                                gesture.startY,
+                                gesture.controlX,
+                                gesture.controlY,
+                                gesture.endX,
+                                gesture.endY
+                            )
+                            val dNow = hypot(attacker.x - tx, attacker.y - ty)
+                            val laneX = attacker.x + (attacker.targetX - attacker.x) * 0.45f
+                            val laneY = attacker.y + (attacker.targetY - attacker.y) * 0.45f
+                            val dLane = hypot(laneX - tx, laneY - ty)
+                            minTackleDist = minOf(minTackleDist, dNow, dLane)
+                        }
+                        val swDx = gesture.endX - gesture.startX
+                        val swDy = gesture.endY - gesture.startY
+                        val swLen = hypot(swDx, swDy).coerceAtLeast(0.1f)
+                        val attDx = attacker.x - gesture.startX
+                        val attDy = attacker.y - gesture.startY
+                        val attLen = hypot(attDx, attDy).coerceAtLeast(0.1f)
+                        directionalDot = (swDx / swLen) * (attDx / attLen) + (swDy / swLen) * (attDy / attLen)
+                    }
+
+                    val aimModifier = when {
+                        minTackleDist <= 4.0f && directionalDot >= 0.25f -> 26
+                        minTackleDist <= 7.0f && directionalDot >= 0.0f -> 8
+                        minTackleDist <= 10.5f -> -12
+                        else -> -42
+                    }
+                    val defSkill = (attr.defending * 0.45 + attr.tactics * 0.25 + attr.strength * 0.15).roundToInt()
+                    val tackleProb = (32 + defSkill + aimModifier + energyMod - oppDefPenalty).coerceIn(8, 94)
+
+                    val slideTargetX = gesture.endX.coerceIn(8f, 92f)
+                    val slideTargetY = gesture.endY.coerceIn(8f, 92f)
+                    val slideDirY = if (slideTargetY < gesture.startY) -1f else 1f
+
+                    if (rng.nextInt(100) < tackleProb) {
+                        succeeded = true
+                        outcomeType = "TACKLE_WON"
+                        userRating = (userRating + 0.58).coerceAtMost(10.0)
+                        finalEndX = 50f
+                        finalEndY = 48f
+                        updatedPlayers = updatedPlayers.map { p ->
+                            when {
+                                p.isUser -> p.copy(
+                                    targetX = slideTargetX,
+                                    targetY = slideTargetY,
+                                    hasBall = true,
+                                    isDivingOrSliding = true,
+                                    diveDirectionY = slideDirY,
+                                    roleTag = "MÜDAHALE!"
+                                )
+                                attacker != null && p.id == attacker.id -> p.copy(
+                                    hasBall = false,
+                                    isDivingOrSliding = true,
+                                    roleTag = "TOP KAYBI"
+                                )
+                                else -> p
+                            }
+                        }
+                        bannerText = "${state.minute}' — KRİTİK MÜDAHALE! ${userPlayer.fullName} tam zamanında doğru açıdan kayarak topu söktü aldı!"
+                    } else {
+                        succeeded = false
+                        outcomeType = "TACKLE_FOUL"
+                        userRating = (userRating - 0.22).coerceAtLeast(5.0)
+                        val attEscapeX = if (attackingRight) 14f else 86f
+                        finalEndX = attEscapeX
+                        finalEndY = 50f
+                        updatedPlayers = updatedPlayers.map { p ->
+                            when {
+                                p.isUser -> p.copy(
+                                    targetX = slideTargetX,
+                                    targetY = slideTargetY,
+                                    hasBall = false,
+                                    isDivingOrSliding = true,
+                                    diveDirectionY = slideDirY,
+                                    roleTag = "BOŞA KAYDI!"
+                                )
+                                attacker != null && p.id == attacker.id -> p.copy(
+                                    targetX = attEscapeX,
+                                    targetY = 50f,
+                                    hasBall = true,
+                                    roleTag = "GEÇTİ!"
+                                )
+                                else -> p
+                            }
+                        }
+                        bannerText = if (aimModifier < 0) {
+                            "${state.minute}' — ${userPlayer.fullName} yanlış yöne kaydı, rakip forvet boşluktan sıyrıldı!"
+                        } else {
+                            "${state.minute}' — ${userPlayer.fullName} kayarak müdahalede gecikti, hakem faul düdüğünü çaldı."
+                        }
+                    }
+                    newEvents.add(
+                        0,
+                        MatchEventRecord(
+                            minute = state.minute,
+                            type = "KRİTİK_KARAR",
+                            teamId = userClub.id,
+                            playerName = userPlayer.fullName,
+                            description = bannerText,
+                            involvesUser = true
+                        )
+                    )
+                }
+            }
+        }
+
+        val flightTicks = if (secondStageX != null) 16 else 11
+        val stepPerTick = if (secondStageX != null) (1f / 8f) else (1f / flightTicks.toFloat())
+
+        val flightBall = state.ball.copy(
+            x = gesture.startX,
+            y = gesture.startY,
+            z = 0f,
+            startX = gesture.startX,
+            startY = gesture.startY,
+            controlX = finalControlX,
+            controlY = finalControlY,
+            targetX = finalEndX,
+            targetY = finalEndY,
+            curveSpin = gesture.curveSpinDegrees,
+            peakHeightZ = peakZ,
+            flightProgress = 0f,
+            flightStepPerTick = stepPerTick,
+            isShotInFlight = true,
+            trailPoints = listOf(PitchPoint(gesture.startX, gesture.startY, 0f)),
+            secondStageTargetX = secondStageX,
+            secondStageTargetY = secondStageY,
+            secondStageControlX = secondStageCtrlX,
+            secondStageControlY = secondStageCtrlY
+        )
+
+        return state.copy(
+            phase = MatchPhase.ACTION_RESOLUTION,
+            homeShots = homeShots,
+            awayShots = awayShots,
+            homeShotsOnTarget = homeOnTarget,
+            awayShotsOnTarget = awayOnTarget,
+            homeCorners = homeCorners,
+            awayCorners = awayCorners,
+            userGoals = userGoals,
+            userAssists = userAssists,
+            userShots = userShots,
+            userPassesCompleted = userPassesComp,
+            userPassesAttempted = userPassesAtt,
+            userDecisionsTotal = state.userDecisionsTotal + 1,
+            userDecisionsSucceeded = state.userDecisionsSucceeded + (if (succeeded) 1 else 0),
+            userLiveRating = (userRating * 10.0).roundToInt() / 10.0,
+            userLiveEnergy = (state.userLiveEnergy - 2).coerceAtLeast(10),
+            players = updatedPlayers,
+            ball = flightBall,
+            activeDecision = null,
+            latestBannerText = bannerText,
+            commentaryFeed = newEvents,
+            resolutionOutcomeType = outcomeType,
+            pendingGoalForHome = pendingGoalHome,
+            pendingGoalBannerText = pendingGoalBanner,
+            pendingChainedMoment = pendingChain,
+            lastGesturePreview = gesture,
+            crowdExcitementLevel = 0.92f,
+            resolutionTicksRemaining = flightTicks
+        )
+    }
+
+    /**
+     * Legacy deterministic option resolver kept for unit-test compatibility (`ExampleUnitTest`).
+     */
+    private fun resolveLegacyOption(
         state: LiveMatchUiState,
         chosenOption: TacticalDecisionOption,
         userPlayer: PlayerProfile
@@ -662,7 +1577,6 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 userPassesAtt += 1
                 if (succeeded) {
                     userPassesComp += 1
-                    // Teammate finishes the pass!
                     val finishChance = (54 + (userClub.teamStrength - 50) / 2).coerceIn(45, 78)
                     val teammateScored = rng.nextInt(100) < finishChance
                     if (state.userIsHome) homeShots += 1 else awayShots += 1
@@ -730,7 +1644,6 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             }
 
             else -> {
-                // TACKLE / DEFENSIVE INTERCEPTION
                 if (succeeded) {
                     userRating = (userRating + 0.55).coerceAtMost(10.0)
                     ballTargetX = 52f
@@ -757,8 +1670,14 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         }
 
         val updatedBall = state.ball.copy(
+            startX = active.ballX,
+            startY = active.ballY,
+            controlX = (active.ballX + ballTargetX) * 0.5f,
+            controlY = (active.ballY + ballTargetY) * 0.5f,
             targetX = ballTargetX,
             targetY = ballTargetY,
+            flightProgress = 0f,
+            flightStepPerTick = 0.08f,
             isShotInFlight = true
         )
 
@@ -788,6 +1707,52 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         )
     }
 
+    private fun createChainedFinishingMoment(
+        minute: Int,
+        ballX: Float,
+        ballY: Float,
+        title: String,
+        desc: String,
+        userPlayer: PlayerProfile
+    ): CriticalMomentContext {
+        val attr = userPlayer.attributes
+        return CriticalMomentContext(
+            id = "CM_CHAIN_$minute",
+            minute = minute,
+            title = title,
+            situationDescription = desc,
+            ballX = ballX,
+            ballY = ballY,
+            scenarioType = "ONE_ON_ONE",
+            isDefensive = false,
+            slowMoFactor = 0.12f,
+            hintTextTr = "Kaleciyle karşı karşıyasın! Köşeye falsolu şutunu veya boştaki arkadaşına pasını çiz!",
+            chainStep = 2,
+            options = listOf(
+                TacticalDecisionOption(
+                    id = "OPT_FINESSE",
+                    title = "Uzak Köşeye Plase Bırak",
+                    subtitle = "Kalecinin uzanamayacağı köşeye falsolu vuruş dene.",
+                    keyAttributeLabel = "Şut",
+                    keyAttributeValue = attr.shooting,
+                    successProbabilityPct = 78,
+                    riskLevel = "Dengeli",
+                    actionType = "FINESSE_SHOT"
+                ),
+                TacticalDecisionOption(
+                    id = "OPT_PASS",
+                    title = "Boştaki Takım Arkadaşına Pas Ver",
+                    subtitle = "Arka direkteki arkadaşına asist fırsatı yarat.",
+                    keyAttributeLabel = "Pas & Görüş",
+                    keyAttributeValue = (attr.passing + attr.vision) / 2,
+                    successProbabilityPct = 82,
+                    riskLevel = "Düşük Risk",
+                    actionType = "THROUGH_PASS"
+                )
+            )
+        )
+    }
+
     private fun createCriticalMoment(
         minute: Int,
         state: LiveMatchUiState,
@@ -802,10 +1767,10 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         val attr = userPlayer.attributes
 
         val isDefensive = userPlayer.primaryPosition in listOf(Position.CB, Position.FB, Position.DM, Position.GK) &&
-            rng.nextInt(100) < 45
+            rng.nextInt(100) < 42
 
         if (isDefensive) {
-            val ballX = if (attackingRight) 24f else 76f
+            val ballX = if (attackingRight) 26f else 74f
             val ballY = (35 + rng.nextInt(30)).toFloat()
             val tackleProb = (52 + (attr.defending * 0.45).roundToInt() + energyMod - oppDefPenalty).coerceIn(25, 88)
             val interceptProb = (54 + (attr.tactics * 0.45).roundToInt() + moraleMod - oppDefPenalty).coerceIn(28, 88)
@@ -815,9 +1780,13 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 id = "CM_DEF_$minute",
                 minute = minute,
                 title = "${minute}' — Rakip Hızlı Kontra Atakta!",
-                situationDescription = "${oppClub.name} forveti ceza sahasına sokulmak üzere. Savunma hattında kritik karar anı!",
+                situationDescription = "${oppClub.name} forveti ceza sahasına sokuluyor. Parmağınla topun/rakibin önüne müdahale çizgisi çek!",
                 ballX = ballX,
                 ballY = ballY,
+                scenarioType = "DEFENSIVE_COUNTER_STOP",
+                isDefensive = true,
+                slowMoFactor = 0.15f,
+                hintTextTr = "Rakibin koşu yoluna veya topa doğru parmağınla kayarak müdahale çizgisi çek!",
                 options = listOf(
                     TacticalDecisionOption(
                         id = "OPT_INTERCEPT",
@@ -853,25 +1822,77 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             )
         }
 
-        val scenarioIndex = (minute + state.userDecisionsTotal) % 3
-        val ballX = if (attackingRight) (78f + rng.nextInt(10)) else (22f - rng.nextInt(10))
-        val ballY = (32f + rng.nextInt(36))
-
+        val scenarioIndex = (minute + state.userDecisionsTotal) % 5
         val finesseProb = (36 + (attr.shooting * 0.50).roundToInt() + moraleMod - oppDefPenalty).coerceIn(20, 84)
         val powerProb = (32 + (attr.shooting * 0.42 + attr.strength * 0.12).roundToInt() + energyMod - oppDefPenalty).coerceIn(18, 80)
         val passProb = (48 + (attr.passing * 0.35 + attr.vision * 0.20).roundToInt() + moraleMod - oppDefPenalty).coerceIn(30, 88)
         val dribbleProb = (30 + (attr.dribbling * 0.35 + attr.agility * 0.20).roundToInt() + energyMod - oppDefPenalty).coerceIn(18, 78)
 
-        val title = when (scenarioIndex) {
-            0 -> "${minute}' — Savunmanın Arkasına Sarktın!"
-            1 -> "${minute}' — Ceza Sahası Yayında Boşluk Buldun!"
-            else -> "${minute}' — Kanattan Tehlikeli Bindirme!"
+        val (scenarioType, ballX, ballY, title, desc, hint) = when (scenarioIndex) {
+            0 -> {
+                val bx = if (attackingRight) 79f else 21f
+                val by = (38f + rng.nextInt(24))
+                ScenarioSpec(
+                    type = "ONE_ON_ONE",
+                    x = bx,
+                    y = by,
+                    title = "${minute}' — Savunma Arkasına Sarktın!",
+                    desc = "Kaleci açıyı kapatmak için çıkıyor, arka direkteki takım arkadaşın da boş koşu yapıyor!",
+                    hint = "Kalecinin yanından köşeye falsolu şut çiz veya boştaki arkadaşına pas çıkar!"
+                )
+            }
+            1 -> {
+                val bx = if (attackingRight) 75f else 25f
+                val by = if (rng.nextBoolean()) 34f else 66f
+                ScenarioSpec(
+                    type = "FREE_KICK_CURVE",
+                    x = bx,
+                    y = by,
+                    title = "${minute}' — Tehlikeli Bölgeden Serbest Vuruş!",
+                    desc = "${oppClub.shortName} 3 kişilik baraj kurdu. Doğrudan vurursan baraja takılır, falso vererek köşeyi avla!",
+                    hint = "SERBEST VURUŞ: Parmağınla barajın etrafından kavisli (muz orta / falsolu şut) çizgi çek!"
+                )
+            }
+            2 -> {
+                val bx = if (attackingRight) 76f else 24f
+                val by = if (rng.nextBoolean()) 19f else 81f
+                ScenarioSpec(
+                    type = "WING_CROSS_OR_CUT_IN",
+                    x = bx,
+                    y = by,
+                    title = "${minute}' — Kanattan Tehlikeli Bindirme!",
+                    desc = "Kanatta boşluk buldun! Ceza sahasına hareketlenen iki arkadaşına orta kesebilir veya içeri çalım atabilirsin.",
+                    hint = "Ceza sahasındaki arkadaşının koşu yoluna kavisli orta çiz veya içeri çalımla gir!"
+                )
+            }
+            3 -> {
+                val bx = if (attackingRight) 65f else 35f
+                val by = (34f + rng.nextInt(32))
+                ScenarioSpec(
+                    type = "THROUGH_BALL_COUNTER",
+                    x = bx,
+                    y = by,
+                    title = "${minute}' — Hızlı Kontra Atak Fırsatı!",
+                    desc = "Rakip savunma önde yakalandı! Forvetlerin savunma arkasına koşu gösteriyor.",
+                    hint = "Stoperlerin arasından koşu yoluna falsolu ara pas çiz veya topu sürerek ilerle!"
+                )
+            }
+            else -> {
+                val bx = if (attackingRight) 77f else 23f
+                val by = (40f + rng.nextInt(20))
+                ScenarioSpec(
+                    type = "EDGE_OF_BOX_FINESSE",
+                    x = bx,
+                    y = by,
+                    title = "${minute}' — Ceza Sahası Yayında Şut Açısı!",
+                    desc = "Yay üzerinde topu önüne aldın. Köşeye plase bırakabilir, sert vurabilir veya ver-kaç yapabilirsin!",
+                    hint = "Stoperin yanından uzak köşeye falsolu şut çiz veya boştaki arkadaşına pas ver!"
+                )
+            }
         }
-        val desc = when (scenarioIndex) {
-            0 -> "Kaleci açıyı kapatmak için kalesini terk ediyor, yanındaki forvet arkadaşın da arka direkte boş!"
-            1 -> "${oppClub.shortName} savunması dengesiz yakalandı. Top ayağında ve karar senin!"
-            else -> "Rakip beki hızınla geçtin, ceza sahası içinde iki arkadaşın hareketlendi!"
-        }
+
+        val windKmh = if (scenarioType == "FREE_KICK_CURVE") (6 + rng.nextInt(14)) else rng.nextInt(8)
+        val windDeg = (rng.nextFloat() * 360f)
 
         return CriticalMomentContext(
             id = "CM_ATT_$minute",
@@ -880,6 +1901,13 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             situationDescription = desc,
             ballX = ballX,
             ballY = ballY,
+            scenarioType = scenarioType,
+            isDefensive = false,
+            slowMoFactor = 0.14f,
+            windSpeedKmh = windKmh,
+            windDirectionDeg = windDeg,
+            hintTextTr = hint,
+            chainStep = 1,
             options = listOf(
                 TacticalDecisionOption(
                     id = "OPT_FINESSE",
@@ -925,6 +1953,227 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         )
     }
 
+    private data class ScenarioSpec(
+        val type: String,
+        val x: Float,
+        val y: Float,
+        val title: String,
+        val desc: String,
+        val hint: String
+    )
+
+    /**
+     * Positions our player, making-run teammates, defensive wall / blockers, and the goalkeeper
+     * so every playable moment looks like a handcrafted Soccer Superstar / NSS puzzle level!
+     */
+    private fun positionPlayersForScenario(
+        players: List<PitchPlayerNode>,
+        context: CriticalMomentContext,
+        userIsHome: Boolean
+    ): List<PitchPlayerNode> {
+        val attackingRight = userIsHome
+        val dir = if (attackingRight) 1f else -1f
+        val bx = context.ballX
+        val by = context.ballY
+
+        val teammates = players.filter { it.isHome == userIsHome && !it.isUser && it.position != Position.GK }
+        val opponents = players.filter { it.isHome != userIsHome && it.position != Position.GK }
+
+        // Pick 2 primary attacking teammates to make visible forward runs
+        val attackers = teammates.sortedByDescending {
+            when (it.position) {
+                Position.ST -> 5
+                Position.WG -> 4
+                Position.AM -> 3
+                Position.CM -> 2
+                else -> 1
+            }
+        }
+        val runner1Id = attackers.getOrNull(0)?.id
+        val runner2Id = attackers.getOrNull(1)?.id
+
+        // Pick up to 3 opponent defenders near the play (for walls or marking)
+        val defenders = opponents.sortedBy {
+            when (it.position) {
+                Position.CB -> 1
+                Position.FB, Position.WB -> 2
+                Position.DM -> 3
+                else -> 4
+            }
+        }
+        val def1Id = defenders.getOrNull(0)?.id
+        val def2Id = defenders.getOrNull(1)?.id
+        val def3Id = defenders.getOrNull(2)?.id
+
+        return players.map { node ->
+            when {
+                node.isUser -> {
+                    node.copy(
+                        x = bx,
+                        y = by,
+                        targetX = bx,
+                        targetY = by,
+                        runTargetX = bx,
+                        runTargetY = by,
+                        hasBall = !context.isDefensive,
+                        isMakingRun = false,
+                        isDivingOrSliding = false,
+                        roleTag = "SEN"
+                    )
+                }
+
+                // Opponent Goalkeeper
+                node.position == Position.GK && node.isHome != userIsHome -> {
+                    val gkX = if (attackingRight) 94.8f else 5.2f
+                    val gkY = when (context.scenarioType) {
+                        "FREE_KICK_CURVE" -> if (by < 50f) 54f else 46f // guards far post behind wall
+                        else -> (50f + (by - 50f) * 0.22f).coerceIn(43f, 57f)
+                    }
+                    node.copy(
+                        x = gkX,
+                        y = gkY,
+                        targetX = gkX,
+                        targetY = gkY,
+                        hasBall = false,
+                        isDivingOrSliding = false,
+                        roleTag = "KL"
+                    )
+                }
+
+                // Teammate Runner 1 (Striker / Far Post Runner)
+                node.id == runner1Id && !context.isDefensive -> {
+                    val rx = (bx + dir * 9f).coerceIn(14f, 88f)
+                    val ry = if (by < 50f) (by + 22f).coerceIn(48f, 76f) else (by - 22f).coerceIn(24f, 52f)
+                    val runToX = (rx + dir * 7f).coerceIn(10f, 92f)
+                    node.copy(
+                        x = rx,
+                        y = ry,
+                        targetX = rx,
+                        targetY = ry,
+                        runTargetX = runToX,
+                        runTargetY = ry,
+                        hasBall = false,
+                        isMakingRun = true,
+                        roleTag = "KOŞU YAPIYOR"
+                    )
+                }
+
+                // Teammate Runner 2 (Support / Near Post / Wing Runner)
+                node.id == runner2Id && !context.isDefensive -> {
+                    val rx = (bx + dir * 4f).coerceIn(16f, 85f)
+                    val ry = if (by < 50f) (by - 14f).coerceIn(14f, 40f) else (by + 14f).coerceIn(60f, 86f)
+                    val runToX = (rx + dir * 8f).coerceIn(12f, 90f)
+                    node.copy(
+                        x = rx,
+                        y = ry,
+                        targetX = rx,
+                        targetY = ry,
+                        runTargetX = runToX,
+                        runTargetY = ry,
+                        hasBall = false,
+                        isMakingRun = true,
+                        roleTag = "BOŞTA!"
+                    )
+                }
+
+                // Free-kick 3-man wall or active defenders
+                (node.id == def1Id || node.id == def2Id || node.id == def3Id) && !context.isDefensive -> {
+                    if (context.scenarioType == "FREE_KICK_CURVE") {
+                        val wallIdx = when (node.id) {
+                            def1Id -> -1
+                            def2Id -> 0
+                            else -> 1
+                        }
+                        val wallX = (bx + dir * 8.5f).coerceIn(15f, 88f)
+                        val nearPostBias = if (by < 50f) -2.5f else 2.5f
+                        val wallY = (by + nearPostBias + wallIdx * 3.2f).coerceIn(22f, 78f)
+                        node.copy(
+                            x = wallX,
+                            y = wallY,
+                            targetX = wallX,
+                            targetY = wallY,
+                            hasBall = false,
+                            isMakingRun = false,
+                            roleTag = if (wallIdx == 0) "BARAJ" else ""
+                        )
+                    } else {
+                        val (dx, dy, tag) = when (node.id) {
+                            def1Id -> Triple(
+                                (bx + dir * 7.5f).coerceIn(12f, 90f),
+                                (by + (50f - by) * 0.38f).coerceIn(25f, 75f),
+                                "KAPATIYOR"
+                            )
+                            def2Id -> Triple(
+                                (bx + dir * 10.5f).coerceIn(10f, 91f),
+                                if (by < 50f) (by + 14f).coerceIn(38f, 74f) else (by - 14f).coerceIn(26f, 62f),
+                                "MARKAJ"
+                            )
+                            else -> Triple(
+                                (bx + dir * 4.5f).coerceIn(14f, 88f),
+                                if (by < 50f) (by - 9f).coerceIn(14f, 44f) else (by + 9f).coerceIn(56f, 86f),
+                                ""
+                            )
+                        }
+                        node.copy(
+                            x = dx,
+                            y = dy,
+                            targetX = dx,
+                            targetY = dy,
+                            hasBall = false,
+                            isMakingRun = false,
+                            roleTag = tag
+                        )
+                    }
+                }
+
+                // Defensive counter-stop scenario: place opponent ball-carrier approaching from midfield toward our goal
+                node.id == def1Id && context.isDefensive -> {
+                    val attX = (bx + dir * 6.0f).coerceIn(14f, 86f)
+                    val attY = (by + (if (by < 50f) 4f else -4f)).coerceIn(24f, 76f)
+                    val runToX = (bx - dir * 8.0f).coerceIn(8f, 92f)
+                    node.copy(
+                        x = attX,
+                        y = attY,
+                        targetX = runToX,
+                        targetY = 50f,
+                        runTargetX = runToX,
+                        runTargetY = 50f,
+                        hasBall = true,
+                        isMakingRun = true,
+                        roleTag = "ATAKTA!"
+                    )
+                }
+
+                else -> node.copy(hasBall = false, isMakingRun = false, isDivingOrSliding = false, roleTag = "")
+            }
+        }
+    }
+
+    private fun stepBezierBallFlight(ball: PitchBallState): PitchBallState {
+        if (!ball.isShotInFlight) {
+            return interpolateBall(ball, stepFactor = 0.28f)
+        }
+        val nextT = (ball.flightProgress + ball.flightStepPerTick).coerceIn(0f, 1f)
+        val (bx, by) = TrajectoryAnalyzer.evaluateBezier(
+            t = nextT,
+            startX = ball.startX,
+            startY = ball.startY,
+            controlX = ball.controlX,
+            controlY = ball.controlY,
+            endX = ball.targetX,
+            endY = ball.targetY
+        )
+        val bz = TrajectoryAnalyzer.evaluateBallHeightZ(nextT, ball.peakHeightZ)
+        val updatedTrail = (ball.trailPoints + PitchPoint(bx, by, bz)).takeLast(14)
+        return ball.copy(
+            x = bx,
+            y = by,
+            z = bz,
+            flightProgress = nextT,
+            trailPoints = updatedTrail
+        )
+    }
+
     private fun buildInitial22Players(
         homeClub: Club,
         awayClub: Club,
@@ -932,7 +2181,6 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         userIsHome: Boolean,
         userOnPitch: Boolean
     ): List<PitchPlayerNode> {
-        // 4-3-3 tactical coordinates for Home (left -> right) and Away (right -> left)
         val homeCoords = listOf(
             Position.GK to (6f to 50f),
             Position.CB to (20f to 34f),
@@ -1021,8 +2269,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         minute: Int,
         rng: Random
     ): Pair<List<PitchPlayerNode>, PitchBallState> {
-        // Shift line of play based on attacking team and phase
-        val attackProgress = (rng.nextFloat() * 24f) - 4f // -4..+20
+        val attackProgress = (rng.nextFloat() * 24f) - 4f
         val teamShiftX = if (homeAttacks) (10f + attackProgress) else -(10f + attackProgress)
 
         val candidatesForBall = players.filter {
@@ -1037,7 +2284,10 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 p.copy(
                     targetX = gkX,
                     targetY = gkY,
-                    hasBall = p.id == carrier.id
+                    hasBall = p.id == carrier.id,
+                    isMakingRun = false,
+                    isDivingOrSliding = false,
+                    roleTag = ""
                 )
             } else {
                 val roleMultiplier = when (p.position) {
@@ -1054,7 +2304,12 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 p.copy(
                     targetX = newTargetX,
                     targetY = newTargetY,
-                    hasBall = p.id == carrier.id
+                    runTargetX = newTargetX,
+                    runTargetY = newTargetY,
+                    hasBall = p.id == carrier.id,
+                    isMakingRun = false,
+                    isDivingOrSliding = false,
+                    roleTag = ""
                 )
             }
         }
@@ -1065,6 +2320,8 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             y = activeCarrier.y,
             targetX = activeCarrier.targetX,
             targetY = activeCarrier.targetY,
+            startX = activeCarrier.x,
+            startY = activeCarrier.y,
             isShotInFlight = false
         )
         return updatedNodes to ball
@@ -1094,14 +2351,18 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         state: LiveMatchUiState,
         userPlayer: PlayerProfile
     ): CompletedMatchReport {
+        val pendingHomeBonus = if (state.pendingGoalForHome == true) 1 else 0
+        val pendingAwayBonus = if (state.pendingGoalForHome == false) 1 else 0
+        val finalHomeScore = state.homeScore + pendingHomeBonus
+        val finalAwayScore = state.awayScore + pendingAwayBonus
+
         val userClub = if (state.userIsHome) state.homeClub else state.awayClub
-        val oppClub = if (state.userIsHome) state.awayClub else state.homeClub
-        val userTeamGoals = if (state.userIsHome) state.homeScore else state.awayScore
-        val oppTeamGoals = if (state.userIsHome) state.awayScore else state.homeScore
+        val userTeamGoals = if (state.userIsHome) finalHomeScore else finalAwayScore
+        val oppTeamGoals = if (state.userIsHome) finalAwayScore else finalHomeScore
 
         val minutesPlayed = when {
             state.userStartingStatus == StartingStatus.STARTER -> 90
-            state.userOnPitch -> 32
+            state.userOnPitch -> 35
             else -> 0
         }
 
@@ -1130,10 +2391,10 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         }
 
         val pressHeadline = when {
-            state.userGoals >= 2 -> "${userPlayer.fullName} Yıldızlaştı! ${userClub.name} Sahadan ${state.homeScore}-${state.awayScore} Ayrıldı"
-            state.userGoals == 1 -> "${userPlayer.fullName} Ağları Havalandırdı: ${state.homeClub.shortName} ${state.homeScore}-${state.awayScore} ${state.awayClub.shortName}"
-            state.userAssists >= 1 -> "${userPlayer.fullName}'den Kritik Asist! ${state.homeClub.shortName} ${state.homeScore}-${state.awayScore} ${state.awayClub.shortName}"
-            else -> "${state.homeClub.name} ${state.homeScore} - ${state.awayScore} ${state.awayClub.name}: Mücadele Nefes Kesti"
+            state.userGoals >= 2 -> "${userPlayer.fullName} Yıldızlaştı! ${userClub.name} Sahadan $finalHomeScore-$finalAwayScore Ayrıldı"
+            state.userGoals == 1 -> "${userPlayer.fullName} Ağları Havalandırdı: ${state.homeClub.shortName} $finalHomeScore-$finalAwayScore ${state.awayClub.shortName}"
+            state.userAssists >= 1 -> "${userPlayer.fullName}'den Kritik Asist! ${state.homeClub.shortName} $finalHomeScore-$finalAwayScore ${state.awayClub.shortName}"
+            else -> "${state.homeClub.name} $finalHomeScore - $finalAwayScore ${state.awayClub.name}: Mücadele Nefes Kesti"
         }
 
         val energySpent = (92 - state.userLiveEnergy).coerceIn(10, 45)
@@ -1146,13 +2407,13 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             homeClubName = state.homeClub.name,
             awayClubId = state.awayClub.id,
             awayClubName = state.awayClub.name,
-            homeScore = state.homeScore,
-            awayScore = state.awayScore,
+            homeScore = finalHomeScore,
+            awayScore = finalAwayScore,
             homePossessionPct = state.homePossessionPct,
-            homeShots = state.homeShots.coerceAtLeast(state.homeScore + 2),
-            awayShots = state.awayShots.coerceAtLeast(state.awayScore + 2),
-            homeShotsOnTarget = state.homeShotsOnTarget.coerceAtLeast(state.homeScore + 1),
-            awayShotsOnTarget = state.awayShotsOnTarget.coerceAtLeast(state.awayScore + 1),
+            homeShots = state.homeShots.coerceAtLeast(finalHomeScore + 2),
+            awayShots = state.awayShots.coerceAtLeast(finalAwayScore + 2),
+            homeShotsOnTarget = state.homeShotsOnTarget.coerceAtLeast(finalHomeScore + 1),
+            awayShotsOnTarget = state.awayShotsOnTarget.coerceAtLeast(finalAwayScore + 1),
             userPlayedMinutes = minutesPlayed,
             userStarted = state.userStartingStatus == StartingStatus.STARTER,
             userGoals = state.userGoals,
@@ -1167,7 +2428,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             teammateReaction = teammateComment,
             pressHeadline = pressHeadline,
             energySpent = energySpent,
-            wageAndBonusEarnedEur = 0L, // populated by CareerEngine when applying match report
+            wageAndBonusEarnedEur = 0L,
             events = state.commentaryFeed
         )
     }

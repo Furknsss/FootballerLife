@@ -618,7 +618,8 @@ data class PhoneCallRecord(
     val topic: String,
     val transcript: String,
     val options: List<String> = emptyList(),
-    val completed: Boolean = false
+    val completed: Boolean = false,
+    val conversationTurns: List<ChatMessage> = emptyList()
 )
 
 @JsonClass(generateAdapter = true)

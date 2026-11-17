@@ -122,6 +122,9 @@ fun FootballLifeApp(
     val activeCareer by viewModel.activeCareer.collectAsStateWithLifecycle()
     val liveMatch by viewModel.liveMatchState.collectAsStateWithLifecycle()
     val toastBanner by viewModel.toastBanner.collectAsStateWithLifecycle()
+    val aiTypingTargetId by viewModel.aiTypingTargetId.collectAsStateWithLifecycle()
+    val aiConnectionStatus by viewModel.aiConnectionStatus.collectAsStateWithLifecycle()
+    val activePhoneCallId by viewModel.activePhoneCallId.collectAsStateWithLifecycle()
 
     BackHandler(enabled = rootScreen != RootScreen.MAIN_MENU && rootScreen != RootScreen.INTRO_SPLASH) {
         viewModel.handleBackNavigation()
@@ -165,15 +168,20 @@ fun FootballLifeApp(
             }
 
             RootScreen.SETTINGS_MENU -> {
-                SettingsMenuScreen(
+                com.example.ui.screens.settings.SettingsScreen(
                     settings = userSettings,
-                    onBack = { viewModel.navigateToRoot(RootScreen.MAIN_MENU) },
+                    onBack = { viewModel.closeSettingsScreen() },
+                    onSaveGeminiApiKey = { viewModel.setGeminiApiKey(it) },
+                    onSelectGeminiModel = { viewModel.setGeminiModel(it) },
+                    onToggleAiDialogues = { viewModel.setAiDialoguesEnabled(it) },
                     onToggleAmbience = { viewModel.setAmbienceEnabled(it) },
                     onToggleSfx = { viewModel.setSfxEnabled(it) },
                     onToggleHaptics = { viewModel.setHapticsEnabled(it) },
                     onSelectGraphics = { viewModel.setGraphicsQuality(it) },
                     onToggleSkipIntro = { viewModel.setSkipIntro(it) },
-                    onSaveAccountName = { viewModel.setLocalAccountName(it) }
+                    onSaveAccountName = { viewModel.setLocalAccountName(it) },
+                    externalConnectionStatus = aiConnectionStatus,
+                    onTestGeminiConnection = { key, model -> viewModel.testGeminiConnection(key, model) }
                 )
             }
 
@@ -304,7 +312,8 @@ fun FootballLifeApp(
                                         onResumeSecondHalf = { viewModel.startSecondHalf() },
                                         onChangeSpeed = { viewModel.setMatchSpeed(it) },
                                         onChooseDecisionOption = { viewModel.selectCriticalMatchOption(it) },
-                                        onFinishMatch = { viewModel.finishMatchAndCommitResults() }
+                                        onFinishMatch = { viewModel.finishMatchAndCommitResults() },
+                                        onSkipToNextMoment = { viewModel.skipToNextMatchMoment() }
                                     )
                                 }
 
@@ -343,14 +352,59 @@ fun FootballLifeApp(
                                 }
 
                                 HubOverlayScreen.POST_MATCH_LOCKER_ROOM -> {
-                                    PostMatchLockerRoomScreen(
+                                    com.example.ui.screens.interview.PostMatchInterviewScreen(
                                         career = career,
+                                        geminiApiKey = userSettings.geminiApiKey,
+                                        geminiModel = userSettings.geminiModel,
+                                        aiEnabled = userSettings.aiDialoguesEnabled,
+                                        onCompleteInterview = { result ->
+                                            viewModel.completePostMatchInterview(result)
+                                        },
                                         onSubmitPressStatement = { text, tone ->
                                             viewModel.submitPressOrSocialStatement(text, tone)
                                         },
+                                        onPlaySfx = { effect -> viewModel.playSfx(effect) },
                                         onContinueToCareerHub = {
                                             viewModel.closeOverlay()
                                             viewModel.selectHubTab(HubTab.HAYATIM)
+                                        }
+                                    )
+                                }
+
+                                HubOverlayScreen.COACH_MEETING -> {
+                                    com.example.ui.screens.dialogue.CoachMeetingScreen(
+                                        career = career,
+                                        isAiGenerating = aiTypingTargetId == "NPC_MANAGER",
+                                        onSendCoachMessage = { text -> viewModel.sendCoachMeetingMessage(text) },
+                                        onStartVoiceCallWithCoach = {
+                                            viewModel.initiateCallWithNpc("NPC_MANAGER")
+                                        },
+                                        onOpenSettings = { viewModel.openSettingsFromHub() },
+                                        onBack = { viewModel.closeOverlay() }
+                                    )
+                                }
+
+                                HubOverlayScreen.ACTIVE_PHONE_CALL -> {
+                                    com.example.ui.screens.dialogue.PhoneCallScreen(
+                                        career = career,
+                                        activeCallId = activePhoneCallId,
+                                        isAiGenerating = aiTypingTargetId != null,
+                                        onSendSpokenLine = { callId, npcId, text ->
+                                            if (callId.isNotBlank()) {
+                                                viewModel.completePhoneCall(callId, text)
+                                            } else {
+                                                viewModel.sendNpcMessage(
+                                                    npcId = npcId,
+                                                    text = text,
+                                                    channel = com.example.ai.DialogueChannelType.VOICE_PHONE_CALL
+                                                )
+                                            }
+                                        },
+                                        onSwitchCallTargetNpc = { npcId ->
+                                            viewModel.initiateCallWithNpc(npcId)
+                                        },
+                                        onEndCall = { callId ->
+                                            viewModel.endActivePhoneCall(callId)
                                         }
                                     )
                                 }
@@ -369,7 +423,10 @@ fun FootballLifeApp(
                                                 onPlayNextMatch = { viewModel.prepareMatchForTodayOrNext() },
                                                 onAdvanceNextDay = { viewModel.advanceSynchronizedTime() },
                                                 onAdvanceToMatchDay = { viewModel.advanceUntilNextMatchDay() },
-                                                onResolveDilemma = { viewModel.resolveStoryDilemma(it) }
+                                                onResolveDilemma = { viewModel.resolveStoryDilemma(it) },
+                                                onOpenCoachMeeting = { viewModel.openOverlay(HubOverlayScreen.COACH_MEETING) },
+                                                onOpenVoiceCall = { callId -> viewModel.openInteractiveCallOverlay(callId) },
+                                                onOpenSettings = { viewModel.openSettingsFromHub() }
                                             )
                                         }
 
@@ -466,7 +523,14 @@ fun FootballLifeApp(
                                                 onUpdateSfx = { viewModel.setSfxEnabled(it) },
                                                 onUpdateHaptics = { viewModel.setHapticsEnabled(it) },
                                                 onUpdateGraphics = { viewModel.setGraphicsQuality(it) },
-                                                onBackToHub = { viewModel.selectHubTab(HubTab.HAYATIM) }
+                                                onBackToHub = { viewModel.selectHubTab(HubTab.HAYATIM) },
+                                                typingChatIds = setOfNotNull(aiTypingTargetId),
+                                                aiTypingTargetId = aiTypingTargetId,
+                                                onMarkNpcRead = { viewModel.markNpcMessagesRead(it) },
+                                                onOpenAiSettings = { viewModel.openSettingsFromHub() },
+                                                onOpenSystemSettings = { viewModel.openSettingsFromHub() },
+                                                onOpenCoachMeeting = { viewModel.openOverlay(HubOverlayScreen.COACH_MEETING) },
+                                                onOpenInteractiveCall = { viewModel.openInteractiveCallOverlay(it) }
                                             )
                                         }
                                     }

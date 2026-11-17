@@ -65,7 +65,9 @@ enum class HubOverlayScreen {
     SOCIAL_LIFE_VENUES,
     TRANSFER_AND_CONTRACT,
     PLAYER_PROFILE_ARCHIVE,
-    POST_MATCH_LOCKER_ROOM
+    POST_MATCH_LOCKER_ROOM,
+    COACH_MEETING,
+    ACTIVE_PHONE_CALL
 }
 
 data class CustomPlayerDraft(
@@ -131,6 +133,34 @@ class FootballLifeViewModel(
     private val _toastBanner = MutableStateFlow<String?>(null)
     val toastBanner: StateFlow<String?> = _toastBanner.asStateFlow()
 
+    private val _aiTypingTargetId = MutableStateFlow<String?>(null)
+    val aiTypingTargetId: StateFlow<String?> = _aiTypingTargetId.asStateFlow()
+
+    private val _aiConnectionStatus = MutableStateFlow<String?>(null)
+    val aiConnectionStatus: StateFlow<String?> = _aiConnectionStatus.asStateFlow()
+
+    private val _activePhoneCallId = MutableStateFlow<String?>(null)
+    val activePhoneCallId: StateFlow<String?> = _activePhoneCallId.asStateFlow()
+
+    private var returnToHubAfterSettings: Boolean = false
+
+    fun openSettingsFromHub() {
+        playSfx(GameSoundEffect.MENU_TAP)
+        returnToHubAfterSettings = true
+        _rootScreen.value = RootScreen.SETTINGS_MENU
+    }
+
+    fun closeSettingsScreen() {
+        playSfx(GameSoundEffect.MENU_TAP)
+        if (returnToHubAfterSettings && _activeCareer.value != null) {
+            returnToHubAfterSettings = false
+            _rootScreen.value = RootScreen.CAREER_HUB_SHELL
+        } else {
+            returnToHubAfterSettings = false
+            _rootScreen.value = RootScreen.MAIN_MENU
+        }
+    }
+
     fun dismissToast() {
         _toastBanner.value = null
     }
@@ -185,8 +215,11 @@ class FootballLifeViewModel(
             return true
         }
         return when (_rootScreen.value) {
+            RootScreen.SETTINGS_MENU -> {
+                closeSettingsScreen()
+                true
+            }
             RootScreen.SAVE_SLOTS,
-            RootScreen.SETTINGS_MENU,
             RootScreen.CAREER_PATH_CHOICE -> {
                 _rootScreen.value = RootScreen.MAIN_MENU
                 true
@@ -223,11 +256,12 @@ class FootballLifeViewModel(
         viewModelScope.launch {
             val loaded = saveRepository.loadMostRecentCareer()
             if (loaded != null) {
-                _activeCareer.value = loaded
+                val enriched = com.example.ai.DialogueEngine.ensureExtendedNpcs(loaded)
+                _activeCareer.value = enriched
                 _activeHubTab.value = HubTab.HAYATIM
                 _overlayScreen.value = HubOverlayScreen.NONE
                 _rootScreen.value = RootScreen.CAREER_HUB_SHELL
-                showToast("${loaded.player.fullName} kariyerine kaldığın yerden devam ediliyor.")
+                showToast("${enriched.player.fullName} kariyerine kaldığın yerden devam ediliyor.")
             } else {
                 showToast("Kayıtlı kariyer bulunamadı. Yeni bir kariyer başlatın.")
             }
@@ -240,11 +274,12 @@ class FootballLifeViewModel(
             val loaded = saveRepository.loadCareerSlot(slotId)
             if (loaded != null) {
                 settingsRepository.setLastActiveSlot(slotId)
-                _activeCareer.value = loaded
+                val enriched = com.example.ai.DialogueEngine.ensureExtendedNpcs(loaded)
+                _activeCareer.value = enriched
                 _activeHubTab.value = HubTab.HAYATIM
                 _overlayScreen.value = HubOverlayScreen.NONE
                 _rootScreen.value = RootScreen.CAREER_HUB_SHELL
-                showToast("Kayıt Yuvası $slotId yüklendi: ${loaded.player.fullName}")
+                showToast("Kayıt Yuvası $slotId yüklendi: ${enriched.player.fullName}")
             }
         }
     }
@@ -323,14 +358,15 @@ class FootballLifeViewModel(
             )
         }
 
-        _activeCareer.value = newState
+        val enrichedNewState = com.example.ai.DialogueEngine.ensureExtendedNpcs(newState)
+        _activeCareer.value = enrichedNewState
         _liveMatchState.value = null
         _activeHubTab.value = HubTab.HAYATIM
         _overlayScreen.value = HubOverlayScreen.NONE
         _rootScreen.value = RootScreen.CAREER_HUB_SHELL
 
-        persistCareerState(newState)
-        showToast("${newState.player.fullName}, ${newState.currentClub.name} tesislerine katıldı! İlk günün başladı.")
+        persistCareerState(enrichedNewState)
+        showToast("${enrichedNewState.player.fullName}, ${enrichedNewState.currentClub.name} tesislerine katıldı! İlk günün başladı.")
     }
 
     // Core Gameplay Actions
@@ -419,12 +455,56 @@ class FootballLifeViewModel(
         showToast(msg)
     }
 
-    fun sendNpcMessage(npcId: String, text: String) {
-        val current = _activeCareer.value ?: return
-        val updated = CareerEngine.sendDialogueMessageToNpc(current, npcId, text)
+    fun sendNpcMessage(
+        npcId: String,
+        text: String,
+        channel: com.example.ai.DialogueChannelType = com.example.ai.DialogueChannelType.WHATSAPP_CHAT,
+        topicContext: String? = null
+    ) {
+        val stateBefore = _activeCareer.value ?: return
+        val clean = text.trim()
+        if (clean.isEmpty()) return
+
+        // 1. Optimistic UI update so user bubble appears immediately
+        val (optimisticState, _) = com.example.ai.DialogueEngine.appendOptimisticUserNpcMessage(stateBefore, npcId, clean)
+        _activeCareer.value = optimisticState
         playSfx(GameSoundEffect.PHONE_MESSAGE)
-        _activeCareer.value = updated
-        persistCareerState(updated)
+
+        val cfg = userSettings.value
+        _aiTypingTargetId.value = npcId
+
+        viewModelScope.launch {
+            try {
+                val result = com.example.ai.DialogueEngine.generateAndApplyNpcDialogue(
+                    stateBeforeUserMsg = stateBefore,
+                    currentStateWithUserMsg = _activeCareer.value ?: optimisticState,
+                    npcId = npcId,
+                    userText = clean,
+                    channel = channel,
+                    topicContext = topicContext,
+                    apiKeyInput = cfg.geminiApiKey,
+                    modelId = cfg.geminiModel,
+                    aiEnabled = cfg.aiDialoguesEnabled
+                )
+                playSfx(GameSoundEffect.PHONE_MESSAGE)
+                _activeCareer.value = result.updatedState
+                persistCareerState(result.updatedState)
+                result.toastSummary?.let { showToast(it) }
+            } finally {
+                if (_aiTypingTargetId.value == npcId) {
+                    _aiTypingTargetId.value = null
+                }
+            }
+        }
+    }
+
+    fun sendCoachMeetingMessage(text: String) {
+        sendNpcMessage(
+            npcId = "NPC_MANAGER",
+            text = text,
+            channel = com.example.ai.DialogueChannelType.COACH_OFFICE_MEETING,
+            topicContext = "Teknik Direktör Odasında Yüz Yüze Görüşme"
+        )
     }
 
     fun markNpcMessagesRead(npcId: String) {
@@ -440,6 +520,15 @@ class FootballLifeViewModel(
     fun submitPressOrSocialStatement(text: String, tone: String) {
         val current = _activeCareer.value ?: return
         val (updated, msg) = CareerEngine.publishPressStatementOrSocialPost(current, text, tone)
+        playSfx(GameSoundEffect.PHONE_MESSAGE)
+        _activeCareer.value = updated
+        persistCareerState(updated)
+        showToast(msg)
+    }
+
+    fun completePostMatchInterview(result: com.example.engine.interview.InterviewSessionResult) {
+        val current = _activeCareer.value ?: return
+        val (updated, msg) = com.example.engine.interview.InterviewEngine.applyInterviewSessionResult(current, result)
         playSfx(GameSoundEffect.PHONE_MESSAGE)
         _activeCareer.value = updated
         persistCareerState(updated)
@@ -571,11 +660,38 @@ class FootballLifeViewModel(
     }
 
     fun sendInstaDmMessage(threadId: String, text: String) {
-        val current = _activeCareer.value ?: return
-        val updated = CareerEngine.sendInstaDmMessage(current, threadId, text)
+        val stateBefore = _activeCareer.value ?: return
+        val clean = text.trim()
+        if (clean.isEmpty()) return
+
+        val (optimisticState, _) = com.example.ai.DialogueEngine.appendOptimisticUserInstaDm(stateBefore, threadId, clean)
+        _activeCareer.value = optimisticState
         playSfx(GameSoundEffect.PHONE_MESSAGE)
-        _activeCareer.value = updated
-        persistCareerState(updated)
+
+        val cfg = userSettings.value
+        _aiTypingTargetId.value = threadId
+
+        viewModelScope.launch {
+            try {
+                val result = com.example.ai.DialogueEngine.generateAndApplyInstaDmDialogue(
+                    stateBeforeUserMsg = stateBefore,
+                    currentStateWithUserMsg = _activeCareer.value ?: optimisticState,
+                    threadId = threadId,
+                    userText = clean,
+                    apiKeyInput = cfg.geminiApiKey,
+                    modelId = cfg.geminiModel,
+                    aiEnabled = cfg.aiDialoguesEnabled
+                )
+                playSfx(GameSoundEffect.PHONE_MESSAGE)
+                _activeCareer.value = result.updatedState
+                persistCareerState(result.updatedState)
+                result.toastSummary?.let { showToast(it) }
+            } finally {
+                if (_aiTypingTargetId.value == threadId) {
+                    _aiTypingTargetId.value = null
+                }
+            }
+        }
     }
 
     fun viewAndReactToStory(storyId: String, react: Boolean) {
@@ -633,22 +749,62 @@ class FootballLifeViewModel(
     }
 
     fun completePhoneCall(callId: String, chosenResponse: String) {
-        val current = _activeCareer.value ?: return
-        val (updated, msg) = CareerEngine.completePhoneCall(current, callId, chosenResponse)
-        playSfx(GameSoundEffect.PHONE_MESSAGE)
-        _activeCareer.value = updated
-        persistCareerState(updated)
-        showToast(msg)
+        val current = com.example.ai.DialogueEngine.ensureExtendedNpcs(_activeCareer.value ?: return)
+        val call = current.callRecords.find { it.id == callId }
+        val targetNpcId = call?.npcId ?: "NPC_AGENT"
+        val updatedCalls = current.callRecords.map {
+            if (it.id == callId) it.copy(completed = true) else it
+        }
+        val stateWithCallMarked = current.copy(callRecords = updatedCalls)
+        _activeCareer.value = stateWithCallMarked
+        sendNpcMessage(
+            npcId = targetNpcId,
+            text = chosenResponse,
+            channel = com.example.ai.DialogueChannelType.VOICE_PHONE_CALL,
+            topicContext = call?.topic ?: "Telefon Görüşmesi"
+        )
     }
 
     fun initiateCallWithNpc(npcId: String) {
-        val current = _activeCareer.value ?: return
+        val current = com.example.ai.DialogueEngine.ensureExtendedNpcs(_activeCareer.value ?: return)
         val (updated, newCall) = CareerEngine.initiateCallWithNpc(current, npcId)
         playSfx(GameSoundEffect.PHONE_MESSAGE)
         _activeCareer.value = updated
         persistCareerState(updated)
         if (newCall != null) {
+            _activePhoneCallId.value = newCall.id
+            _overlayScreen.value = HubOverlayScreen.ACTIVE_PHONE_CALL
             showToast("${newCall.callerName} aranıyor...")
+        }
+    }
+
+    fun openInteractiveCallOverlay(callId: String? = null) {
+        playSfx(GameSoundEffect.MENU_TAP)
+        if (callId != null) {
+            _activePhoneCallId.value = callId
+        }
+        _overlayScreen.value = HubOverlayScreen.ACTIVE_PHONE_CALL
+    }
+
+    fun endActivePhoneCall(callId: String?) {
+        val current = _activeCareer.value ?: return
+        if (callId != null) {
+            val updatedCalls = current.callRecords.map {
+                if (it.id == callId) it.copy(completed = true) else it
+            }
+            val updated = current.copy(callRecords = updatedCalls)
+            _activeCareer.value = updated
+            persistCareerState(updated)
+        }
+        _activePhoneCallId.value = null
+        _overlayScreen.value = HubOverlayScreen.NONE
+    }
+
+    fun testGeminiConnection(apiKey: String, modelId: String) {
+        viewModelScope.launch {
+            _aiConnectionStatus.value = "Bağlantı test ediliyor..."
+            val res = com.example.ai.GeminiClient.testConnection(apiKey, modelId)
+            _aiConnectionStatus.value = "${res.statusTitleTr}: ${res.detailMessageTr}"
         }
     }
 
@@ -691,6 +847,19 @@ class FootballLifeViewModel(
         _liveMatchState.value = currentMatch.copy(speedMultiplier = multiplier.coerceIn(1, 3))
     }
 
+    fun skipToNextMatchMoment() {
+        val career = _activeCareer.value ?: return
+        val current = _liveMatchState.value ?: return
+        playSfx(GameSoundEffect.MENU_TAP)
+        val skipped = matchEngine.skipToNextPlayableMoment(current, career.player)
+        _liveMatchState.value = skipped
+        if (skipped.phase == MatchPhase.LIVE_PLAY) {
+            startMatchLoopTicker()
+        } else if (skipped.phase == MatchPhase.FULL_TIME) {
+            playSfx(GameSoundEffect.WHISTLE_FULLTIME)
+        }
+    }
+
     fun selectCriticalMatchOption(option: TacticalDecisionOption) {
         val career = _activeCareer.value ?: return
         val currentMatch = _liveMatchState.value ?: return
@@ -721,7 +890,9 @@ class FootballLifeViewModel(
         matchLoopJob?.cancel()
         matchLoopJob = viewModelScope.launch {
             while (true) {
-                delay(55L)
+                val currentBeforeDelay = _liveMatchState.value ?: break
+                val frameDelay = if (currentBeforeDelay.phase == MatchPhase.ACTION_RESOLUTION || currentBeforeDelay.phase == MatchPhase.GOAL_CELEBRATION) 28L else 42L
+                delay(frameDelay)
                 val career = _activeCareer.value ?: break
                 val current = _liveMatchState.value ?: break
                 if (current.phase in listOf(
@@ -772,6 +943,26 @@ class FootballLifeViewModel(
         viewModelScope.launch {
             settingsRepository.updateAccountName(name)
             showToast("Kariyer profili güncellendi: $name")
+        }
+    }
+
+    fun setGeminiApiKey(key: String) {
+        viewModelScope.launch {
+            settingsRepository.updateGeminiApiKey(key)
+            showToast("Gemini API anahtarı kaydedildi.")
+        }
+    }
+
+    fun setGeminiModel(model: String) {
+        viewModelScope.launch {
+            settingsRepository.updateGeminiModel(model)
+            showToast("Gemini modeli güncellendi: $model")
+        }
+    }
+
+    fun setAiDialoguesEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateAiDialoguesEnabled(enabled)
         }
     }
 
