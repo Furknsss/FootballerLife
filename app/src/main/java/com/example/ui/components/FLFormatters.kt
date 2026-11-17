@@ -60,6 +60,15 @@ object FLFormatters {
 
     fun formatEuroFull(eur: Long): String = formatCurrency(eur)
 
+    fun formatCompactNumber(number: Long): String {
+        val absVal = abs(number)
+        return when {
+            absVal >= 1_000_000L -> "${oneDecimalFormatter.format(number / 1_000_000.0)} Mn"
+            absVal >= 1_000L -> "${oneDecimalFormatter.format(number / 1_000.0)} B"
+            else -> integerFormatter.format(number)
+        }
+    }
+
     fun formatSignedCurrency(eur: Long): String {
         return when {
             eur > 0 -> "+€${integerFormatter.format(eur)}"

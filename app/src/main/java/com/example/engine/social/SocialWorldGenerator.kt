@@ -2539,7 +2539,7 @@ object SocialWorldGenerator {
         val day = state.currentDayIndex
         val userHandle = "@${p.firstName.lowercase()}${p.kitNumber}"
 
-        return if (platform == "INSTAGRAM") {
+        val baseList = if (platform == "INSTAGRAM") {
             listOf(
                 SocialNotificationItem(
                     id = "NOTIF_IG_1",
