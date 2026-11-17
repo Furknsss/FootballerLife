@@ -85,7 +85,9 @@ data class CustomPlayerDraft(
     val heightCm: Int = 179,
     val weightKg: Int = 73,
     val appearance: PlayerAppearance = PlayerAppearance(),
-    val backgroundStory: String = "Altyapı Akademisi Çıkışlı"
+    val backgroundStory: String = "Altyapı Akademisi Çıkışlı",
+    val tacticalRole: String = "Klasik 10 Numara",
+    val customAttributes: PlayerAttributes? = null
 )
 
 class FootballLifeViewModel(
@@ -358,7 +360,17 @@ class FootballLifeViewModel(
             )
         }
 
-        val enrichedNewState = com.example.ai.DialogueEngine.ensureExtendedNpcs(newState)
+        val stateWithCustomCustomizations = if (preset == null && (draft.customAttributes != null || draft.tacticalRole.isNotBlank())) {
+            val updatedPlayer = newState.player.copy(
+                attributes = draft.customAttributes ?: newState.player.attributes,
+                tacticalRole = draft.tacticalRole
+            )
+            newState.copy(player = updatedPlayer)
+        } else {
+            newState
+        }
+
+        val enrichedNewState = com.example.ai.DialogueEngine.ensureExtendedNpcs(stateWithCustomCustomizations)
         _activeCareer.value = enrichedNewState
         _liveMatchState.value = null
         _activeHubTab.value = HubTab.HAYATIM

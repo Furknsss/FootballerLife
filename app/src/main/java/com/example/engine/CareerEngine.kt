@@ -37,6 +37,9 @@ import com.example.model.StoryItem
 import com.example.model.TransferHistoryEntry
 import com.example.model.TransferOffer
 import com.example.model.XPostItem
+import com.example.engine.progression.LeagueDifficultyCalculator
+import com.example.engine.progression.RealisticProgressionEngine
+import com.example.engine.progression.TransferMarketEngine
 import com.example.ui.components.FLFormatters
 import kotlin.math.abs
 import kotlin.math.max
@@ -92,14 +95,14 @@ object CareerEngine {
         clubTier: Int,
         background: String
     ): PlayerAttributes {
-        // Lower-tier clubs start around 54-60 OVR, top-tier academy around 66-70 OVR
+        // Alt ligler (Amatör/BAL 38-46 OVR), Süper Lig (68-74 OVR)
         val base = when (clubTier) {
-            6 -> 51
-            5 -> 54
-            4 -> 57
-            3 -> 60
-            2 -> 63
-            else -> 67
+            6 -> 38
+            5 -> 45
+            4 -> 52
+            3 -> 58
+            2 -> 64
+            else -> 70
         }
         val streetBonus = if (background.contains("Sokak")) 3 else 0
         val physicalBonus = if (background.contains("Atletik")) 3 else 0
@@ -175,30 +178,25 @@ object CareerEngine {
         appearance: PlayerAppearance,
         backgroundStory: String,
         selectedLeagueId: String,
-        selectedClubId: String
+        selectedClubId: String,
+        customAttributes: PlayerAttributes? = null
     ): CareerSaveState {
         val clubs = WorldDataCatalog.clubsForLeague(selectedLeagueId)
         val club = clubs.find { it.id == selectedClubId } ?: clubs.first()
         val age = (2026 - birthYear).coerceIn(16, 36)
-        val attrs = createBalancedCustomAttributes(primaryPosition, club.tier, backgroundStory)
+        val attrs = customAttributes ?: createBalancedCustomAttributes(primaryPosition, club.tier, backgroundStory)
         val ovr = attrs.calculateOverall(primaryPosition)
-        val potential = (ovr + (28 - age).coerceIn(4, 24)).coerceIn(ovr + 3, 94)
+        val potential = (ovr + (28 - age).coerceIn(4, 20)).coerceIn(ovr + 3, 94)
 
-        val baseWage = when (club.tier) {
-            6 -> 350L
-            5 -> 750L
-            4 -> 1_600L
-            3 -> 3_500L
-            2 -> 8_500L
-            else -> 22_000L
-        }
-        val baseMarketValue = when (club.tier) {
-            6 -> 35_000L
-            5 -> 90_000L
-            4 -> 220_000L
-            3 -> 550_000L
-            2 -> 1_400_000L
-            else -> 4_200_000L
+        val baseWage = LeagueDifficultyCalculator.computeRealisticStartingWage(club.tier, ovr)
+        val baseMarketValue = LeagueDifficultyCalculator.computeRealisticMarketValue(club.tier, ovr, age)
+        val startingBalance = when (club.tier) {
+            6 -> 250L
+            5 -> 650L
+            4 -> 1_800L
+            3 -> 4_500L
+            2 -> 16_000L
+            else -> 65_000L
         }
 
         val player = PlayerProfile(
@@ -255,7 +253,7 @@ object CareerEngine {
             contract = contract,
             leagueId = selectedLeagueId,
             clubs = clubs,
-            startingBalanceEur = baseWage * 3
+            startingBalanceEur = startingBalance
         )
     }
 
@@ -740,116 +738,28 @@ object CareerEngine {
         state: CareerSaveState,
         drill: TrainingDrillDefinition
     ): Pair<CareerSaveState, String> {
-        if (state.trainedToday) {
-            return state to "Bugün zaten bir antrenman tamamladın. Kas gelişimi ve aşırı yüklenmeyi önlemek için yarına geçmelisin."
-        }
-        if (state.player.injuryDaysRemaining > 0 && drill.id != "DRILL_RECOVERY") {
-            return state to "Sakatlığın devam ederken yalnızca Aktif Rejenerasyon & Fizyoterapi uygulayabilirsin."
-        }
-        if (state.player.energy < drill.energyCost && drill.energyCost > 0) {
-            return state to "Yeterli enerjin yok (${state.player.energy}%). Dinlenme / Rejenerasyon seçmeli veya günü tamamlamalısın."
+        val (progressedState, feedback) = RealisticProgressionEngine.resolveTrainingSession(state, drill)
+        if (!progressedState.trainedToday) {
+            return progressedState to feedback
         }
 
-        val p = state.player
-        val attr = p.attributes
-        val facilityBonus = (state.currentClub.facilityQuality - 1) * 0.15
-        val ageFactor = when {
-            p.age <= 21 -> 1.35
-            p.age <= 25 -> 1.10
-            p.age <= 29 -> 0.85
-            else -> 0.55
-        }
-        val headroom = (p.potential - p.overallRating).coerceAtLeast(1)
-        val gainAmount = if (drill.id == "DRILL_RECOVERY") 0 else {
-            val baseGain = (1.0 + facilityBonus * ageFactor).roundToInt()
-            if (headroom >= 6) baseGain.coerceIn(1, 2) else 1
-        }
-
-        val updatedAttr = when (drill.id) {
-            "DRILL_SHOOTING" -> attr.copy(
-                shooting = (attr.shooting + gainAmount).coerceAtMost(99),
-                firstTouch = (attr.firstTouch + 1).coerceAtMost(99)
-            )
-            "DRILL_PASSING" -> attr.copy(
-                passing = (attr.passing + gainAmount).coerceAtMost(99),
-                vision = (attr.vision + 1).coerceAtMost(99)
-            )
-            "DRILL_DRIBBLING" -> attr.copy(
-                dribbling = (attr.dribbling + gainAmount).coerceAtMost(99),
-                agility = (attr.agility + 1).coerceAtMost(99)
-            )
-            "DRILL_FIRST_TOUCH" -> attr.copy(
-                firstTouch = (attr.firstTouch + gainAmount).coerceAtMost(99),
-                dribbling = (attr.dribbling + 1).coerceAtMost(99)
-            )
-            "DRILL_PACE" -> attr.copy(
-                pace = (attr.pace + gainAmount).coerceAtMost(99),
-                agility = (attr.agility + 1).coerceAtMost(99)
-            )
-            "DRILL_STAMINA" -> attr.copy(
-                stamina = (attr.stamina + gainAmount).coerceAtMost(99),
-                strength = (attr.strength + 1).coerceAtMost(99)
-            )
-            "DRILL_STRENGTH" -> attr.copy(
-                strength = (attr.strength + gainAmount).coerceAtMost(99),
-                stamina = (attr.stamina + 1).coerceAtMost(99)
-            )
-            "DRILL_DEFENDING" -> attr.copy(
-                defending = (attr.defending + gainAmount).coerceAtMost(99),
-                tactics = (attr.tactics + 1).coerceAtMost(99)
-            )
-            "DRILL_TACTICS" -> attr.copy(
-                tactics = (attr.tactics + gainAmount).coerceAtMost(99),
-                vision = (attr.vision + 1).coerceAtMost(99)
-            )
-            "DRILL_SET_PIECES" -> attr.copy(
-                setPieces = (attr.setPieces + gainAmount).coerceAtMost(99),
-                shooting = (attr.shooting + 1).coerceAtMost(99)
-            )
-            "DRILL_GK" -> attr.copy(
-                goalkeeping = (attr.goalkeeping + gainAmount).coerceAtMost(99),
-                agility = (attr.agility + 1).coerceAtMost(99)
-            )
-            else -> attr
-        }
-
-        val newEnergy = (p.energy - drill.energyCost).coerceIn(10, 100)
-        // Check small injury risk if energy was very low
-        val rng = Random(state.currentDayIndex * 73L + drill.id.hashCode())
-        val effectiveInjuryRisk = if (newEnergy < 35) drill.injuryRiskPct * 2 else drill.injuryRiskPct / 2
-        val injuredNow = drill.energyCost > 0 && rng.nextInt(100) < effectiveInjuryRisk
-        val injuryDays = if (injuredNow) 3 else max(0, p.injuryDaysRemaining - (if (drill.id == "DRILL_RECOVERY") 1 else 0))
-
-        val newMorale = if (injuredNow) (p.morale - 8).coerceAtLeast(20) else (p.morale + 3).coerceAtMost(100)
-        val newForm = (p.form + (if (drill.id == "DRILL_RECOVERY") 2 else 4)).coerceIn(30, 100)
-        val trustDelta = if (drill.id == "DRILL_RECOVERY") 2 else 5
+        val p = progressedState.player
+        val injuredNow = p.injuryDaysRemaining > state.player.injuryDaysRemaining
+        val trustDelta = if (drill.id == "DRILL_RECOVERY") 2 else if (injuredNow) 0 else 4
         val newTrust = (state.managerTrust + trustDelta).coerceIn(0, 100)
+        val newStartingStatus = computeStartingStatus(p, state.currentClub, newTrust)
 
-        val updatedPlayer = p.copy(
-            attributes = updatedAttr,
-            energy = newEnergy,
-            morale = newMorale,
-            form = newForm,
-            injuryDaysRemaining = injuryDays,
-            trainingCountThisWeek = p.trainingCountThisWeek + 1,
-            marketValueEur = p.marketValueEur + (gainAmount * 15_000L)
-        )
-
-        val newStartingStatus = computeStartingStatus(updatedPlayer, state.currentClub, newTrust)
-
-        // Update calendar event for today
         val updatedCalendar = state.calendarEvents.map { ev ->
             if (ev.dayIndex == state.currentDayIndex && ev.eventType == "ANTRENMAN") {
                 ev.copy(
                     completed = true,
-                    outcomeSummary = "${drill.title} tamamlandı (+${drill.primaryAttributeName})"
+                    outcomeSummary = "${drill.title} tamamlandı"
                 )
             } else {
                 ev
             }
         }
 
-        // Send evening message from Family on Day 1 or Manager feedback
         val shortDate = formatShortDate(state.currentDayIndex)
         val updatedNpcs = state.npcs.map { npc ->
             when (npc.id) {
@@ -869,15 +779,20 @@ object CareerEngine {
                     )
                 } else npc
                 "NPC_MANAGER" -> {
+                    val mgrText = if (injuredNow) {
+                        "Geçmiş olsun ${p.firstName}, idmanda talihsiz bir sakatlık yaşadın. Sağlık heyetinin programına harfiyen uy."
+                    } else {
+                        "Bugünkü '${drill.title}' çalışmasındaki disiplininden memnun kaldım. Kadro durumun: ${newStartingStatus.labelTr}."
+                    }
                     val mgrMsg = ChatMessage(
                         id = "MSG_MGR_TRN_${state.currentDayIndex}",
                         senderName = npc.name,
                         isFromUser = false,
-                        text = "Bugünkü '${drill.title}' çalışmasındaki ciddiyetinden memnun kaldım. Kadro durumun: ${newStartingStatus.labelTr}.",
+                        text = mgrText,
                         dayIndex = state.currentDayIndex,
                         timeLabel = "$shortDate • 17:30",
-                        emotionTag = "Memnun",
-                        impactSummary = "Teknik Direktör Güveni +$trustDelta"
+                        emotionTag = if (injuredNow) "Endişeli" else "Memnun",
+                        impactSummary = if (injuredNow) "Sakatlık Yaşandı" else "Teknik Direktör Güveni +$trustDelta"
                     )
                     npc.copy(
                         trust = newTrust,
@@ -889,45 +804,27 @@ object CareerEngine {
             }
         }
 
-        val summaryText = if (drill.id == "DRILL_RECOVERY") {
-            "Aktif rejenerasyon tamamlandı! Enerji +${-drill.energyCost}% yenilendi, Teknik Direktör Güveni +$trustDelta."
-        } else if (injuredNow) {
-            "${drill.title} sırasında hafif zorlanma yaşadın (3 gün dinlenme önerildi), ancak ${drill.primaryAttributeName} +$gainAmount gelişti."
-        } else {
-            "${drill.title} başarıyla tamamlandı! ${drill.primaryAttributeName} +$gainAmount, ${drill.secondaryAttributeName} +1, Teknik Direktör Güveni +$trustDelta."
-        }
-
         val gameEvent = GameEvent(
             id = "EVT_TRAIN_D${state.currentDayIndex}_${System.currentTimeMillis()}",
             dayIndex = state.currentDayIndex,
             timestampMs = System.currentTimeMillis(),
             eventType = "TRAINING_COMPLETED",
             contextDescription = drill.title,
-            appliedEffects = summaryText
+            appliedEffects = feedback
         )
 
         val dateLbl = formatShortDate(state.currentDayIndex)
-        val updatedMarketHistory = if (gainAmount > 0) {
-            state.marketValueHistory + MarketValuePoint(
-                dayIndex = state.currentDayIndex,
-                dateLabel = dateLbl,
-                valueEur = updatedPlayer.marketValueEur,
-                clubName = state.currentClub.shortName,
-                reason = "${drill.title} Gelişimi"
-            )
-        } else state.marketValueHistory
-
         val updatedAttrHistory = state.attributeHistory + AttributeHistoryPoint(
             dayIndex = state.currentDayIndex,
             dateLabel = dateLbl,
-            overall = updatedPlayer.overallRating,
-            pace = updatedPlayer.attributes.cardPace,
-            shooting = updatedPlayer.attributes.cardShooting,
-            passing = updatedPlayer.attributes.cardPassing,
-            dribbling = updatedPlayer.attributes.cardDribbling,
-            defending = updatedPlayer.attributes.cardDefending,
-            physical = updatedPlayer.attributes.cardPhysical,
-            averageMatchRating = updatedPlayer.currentSeasonStats.averageRating
+            overall = p.overallRating,
+            pace = p.attributes.cardPace,
+            shooting = p.attributes.cardShooting,
+            passing = p.attributes.cardPassing,
+            dribbling = p.attributes.cardDribbling,
+            defending = p.attributes.cardDefending,
+            physical = p.attributes.cardPhysical,
+            averageMatchRating = p.currentSeasonStats.averageRating
         )
 
         val updatedInjuries = if (injuredNow) {
@@ -937,25 +834,22 @@ object CareerEngine {
                     dayIndex = state.currentDayIndex,
                     dateLabel = formatGameDate(state.currentDayIndex, state.currentSeasonYear),
                     injuryType = "Antrenman Kas Zorlanması (${drill.title})",
-                    recoveryDays = 3,
+                    recoveryDays = p.injuryDaysRemaining,
                     matchesMissed = 0
                 )
             ) + state.injuryHistory
         } else state.injuryHistory
 
-        return state.copy(
+        return progressedState.copy(
             updatedAtMs = System.currentTimeMillis(),
-            player = updatedPlayer,
             managerTrust = newTrust,
             nextMatchStartingStatus = newStartingStatus,
-            trainedToday = true,
             npcs = updatedNpcs,
             calendarEvents = updatedCalendar,
-            marketValueHistory = updatedMarketHistory,
             attributeHistory = updatedAttrHistory,
             injuryHistory = updatedInjuries,
             eventHistory = listOf(gameEvent) + state.eventHistory
-        ) to summaryText
+        ) to feedback
     }
 
     /**
@@ -1027,17 +921,13 @@ object CareerEngine {
             totalRatingSum = oldStats.totalRatingSum + (if (playedAny) report.userRating else 0.0)
         )
 
-        // Match performance progression bonus
-        val matchAttrGain = report.userGoals >= 1 || report.userAssists >= 1 || report.userRating >= 7.8
-        val updatedAttributes = if (matchAttrGain && p.overallRating < p.potential) {
-            p.attributes.copy(
-                tactics = (p.attributes.tactics + 1).coerceAtMost(99),
-                vision = (p.attributes.vision + (if (report.userAssists > 0) 1 else 0)).coerceAtMost(99),
-                shooting = (p.attributes.shooting + (if (report.userGoals > 0) 1 else 0)).coerceAtMost(99)
-            )
-        } else {
-            p.attributes
-        }
+        // Match performance progression bonus via RealisticProgressionEngine
+        val (progPlayer, matchAttrDesc) = RealisticProgressionEngine.resolveMatchProgression(
+            player = p,
+            club = state.currentClub,
+            report = report
+        )
+        val updatedAttributes = progPlayer.attributes
 
         val userIsHome = report.homeClubId == state.contract.clubId
         val userWon = if (userIsHome) report.homeScore > report.awayScore else report.awayScore > report.homeScore
@@ -1049,17 +939,24 @@ object CareerEngine {
             userDrew -> +1
             else -> -6
         }
-        val formDelta = ((report.userRating - 6.5) * 8.0).roundToInt()
+        val formDelta = progPlayer.form - p.form
         val trustDelta = ((report.userRating - 6.4) * 7.0).roundToInt() + (if (userWon) 3 else -1)
-        val followersGain = (report.userGoals * 420) + (report.userAssists * 240) + (if (userWon) 150 else 45)
-        val valueDelta = (report.userGoals * 45_000L) + (report.userAssists * 25_000L) + (if (report.userRating >= 7.5) 20_000L else 0L)
+
+        val tierProfile = LeagueDifficultyCalculator.getProfileForTier(state.currentClub.tier)
+        val baseValUnit = (tierProfile.marketValueMinEur * 0.10).toLong().coerceAtLeast(500L)
+        val valueDelta = (report.userGoals * (baseValUnit * 3)) +
+            (report.userAssists * (baseValUnit * 2)) +
+            (if (report.userRating >= 7.5) baseValUnit else 0L)
+        val followersGain = (report.userGoals * (tierProfile.scoutVisibilityFactor * 450).roundToInt().coerceAtLeast(15)) +
+            (report.userAssists * (tierProfile.scoutVisibilityFactor * 220).roundToInt().coerceAtLeast(10)) +
+            (if (userWon) (tierProfile.scoutVisibilityFactor * 120).roundToInt().coerceAtLeast(15) else 5)
 
         val updatedPlayer = p.copy(
             attributes = updatedAttributes,
             energy = (p.energy - report.energySpent).coerceIn(12, 100),
             morale = (p.morale + moraleDelta).coerceIn(15, 100),
-            form = (p.form + formDelta).coerceIn(25, 100),
-            marketValueEur = (p.marketValueEur + valueDelta).coerceAtLeast(25_000L),
+            form = progPlayer.form,
+            marketValueEur = (p.marketValueEur + valueDelta).coerceIn(tierProfile.marketValueMinEur, tierProfile.marketValueMaxEur * 3),
             followersCount = p.followersCount + followersGain,
             fanSupport = (p.fanSupport + (if (report.userRating >= 7.0) 5 else -2)).coerceIn(10, 100),
             currentSeasonStats = newSeasonStats
@@ -1316,9 +1213,9 @@ object CareerEngine {
             } else ev
         }
 
-        // 8. Generate Transfer Offer if player is performing well
-        val updatedOffers = maybeGenerateTransferOffer(
-            currentOffers = state.transferOffers,
+        // 8. Generate Realistic Transfer Offer if player meets strict performance & transfer window criteria
+        val updatedOffers = TransferMarketEngine.maybeGenerateRealisticOffer(
+            state = state,
             player = updatedPlayer,
             currentClub = state.currentClub,
             dayIndex = state.currentDayIndex
@@ -1418,6 +1315,14 @@ object CareerEngine {
             reposts = 62 + report.userGoals * 25
         )
 
+        val baseMatchXPosts = listOf(matchXPost) + state.xPosts
+        val finalXPosts = TransferMarketEngine.maybeGenerateTransferRumor(
+            state = state.copy(xPosts = baseMatchXPosts),
+            player = updatedPlayer,
+            club = state.currentClub,
+            dayIndex = state.currentDayIndex
+        )
+
         val updatedInstaDmThreads = if (report.userGoals > 0 || report.userRating >= 7.2) {
             maybeGenerateFameDmRequest(state.instaDmThreads, updatedPlayer, state.currentClub, state.currentDayIndex)
         } else {
@@ -1447,7 +1352,7 @@ object CareerEngine {
             achievements = newAchievements,
             galleryPhotos = listOf(matchGalleryPhoto) + state.galleryPhotos,
             stories = listOf(matchStory) + state.stories,
-            xPosts = listOf(matchXPost) + state.xPosts,
+            xPosts = finalXPosts,
             instaDmThreads = updatedInstaDmThreads,
             eventHistory = listOf(
                 GameEvent(
@@ -1619,6 +1524,8 @@ object CareerEngine {
             }
         }
 
+        val activeOffers = state.transferOffers.filter { it.expiresDayIndex >= nextDay }
+
         return state.copy(
             updatedAtMs = System.currentTimeMillis(),
             currentDayIndex = nextDay,
@@ -1630,6 +1537,7 @@ object CareerEngine {
             socialActionCountToday = 0,
             npcs = updatedNpcs,
             transactions = newTxList,
+            transferOffers = activeOffers,
             activeDilemma = triggeredDilemma
         ) to dayTransitionNote
     }
@@ -1897,39 +1805,30 @@ object CareerEngine {
             }
             "NPC_AGENT" -> when {
                 lower.contains("transfer") || lower.contains("teklif") || lower.contains("kulüp") || lower.contains("avrupa") || lower.contains("gözlemci") || lower.contains("ara") -> {
-                    if (updatedOffers.isEmpty()) {
-                        val candidateClubs = state.clubs.filter {
-                            it.id != state.currentClub.id && it.teamStrength >= state.currentClub.teamStrength - 2
-                        }.shuffled(Random(System.currentTimeMillis()))
-                        val targetClub = candidateClubs.firstOrNull()
-                        if (targetClub != null) {
-                            val offeredWage = max(state.contract.weeklyWageEur + 1_200L, (updatedPlayer.marketValueEur / 95L).coerceAtLeast(2_500L))
-                            val newOffer = TransferOffer(
-                                id = "OFR_AGT_${System.currentTimeMillis()}",
-                                clubId = targetClub.id,
-                                clubName = targetClub.name,
-                                leagueId = targetClub.leagueId,
-                                leagueName = targetClub.leagueName,
-                                clubTier = targetClub.tier,
-                                clubStrength = targetClub.teamStrength,
-                                primaryColorHex = targetClub.primaryColorHex,
-                                offeredWeeklyWageEur = offeredWage,
-                                offeredAppearanceBonusEur = offeredWage / 4,
-                                offeredGoalBonusEur = offeredWage / 3,
-                                contractYears = 3,
-                                promisedRole = SquadRole.STARTER,
-                                transferType = "Bonservisli Transfer",
-                                expiresDayIndex = state.currentDayIndex + 14
-                            )
-                            updatedOffers = listOf(newOffer) + updatedOffers
-                            extraImpactNote = "Yeni Resmi Teklif: ${targetClub.name} (${FLFormatters.formatWage(offeredWage)})"
-                        }
-                    }
-                    val topOffer = updatedOffers.firstOrNull()
-                    if (topOffer != null) {
-                        "Hemen kulüplerle temasa geçtim ${state.player.firstName}! Masamızda şu an **${topOffer.clubName}** (${topOffer.leagueName}) kulübünden haftalık **${FLFormatters.formatCurrency(topOffer.offeredWeeklyWageEur)}** maaşlı resmi teklif var! Alt bardan 'Kariyer > Sözleşme & Teklif' sekmesine girip hemen imzalayabilir veya pazarlık yapabilirsin! 💼🔥"
+                    val window = TransferMarketEngine.getTransferWindowStatus(state.currentDayIndex)
+                    if (!window.isOpen) {
+                        "Transfer penceresi şu an kapalı (${window.titleTr}) ${state.player.firstName}. Resmi teklif alamayız ancak scoutlarla ve kulüp temsilcileriyle sürekli dirsek temasındayım. Sen sahadaki performansına odaklan, pencere açıldığında dosyaları açacağız! 💼"
                     } else {
-                        "Avrupa ve üst lig sportif direktörleriyle görüştüm ${state.player.firstName}. Güncel piyasa değerin ${FLFormatters.formatMarketValue(updatedPlayer.marketValueEur)}."
+                        val eligibility = TransferMarketEngine.evaluateTransferEligibility(state, state.player, state.currentClub)
+                        if (!eligibility.isEligible) {
+                            "Piyasadaki kulüplerle nabız yokladım ${state.player.firstName}. Ancak scoutların resmi teklif sunması için: ${eligibility.reasonMessage}"
+                        } else {
+                            if (updatedOffers.isEmpty()) {
+                                updatedOffers = TransferMarketEngine.maybeGenerateRealisticOffer(
+                                    state = state,
+                                    player = updatedPlayer,
+                                    currentClub = state.currentClub,
+                                    dayIndex = state.currentDayIndex
+                                )
+                            }
+                            val topOffer = updatedOffers.firstOrNull()
+                            if (topOffer != null) {
+                                extraImpactNote = "Resmi Teklif: ${topOffer.clubName} (${FLFormatters.formatWage(topOffer.offeredWeeklyWageEur)})"
+                                "Hemen kulüplerle temasa geçtim ${state.player.firstName}! Masamızda şu an **${topOffer.clubName}** (${topOffer.leagueName}) kulübünden haftalık **${FLFormatters.formatCurrency(topOffer.offeredWeeklyWageEur)}** maaşlı resmi teklif var! Alt bardan 'Kariyer > Sözleşme & Teklif' sekmesine girip hemen imzalayabilir veya pazarlık yapabilirsin! 💼🔥"
+                            } else {
+                                "Üst lig kulüpleriyle görüştüm ${state.player.firstName}. Performansını beğeniyorlar ancak henüz resmi bir sözleşme sunmadılar. Bir sonraki maçta fark yaratırsan teklif masaya gelecek!"
+                            }
+                        }
                     }
                 }
                 lower.contains("maaş") || lower.contains("zam") || lower.contains("sözleşme") || lower.contains("kontrat") || lower.contains("prim") -> {
@@ -2282,61 +2181,14 @@ object CareerEngine {
         currentClub: Club,
         dayIndex: Int
     ): List<TransferOffer> {
-        if (currentOffers.size >= 3) return currentOffers
-        val targetTier = (currentClub.tier - 1).coerceAtLeast(1)
-        val allLeagues = WorldDataCatalog.leagues
-        val candidateLeague = allLeagues.find { it.tier == targetTier && it.country == currentClub.country }
-            ?: allLeagues.find { it.tier == targetTier }
-            ?: allLeagues.first()
-
-        val candidateClubs = WorldDataCatalog.clubsForLeague(candidateLeague.id)
-            .filter { it.id != currentClub.id }
-        if (candidateClubs.isEmpty()) return currentOffers
-
-        val interestedClub = candidateClubs[(dayIndex + player.overallRating) % candidateClubs.size]
-        if (currentOffers.any { it.clubId == interestedClub.id }) return currentOffers
-
-        val wageOffer = (player.marketValueEur / 65L).coerceAtLeast(1_200L)
-        val newOffer = TransferOffer(
-            id = "OFFER_${interestedClub.id}_D$dayIndex",
-            clubId = interestedClub.id,
-            clubName = interestedClub.name,
-            leagueId = interestedClub.leagueId,
-            leagueName = interestedClub.leagueName,
-            clubTier = interestedClub.tier,
-            clubStrength = interestedClub.teamStrength,
-            primaryColorHex = interestedClub.primaryColorHex,
-            offeredWeeklyWageEur = wageOffer,
-            offeredAppearanceBonusEur = wageOffer / 4,
-            offeredGoalBonusEur = wageOffer / 3,
-            contractYears = 3,
-            promisedRole = if (player.overallRating >= interestedClub.teamStrength - 2) SquadRole.STARTER else SquadRole.ROTATION,
-            transferType = if (player.age <= 20 && interestedClub.tier < currentClub.tier) "Bonservisli Transfer" else "Bonservisli Transfer",
-            expiresDayIndex = dayIndex + 12
-        )
-        return listOf(newOffer) + currentOffers
+        return currentOffers
     }
 
     fun negotiateTransferOffer(
         state: CareerSaveState,
         offerId: String
     ): Pair<CareerSaveState, String> {
-        val offer = state.transferOffers.find { it.id == offerId } ?: return state to "Teklif bulunamadı."
-        if (offer.negotiationCount >= 2) {
-            return state to "${offer.clubName} yönetimi son teklifini sunduğunu belirtti, daha fazla artış yapmıyor."
-        }
-        val boostedWage = (offer.offeredWeeklyWageEur * 1.15).toLong()
-        val boostedGoalBonus = (offer.offeredGoalBonusEur * 1.20).toLong()
-        val updatedOffer = offer.copy(
-            offeredWeeklyWageEur = boostedWage,
-            offeredGoalBonusEur = boostedGoalBonus,
-            negotiationCount = offer.negotiationCount + 1
-        )
-        val updatedList = state.transferOffers.map { if (it.id == offerId) updatedOffer else it }
-        return state.copy(
-            updatedAtMs = System.currentTimeMillis(),
-            transferOffers = updatedList
-        ) to "Menajerin ${offer.clubName} ile masaya oturdu! Yeni teklif: Haftalık $boostedWage € + Gol Primi $boostedGoalBonus €."
+        return TransferMarketEngine.negotiateOffer(state, offerId)
     }
 
     fun acceptTransferOffer(
@@ -2503,35 +2355,56 @@ object CareerEngine {
     }
 
     fun requestTransferSearchFromAgent(state: CareerSaveState): Pair<CareerSaveState, String> {
-        val updatedOffers = maybeGenerateTransferOffer(
-            currentOffers = state.transferOffers,
+        val window = TransferMarketEngine.getTransferWindowStatus(state.currentDayIndex)
+        if (!window.isOpen) {
+            val updatedX = TransferMarketEngine.maybeGenerateTransferRumor(
+                state = state,
+                player = state.player,
+                club = state.currentClub,
+                dayIndex = state.currentDayIndex
+            )
+            return state.copy(
+                updatedAtMs = System.currentTimeMillis(),
+                xPosts = updatedX
+            ) to "Menajerin Kemal Soylu: 'Transfer penceresi şu an kapalı (${window.titleTr}). Resmi teklif alamayız ancak scoutlarla ve kulüp temsilcileriyle temas halindeyim, dedikoduları ve ilgiyi sıcak tutuyorum.'"
+        }
+
+        val eligibility = TransferMarketEngine.evaluateTransferEligibility(state, state.player, state.currentClub)
+        if (!eligibility.isEligible) {
+            val updatedX = TransferMarketEngine.maybeGenerateTransferRumor(
+                state = state,
+                player = state.player,
+                club = state.currentClub,
+                dayIndex = state.currentDayIndex
+            )
+            return state.copy(
+                updatedAtMs = System.currentTimeMillis(),
+                xPosts = updatedX
+            ) to "Menajerin Kemal Soylu: '${eligibility.reasonMessage}'"
+        }
+
+        val updatedOffers = TransferMarketEngine.maybeGenerateRealisticOffer(
+            state = state,
             player = state.player,
             currentClub = state.currentClub,
-            dayIndex = state.currentDayIndex + 1
+            dayIndex = state.currentDayIndex
         )
-        val newOffer = updatedOffers.firstOrNull()
-        val updatedXPosts = if (newOffer != null && state.xPosts.none { it.id == "XP_RUMOR_${newOffer.id}" }) {
-            listOf(
-                XPostItem(
-                    id = "XP_RUMOR_${newOffer.id}",
-                    dayIndex = state.currentDayIndex,
-                    dateLabel = formatShortDate(state.currentDayIndex),
-                    authorName = "Avrupa Scout Raporu",
-                    handle = "@scout_raporu",
-                    category = "GAZETECİ",
-                    isVerified = true,
-                    text = "👀 KULİS | ${newOffer.clubName} gözlemcileri, ${state.currentClub.name} oyuncusu ${state.player.fullName} için olumlu rapor sundu. Menajer Kemal Soylu ile ilk temas kuruldu.",
-                    likes = 640,
-                    reposts = 95
-                )
-            ) + state.xPosts
-        } else state.xPosts
+        if (updatedOffers.size == state.transferOffers.size) {
+            return state to "Menajerin Kemal Soylu kulüplerle görüştü: 'Kulüpler seni izliyor ancak şu an resmi teklif vermediler. Bir sonraki maçta fark yaratırsan masaya teklif gelecek!'"
+        }
 
+        val newOffer = updatedOffers.first()
+        val rumorPosts = TransferMarketEngine.maybeGenerateTransferRumor(
+            state = state,
+            player = state.player,
+            club = state.currentClub,
+            dayIndex = state.currentDayIndex
+        )
         return state.copy(
             updatedAtMs = System.currentTimeMillis(),
             transferOffers = updatedOffers,
-            xPosts = updatedXPosts
-        ) to "Menajerin Kemal Soylu kulüplerle temasa geçti ve transfer dosyanı güncelledi!"
+            xPosts = rumorPosts
+        ) to "Menajerin Kemal Soylu, ${newOffer.clubName} kulübünden resmi transfer teklifi getirdi!"
     }
 
     private fun computeStartingStatus(
@@ -3942,16 +3815,18 @@ object CareerEngine {
             return state to "Teknik direktör ve yönetim, sözleşme uzatmak için önce sahada daha yüksek güven (%55+) bekliyor."
         }
         val oldContract = state.contract
-        val newWage = (oldContract.weeklyWageEur * 1.15).toLong()
+        val tierProfile = LeagueDifficultyCalculator.getProfileForTier(state.currentClub.tier)
+        val wageIncrease = (oldContract.weeklyWageEur * 0.15).toLong().coerceAtLeast(15L)
+        val newWage = (oldContract.weeklyWageEur + wageIncrease).coerceAtMost(tierProfile.weeklyWageMaxEur)
         val updatedContract = oldContract.copy(
             weeklyWageEur = newWage,
-            matchAppearanceBonusEur = (oldContract.matchAppearanceBonusEur * 1.15).toLong(),
+            matchAppearanceBonusEur = (oldContract.matchAppearanceBonusEur * 1.12).toLong(),
             goalBonusEur = (oldContract.goalBonusEur * 1.15).toLong(),
             endSeasonYear = (oldContract.endSeasonYear + 1).coerceAtMost(2032)
         )
         return state.copy(
             updatedAtMs = System.currentTimeMillis(),
             contract = updatedContract
-        ) to "${state.currentClub.name} ile sözleşmen ${updatedContract.endSeasonYear} yılına kadar uzatıldı! Yeni maaş: ${FLFormatters.formatWage(newWage)}."
+        ) to "${state.currentClub.name} ile sözleşmen ${updatedContract.endSeasonYear} yılına kadar uzatıldı! Yeni haftalık maaş: ${FLFormatters.formatWage(newWage)}."
     }
 }

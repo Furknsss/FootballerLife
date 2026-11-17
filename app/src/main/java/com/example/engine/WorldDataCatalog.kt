@@ -1,5 +1,6 @@
 package com.example.engine
 
+import com.example.engine.data.TurkishLeaguesDatabase
 import com.example.model.Club
 import com.example.model.DynamicCareerDilemma
 import com.example.model.DynamicStoryChoice
@@ -66,61 +67,7 @@ data class TrainingDrillDefinition(
 
 object WorldDataCatalog {
 
-    val leagues: List<LeagueDefinition> = listOf(
-        LeagueDefinition(
-            id = "TR_BAL",
-            name = "Türkiye Bölgesel Amatör Lig (BAL)",
-            country = "Türkiye",
-            tier = 5,
-            description = "Anadolu ve metropol amatör kulüplerinden profesyonel liglere yükselme mücadelesi.",
-            isAmateurOrLowerTier = true,
-            dataLabel = "Bölgesel Amatör Lig Simülasyon Kataloğu (2026/27)"
-        ),
-        LeagueDefinition(
-            id = "TR_IL_AMATOR",
-            name = "İstanbul Süper Amatör Ligi",
-            country = "Türkiye",
-            tier = 6,
-            description = "Mahalle ve ilçe kulüplerinden başlayan en gerçekçi sıfırdan yükseliş hikayesi.",
-            isAmateurOrLowerTier = true,
-            dataLabel = "Yerel Amatör Küme Simülasyon Kataloğu (2026/27)"
-        ),
-        LeagueDefinition(
-            id = "TR_3_LIG",
-            name = "Türkiye 3. Lig",
-            country = "Türkiye",
-            tier = 4,
-            description = "Profesyonel futbolun ilk basamağı. Genç yeteneklerin vitrine çıktığı sert lig.",
-            isAmateurOrLowerTier = true,
-            dataLabel = "TFF 3. Lig Yapılandırılmış Simülasyon (2026/27)"
-        ),
-        LeagueDefinition(
-            id = "TR_2_LIG",
-            name = "Türkiye 2. Lig",
-            country = "Türkiye",
-            tier = 3,
-            description = "Köklü şehir takımları ve ateşli deplasman atmosferleri.",
-            isAmateurOrLowerTier = false,
-            dataLabel = "TFF 2. Lig Yapılandırılmış Simülasyon (2026/27)"
-        ),
-        LeagueDefinition(
-            id = "TR_1_LIG",
-            name = "Türkiye 1. Lig",
-            country = "Türkiye",
-            tier = 2,
-            description = "Süper Lig kapısındaki yüksek tempolu şampiyonluk yarışı.",
-            isAmateurOrLowerTier = false,
-            dataLabel = "TFF 1. Lig Yapılandırılmış Simülasyon (2026/27)"
-        ),
-        LeagueDefinition(
-            id = "TR_SUPER_LIG",
-            name = "Türkiye Süper Lig",
-            country = "Türkiye",
-            tier = 1,
-            description = "Türkiye'nin en üst düzey profesyonel futbol ligi.",
-            isAmateurOrLowerTier = false,
-            dataLabel = "Süper Lig Kulüp & Fikstür Simülasyonu (2026/27)"
-        ),
+    val leagues: List<LeagueDefinition> = TurkishLeaguesDatabase.turkishLeagues + listOf(
         LeagueDefinition(
             id = "ENG_L1",
             name = "İngiltere Premier Division",
@@ -178,6 +125,10 @@ object WorldDataCatalog {
     )
 
     fun clubsForLeague(leagueId: String): List<Club> {
+        val turkishClubs = TurkishLeaguesDatabase.getClubsForLeague(leagueId)
+        if (turkishClubs.isNotEmpty()) {
+            return turkishClubs
+        }
         val rawClubs = when (leagueId) {
             "TR_IL_AMATOR" -> listOf(
                 club("IL_KADIKOY", "Kadıköy İdman Yurdu", "KİY", "Türkiye", "İstanbul", leagueId, "İstanbul Süper Amatör Ligi", 6, "#103E2D", "#F7FAF8", 65_000L, 1, 46, "Orhan Çelik", "4-3-3 Mücadeleci", "Fikirtepe Semt Sahası", 1500, true),
@@ -371,6 +322,37 @@ object WorldDataCatalog {
             )
         }
     }
+
+    fun getAllTurkishLeagues(): List<LeagueDefinition> = TurkishLeaguesDatabase.turkishLeagues
+
+    fun getAllTurkishClubs(): List<Club> = TurkishLeaguesDatabase.getAllTurkishClubs()
+
+    fun getClubsByTier(tier: Int): List<Club> = TurkishLeaguesDatabase.getClubsByTier(tier)
+
+    fun findClubById(clubId: String): Club? {
+        TurkishLeaguesDatabase.findClubById(clubId)?.let { return it }
+        val allEuro = clubsForLeague("FRA_L1") + clubsForLeague("ESP_L1") + clubsForLeague("ENG_L1") +
+                clubsForLeague("ITA_L1") + clubsForLeague("GER_L1") + clubsForLeague("POR_L1")
+        return allEuro.find { it.id == clubId }
+    }
+
+    fun searchClubs(query: String, leagueId: String? = null, tier: Int? = null): List<Club> =
+        TurkishLeaguesDatabase.searchClubs(query, leagueId, tier)
+
+    fun getLeagueById(leagueId: String): LeagueDefinition? =
+        leagues.find { it.id == leagueId }
+
+    fun getLeagueReputation(leagueId: String): Int =
+        TurkishLeaguesDatabase.getLeagueReputation(leagueId)
+
+    fun getTierTransferBudgetRange(tier: Int): LongRange =
+        TurkishLeaguesDatabase.getTierTransferBudgetRange(tier)
+
+    fun getTierWageBudgetRange(tier: Int): LongRange =
+        TurkishLeaguesDatabase.getTierWageBudgetRange(tier)
+
+    fun getTierOverallRange(tier: Int): IntRange =
+        TurkishLeaguesDatabase.getTierOverallRange(tier)
 
     // Verified Real Professional Footballer Presets (2026/27 Reference Snapshot)
     val realPlayerPresets: List<RealPlayerPreset> = listOf(

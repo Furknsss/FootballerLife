@@ -146,7 +146,8 @@ data class PlayerProfile(
     val dataSourceInfo: String = "Football Life Simülasyon Verisi (2026/27)",
     val currentSeasonStats: SeasonStatsRecord = SeasonStatsRecord(),
     val careerArchive: List<SeasonStatsRecord> = emptyList(),
-    val trainingCountThisWeek: Int = 0
+    val trainingCountThisWeek: Int = 0,
+    val tacticalRole: String = "Klasik 10 Numara"
 ) {
     val fullName: String get() = "$firstName $lastName".trim()
     val overallRating: Int get() = attributes.calculateOverall(primaryPosition)
@@ -184,7 +185,9 @@ data class Club(
     val stadiumName: String,
     val stadiumCapacity: Int,
     val isDemoClub: Boolean = false,
-    val keySquadMembers: List<SquadMemberInfo> = emptyList()
+    val keySquadMembers: List<SquadMemberInfo> = emptyList(),
+    val foundationYear: Int = 1923,
+    val seasonObjective: String = "Ligde Kalma"
 )
 
 @JsonClass(generateAdapter = true)
