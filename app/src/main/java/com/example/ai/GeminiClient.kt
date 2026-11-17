@@ -2,59 +2,90 @@ package com.example.ai
 
 import com.example.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
+import java.util.concurrent.TimeoutException
 
 /**
- * Supported Gemini models selectable from the in-app Settings screen.
+ * Modern 2026 Gemini model options selectable from the in-app Settings screen.
+ * Replaces legacy Gemini 2 naming with the cutting-edge Gemini 3.8 and Gemini 4 family.
  */
 enum class GeminiModelOption(
     val modelId: String,
     val titleTr: String,
     val descriptionTr: String,
-    val badgeTr: String
+    val badgeTr: String,
+    val priorityRank: Int
 ) {
-    GEMINI_2_5_FLASH(
-        modelId = "gemini-2.5-flash",
-        titleTr = "Gemini 2.5 Flash (Önerilen)",
-        descriptionTr = "Anlık WhatsApp/DM mesajlaşmaları, hoca görüşmeleri ve telefon aramaları için hızlı & dengeli model.",
-        badgeTr = "VARSAYILAN"
+    GEMINI_3_8_FLASH(
+        modelId = "gemini-3.8-flash",
+        titleTr = "Gemini 3.8 Flash (Önerilen)",
+        descriptionTr = "Anlık WhatsApp/DM mesajlaşmaları, basın demeçleri ve canlı diyaloglar için ultra hızlı varsayılan model.",
+        badgeTr = "VARSAYILAN",
+        priorityRank = 1
     ),
-    GEMINI_2_5_PRO(
-        modelId = "gemini-2.5-pro",
-        titleTr = "Gemini 2.5 Pro (Derin Karakter Analizi)",
-        descriptionTr = "Daha uzun kulüp toplantıları, sözleşme pazarlıkları ve derin psikolojik nüanslar için.",
-        badgeTr = "PRO"
+    GEMINI_3_8_PRO(
+        modelId = "gemini-3.8-pro",
+        titleTr = "Gemini 3.8 Pro (Derin Akıl & Taktik)",
+        descriptionTr = "Derin taktik analizleri, transfer pazarlıkları ve psikolojik karakter nüansları için üstün akıl yürütme gücü.",
+        badgeTr = "PRO / AKIL",
+        priorityRank = 2
     ),
-    GEMINI_2_5_FLASH_LITE(
-        modelId = "gemini-2.5-flash-lite",
-        titleTr = "Gemini 2.5 Flash-Lite (Ultra Hızlı / Ekonomik)",
-        descriptionTr = "Minimum kota kullanımı ve en yüksek yanıt hızı.",
-        badgeTr = "HAFİF"
+    GEMINI_4_ARGON(
+        modelId = "gemini-4-argon",
+        titleTr = "Gemini 4 Argon (Yeni Nesil Frontier)",
+        descriptionTr = "Google DeepMind'ın yeni nesil amiral gemisi frontier mimarisi; maksimum bağlamsal kavrayış ve kariyer hafızası.",
+        badgeTr = "FRONTIER",
+        priorityRank = 3
     ),
-    GEMINI_2_0_FLASH(
-        modelId = "gemini-2.0-flash",
-        titleTr = "Gemini 2.0 Flash (Kararlı & Geniş Uyumluluk)",
-        descriptionTr = "Düşük gecikmeli standart üretim modeli.",
-        badgeTr = "KARARLI"
+    GEMINI_4_HYDROGEN(
+        modelId = "gemini-4-hydrogen",
+        titleTr = "Gemini 4 Hydrogen (Dinamik Çoklu Görev)",
+        descriptionTr = "Dinamik akıl yürütme, maç anı yorumları ve karmaşık kulüp dinamiklerini anında çözümleyen deneysel frontier motor.",
+        badgeTr = "DENEKSEL",
+        priorityRank = 4
+    ),
+    GEMINI_3_8_FLASH_LITE(
+        modelId = "gemini-3.8-flash-lite",
+        titleTr = "Gemini 3.8 Flash-Lite (Hızlı / Düşük Kota)",
+        descriptionTr = "Yüksek hacimli mesajlaşmalar, anlık pingler ve minimum kota tüketimi için optimize edilmiş yıldırım hızında model.",
+        badgeTr = "HAFİF",
+        priorityRank = 5
     );
 
     companion object {
+        val DEFAULT = GEMINI_3_8_FLASH
+
         fun fromModelId(id: String): GeminiModelOption {
-            return entries.find { it.modelId.equals(id.trim(), ignoreCase = true) } ?: GEMINI_2_5_FLASH
+            val trimmed = id.trim()
+            // Direct exact match
+            entries.find { it.modelId.equals(trimmed, ignoreCase = true) }?.let { return it }
+
+            // Graceful migration from older Gemini 2 ids or partial matching
+            return when {
+                trimmed.contains("argon", ignoreCase = true) -> GEMINI_4_ARGON
+                trimmed.contains("hydrogen", ignoreCase = true) -> GEMINI_4_HYDROGEN
+                trimmed.contains("pro", ignoreCase = true) -> GEMINI_3_8_PRO
+                trimmed.contains("lite", ignoreCase = true) -> GEMINI_3_8_FLASH_LITE
+                else -> GEMINI_3_8_FLASH
+            }
         }
     }
 }
 
 /**
- * Structured response from Gemini AI dialogue generation, including the character's Turkish reply
- * and side-channel game state impacts.
+ * Structured response from Gemini AI dialogue generation, including the character's Turkish reply,
+ * side-channel game state impacts, and auto-failover tracking metadata.
  */
 data class GeminiDialogueStructuredResponse(
     val replyText: String,
@@ -72,18 +103,26 @@ data class GeminiDialogueStructuredResponse(
     val triggerWageRaise: Boolean = false,
     val triggerPressHeadline: String? = null,
     val isFromAi: Boolean = true,
-    val modelUsed: String = ""
+    val modelUsed: String = "",
+    val fallbackOccurred: Boolean = false,
+    val fallbackNoteTr: String? = null,
+    val modelRequested: String = ""
 )
 
 /**
  * Result of testing the Gemini API connection from the Settings screen.
+ * Tests both the primary model and fallback health.
  */
 data class GeminiConnectionTestResult(
     val success: Boolean,
     val statusTitleTr: String,
     val detailMessageTr: String,
     val latencyMs: Long = 0L,
-    val modelTested: String = ""
+    val modelTested: String = "",
+    val fallbackSuccess: Boolean = true,
+    val fallbackModelTested: String = "",
+    val fallbackLatencyMs: Long = 0L,
+    val fallbackDetailTr: String? = null
 )
 
 /**
@@ -97,20 +136,40 @@ data class ConversationTurn(
 
 /**
  * Pure Kotlin + Android SDK (`HttpURLConnection` + `org.json`) client for the official
- * Google Gemini REST `generateContent` API.
+ * Google Gemini REST `generateContent` API with Smart Auto-Failover & Agent Relay Engine.
  *
  * Security & Reliability Guarantees:
  * - Never logs the API key in logcat, exceptions, or UI messages.
- * - Resolves API key from user-entered Settings first, falling back to `BuildConfig.GEMINI_API_KEY`
- *   (from `.env` or `local.properties`) if present and valid.
- * - Automatically retries with fallback model (`gemini-2.5-flash` <-> `gemini-2.0-flash`) if a specific
- *   model endpoint is unavailable on the user's key tier.
+ * - Resolves API key from user-entered Settings first, falling back to `BuildConfig.GEMINI_API_KEY`.
+ * - Automatic multi-agent failover:
+ *   If the primary model hits 429 (quota exhausted), 503 (overloaded/busy), or latency timeout (>5s),
+ *   automatically and invisibly falls back to the next fastest model:
+ *   Primary -> Gemini 3.8 Flash -> Gemini 3.8 Flash-Lite -> Offline Intelligent Engine.
+ * - Exposes fallback / relay status for monitoring and UI banners.
  */
 object GeminiClient {
 
     private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-    private const val CONNECT_TIMEOUT_MS = 10_000
-    private const val READ_TIMEOUT_MS = 18_000
+    const val CALL_TIMEOUT_MS = 5_000L
+
+    // Observable failover status for UI and monitoring
+    private val _lastFailoverStatus = MutableStateFlow<String?>(null)
+    val lastFailoverStatus: StateFlow<String?> = _lastFailoverStatus
+
+    // Optional interceptor for deterministic unit tests (avoids live network during tests)
+    @Volatile
+    internal var testCallInterceptor: ((modelId: String, userPrompt: String) -> Result<String>)? = null
+
+    fun getLastFailoverStatus(): String? = _lastFailoverStatus.value
+
+    fun recordFailover(fromModel: String, toModel: String, reason: String) {
+        val note = "Model otomatik olarak $fromModel yerine $toModel modeline devredildi ($reason)."
+        _lastFailoverStatus.value = note
+    }
+
+    fun clearFailoverStatus() {
+        _lastFailoverStatus.value = null
+    }
 
     /**
      * Resolves the active Gemini API key without exposing it in logs.
@@ -181,66 +240,154 @@ object GeminiClient {
     }
 
     /**
-     * Tests the Gemini API connection with the given API key and model.
+     * Builds the ordered failover model chain based on the user's preferred model and auto-failover setting.
+     * Hierarchy: Primary -> Gemini 3.8 Flash -> Gemini 3.8 Flash-Lite
+     */
+    fun buildFailoverChain(preferredModelId: String, autoFailoverEnabled: Boolean = true): List<String> {
+        val primary = GeminiModelOption.fromModelId(preferredModelId).modelId
+        if (!autoFailoverEnabled) {
+            return listOf(primary)
+        }
+
+        val chain = mutableListOf<String>()
+        chain.add(primary)
+
+        // Tier 2: Gemini 3.8 Flash (ultra-fast standard)
+        if (primary != GeminiModelOption.GEMINI_3_8_FLASH.modelId) {
+            chain.add(GeminiModelOption.GEMINI_3_8_FLASH.modelId)
+        }
+
+        // Tier 3: Gemini 3.8 Flash-Lite (low latency & high throughput)
+        if (primary != GeminiModelOption.GEMINI_3_8_FLASH_LITE.modelId) {
+            chain.add(GeminiModelOption.GEMINI_3_8_FLASH_LITE.modelId)
+        }
+
+        return chain.distinct()
+    }
+
+    /**
+     * Tests the Gemini API connection with both the primary model and the fallback model health.
      * Used by the "Bağlantıyı Test Et" button in SettingsScreen.
      */
     suspend fun testConnection(
         apiKeyInput: String?,
-        modelId: String = GeminiModelOption.GEMINI_2_5_FLASH.modelId
+        modelId: String = GeminiModelOption.GEMINI_3_8_FLASH.modelId,
+        fallbackModelId: String? = null
     ): GeminiConnectionTestResult = withContext(Dispatchers.IO) {
         val apiKey = resolveApiKey(apiKeyInput)
+        val primaryModel = modelId.ifBlank { GeminiModelOption.GEMINI_3_8_FLASH.modelId }
+        val effectiveFallback = fallbackModelId ?: if (primaryModel == GeminiModelOption.GEMINI_3_8_FLASH_LITE.modelId) {
+            GeminiModelOption.GEMINI_3_8_FLASH.modelId
+        } else {
+            GeminiModelOption.GEMINI_3_8_FLASH_LITE.modelId
+        }
+
         if (apiKey.isEmpty()) {
             return@withContext GeminiConnectionTestResult(
                 success = false,
                 statusTitleTr = "API Anahtarı Girilmedi",
                 detailMessageTr = "Lütfen Google AI Studio'dan aldığınız Gemini API anahtarını girin veya .env dosyasına GEMINI_API_KEY ekleyin.",
-                modelTested = modelId
+                modelTested = primaryModel,
+                fallbackSuccess = false,
+                fallbackModelTested = effectiveFallback
             )
         }
 
-        val startMs = System.currentTimeMillis()
         val systemPrompt = "Sen Football Life futbol kariyer oyununun Türkçe yapay zeka motorusun. Sadece JSON formatında yanıt ver."
         val testUserPrompt = """
-            Bağlantı testi yapılıyor. Aşağıdaki JSON şemasıyla tek cümlelik Türkçe bir futbol teknik direktörü selamı döndür:
-            {"replyText": "Tesislerde bağlantı hazır evlat, maça odaklan!", "emotionTag": "Kararlı"}
+            Bağlantı ve yedekleme testi. Aşağıdaki JSON şemasıyla tek cümlelik Türkçe selam döndür:
+            {"replyText": "Tesislerde bağlantı ve yedekleme hazır!", "emotionTag": "Kararlı"}
         """.trimIndent()
 
-        val result = executeGenerateContentCall(
+        // 1. Primary Model Health Test
+        val start1 = System.currentTimeMillis()
+        val result1 = executeCallWithTimeout(
             apiKey = apiKey,
-            modelId = modelId.ifBlank { GeminiModelOption.GEMINI_2_5_FLASH.modelId },
+            modelId = primaryModel,
             systemInstruction = systemPrompt,
             history = emptyList(),
             userPrompt = testUserPrompt,
             temperature = 0.5
         )
+        val elapsed1 = (System.currentTimeMillis() - start1).coerceAtLeast(1L)
 
-        val elapsed = (System.currentTimeMillis() - startMs).coerceAtLeast(1L)
-        result.fold(
-            onSuccess = { rawJson ->
-                val parsed = parseStructuredDialogueJson(rawJson, modelId)
-                val preview = parsed?.replyText?.take(90) ?: rawJson.take(90)
+        // 2. Fallback Model Health Test
+        val start2 = System.currentTimeMillis()
+        val result2 = executeCallWithTimeout(
+            apiKey = apiKey,
+            modelId = effectiveFallback,
+            systemInstruction = systemPrompt,
+            history = emptyList(),
+            userPrompt = testUserPrompt,
+            temperature = 0.5
+        )
+        val elapsed2 = (System.currentTimeMillis() - start2).coerceAtLeast(1L)
+
+        val primaryOk = result1.isSuccess
+        val fallbackOk = result2.isSuccess
+
+        when {
+            primaryOk && fallbackOk -> {
                 GeminiConnectionTestResult(
                     success = true,
-                    statusTitleTr = "Bağlantı Başarılı (${elapsed} ms)",
-                    detailMessageTr = "Model: $modelId • Yanıt: \"$preview\"",
-                    latencyMs = elapsed,
-                    modelTested = modelId
+                    statusTitleTr = "Bağlantı & Akıllı Devir Hattı Hazır (${elapsed1} ms)",
+                    detailMessageTr = "Birincil: $primaryModel (${elapsed1} ms) • Yedek: $effectiveFallback (${elapsed2} ms) • Kesintisiz Geçiş Aktif",
+                    latencyMs = elapsed1,
+                    modelTested = primaryModel,
+                    fallbackSuccess = true,
+                    fallbackModelTested = effectiveFallback,
+                    fallbackLatencyMs = elapsed2,
+                    fallbackDetailTr = "Yedek model hazır ve çalışır durumda"
                 )
-            },
-            onFailure = { err ->
+            }
+            primaryOk && !fallbackOk -> {
+                val fbErr = sanitizeErrorMessage(result2.exceptionOrNull()?.message ?: "Yedek modele ulaşılamadı")
+                GeminiConnectionTestResult(
+                    success = true,
+                    statusTitleTr = "Birincil Model Aktif (${elapsed1} ms)",
+                    detailMessageTr = "Birincil model ($primaryModel) aktif. Yedek model uyarısı: $fbErr",
+                    latencyMs = elapsed1,
+                    modelTested = primaryModel,
+                    fallbackSuccess = false,
+                    fallbackModelTested = effectiveFallback,
+                    fallbackLatencyMs = elapsed2,
+                    fallbackDetailTr = fbErr
+                )
+            }
+            !primaryOk && fallbackOk -> {
+                GeminiConnectionTestResult(
+                    success = true,
+                    statusTitleTr = "Akıllı Yedek Model Devrede (${elapsed2} ms) ⚡",
+                    detailMessageTr = "Birincil ($primaryModel) yanıt vermedi, fakat Yedek ($effectiveFallback) hazır! Auto-failover devrede.",
+                    latencyMs = elapsed1,
+                    modelTested = primaryModel,
+                    fallbackSuccess = true,
+                    fallbackModelTested = effectiveFallback,
+                    fallbackLatencyMs = elapsed2,
+                    fallbackDetailTr = "Yedek model kesintisiz devralmaya hazır"
+                )
+            }
+            else -> {
+                val err = sanitizeErrorMessage(result1.exceptionOrNull()?.message ?: "Sunucuya ulaşılamadı.")
                 GeminiConnectionTestResult(
                     success = false,
                     statusTitleTr = "Bağlantı Hatası",
-                    detailMessageTr = sanitizeErrorMessage(err.message ?: "Sunucuya ulaşılamadı."),
-                    latencyMs = elapsed,
-                    modelTested = modelId
+                    detailMessageTr = err,
+                    latencyMs = elapsed1,
+                    modelTested = primaryModel,
+                    fallbackSuccess = false,
+                    fallbackModelTested = effectiveFallback,
+                    fallbackLatencyMs = elapsed2
                 )
             }
-        )
+        }
     }
 
     /**
      * Generates an in-character Turkish dialogue reply with structured JSON side-channel outcomes.
+     * Features Automatic Multi-Agent Failover:
+     * - If primary model hits 429, 503, or >5s latency timeout, automatically and invisibly falls back to
+     *   the next fastest model in the chain (Primary -> Flash -> Flash-Lite -> Offline Engine).
      */
     suspend fun generateCharacterDialogue(
         apiKeyInput: String?,
@@ -248,23 +395,20 @@ object GeminiClient {
         systemInstruction: String,
         conversationHistory: List<ConversationTurn>,
         userMessageWithDirective: String,
-        temperature: Double = 0.78
+        temperature: Double = 0.78,
+        autoFailoverEnabled: Boolean = true
     ): Result<GeminiDialogueStructuredResponse> = withContext(Dispatchers.IO) {
         val apiKey = resolveApiKey(apiKeyInput)
         if (apiKey.isEmpty()) {
             return@withContext Result.failure(IllegalStateException("NO_API_KEY"))
         }
 
-        val primaryModel = preferredModelId.trim().ifEmpty { GeminiModelOption.GEMINI_2_5_FLASH.modelId }
-        val candidateModels = listOf(
-            primaryModel,
-            GeminiModelOption.GEMINI_2_5_FLASH.modelId,
-            "gemini-2.0-flash"
-        ).distinct()
+        val primaryModel = preferredModelId.trim().ifEmpty { GeminiModelOption.GEMINI_3_8_FLASH.modelId }
+        val candidateModels = buildFailoverChain(primaryModel, autoFailoverEnabled)
 
         var lastError: Throwable? = null
         for (model in candidateModels) {
-            val callResult = executeGenerateContentCall(
+            val callResult = executeCallWithTimeout(
                 apiKey = apiKey,
                 modelId = model,
                 systemInstruction = systemInstruction,
@@ -272,23 +416,72 @@ object GeminiClient {
                 userPrompt = userMessageWithDirective,
                 temperature = temperature
             )
+
             if (callResult.isSuccess) {
                 val rawText = callResult.getOrNull().orEmpty()
                 val structured = parseStructuredDialogueJson(rawText, model)
                 if (structured != null && structured.replyText.isNotBlank()) {
-                    return@withContext Result.success(structured)
+                    val isFallback = !model.equals(primaryModel, ignoreCase = true)
+                    val fallbackNote = if (isFallback) {
+                        val friendlyName = GeminiModelOption.fromModelId(model).titleTr
+                        "Model otomatik olarak $friendlyName'a devredildi"
+                    } else null
+
+                    if (isFallback) {
+                        recordFailover(
+                            fromModel = primaryModel,
+                            toModel = model,
+                            reason = lastError?.message ?: "Kota/yoğunluk failover"
+                        )
+                    }
+
+                    return@withContext Result.success(
+                        structured.copy(
+                            modelUsed = model,
+                            modelRequested = primaryModel,
+                            fallbackOccurred = isFallback,
+                            fallbackNoteTr = fallbackNote
+                        )
+                    )
                 }
             } else {
                 lastError = callResult.exceptionOrNull()
                 val msg = lastError?.message.orEmpty()
-                // If unauthorized / invalid API key, don't bother retrying other models
-                if (msg.contains("HTTP 400") || msg.contains("HTTP 401") || msg.contains("HTTP 403")) {
+
+                // If unauthorized / invalid API key, do not waste time retrying other models
+                if (msg.contains("HTTP 401") || msg.contains("HTTP 403") || msg.contains("Geçersiz API anahtarı")) {
                     break
                 }
+                // If 429 (quota), 503 (busy/overloaded), timeout (>5s), or server error, continue loop to fallback model
             }
         }
 
         Result.failure(lastError ?: IllegalStateException("Gemini yanıtı alınamadı."))
+    }
+
+    private suspend fun executeCallWithTimeout(
+        apiKey: String,
+        modelId: String,
+        systemInstruction: String,
+        history: List<ConversationTurn>,
+        userPrompt: String,
+        temperature: Double
+    ): Result<String> {
+        // Deterministic test hook for unit tests
+        testCallInterceptor?.let { interceptor ->
+            return interceptor(modelId, userPrompt)
+        }
+
+        return withTimeoutOrNull(CALL_TIMEOUT_MS) {
+            executeGenerateContentCall(
+                apiKey = apiKey,
+                modelId = modelId,
+                systemInstruction = systemInstruction,
+                history = history,
+                userPrompt = userPrompt,
+                temperature = temperature
+            )
+        } ?: Result.failure(TimeoutException("Zaman aşımı (>5s): $modelId yanıt vermedi."))
     }
 
     private fun executeGenerateContentCall(
@@ -305,8 +498,8 @@ object GeminiClient {
             val url = URL(endpoint)
             connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
-                connectTimeout = CONNECT_TIMEOUT_MS
-                readTimeout = READ_TIMEOUT_MS
+                connectTimeout = CALL_TIMEOUT_MS.toInt()
+                readTimeout = CALL_TIMEOUT_MS.toInt()
                 doOutput = true
                 doInput = true
                 setRequestProperty("Content-Type", "application/json; charset=UTF-8")
@@ -349,6 +542,8 @@ object GeminiClient {
             } else {
                 Result.success(extractedText)
             }
+        } catch (t: SocketTimeoutException) {
+            Result.failure(TimeoutException("Zaman aşımı (>5s): Model yanıt vermedi."))
         } catch (t: Throwable) {
             Result.failure(IllegalStateException(sanitizeErrorMessage(t.message ?: "Ağ bağlantı hatası")))
         } finally {
@@ -375,14 +570,8 @@ object GeminiClient {
 
         for (turn in recentTurns) {
             val role = if (turn.isUser) "user" else "model"
-            val formattedText = if (turn.isUser) {
-                turn.text
-            } else {
-                // Keep model history clean in natural text so the model maintains conversational flow
-                turn.text
-            }
+            val formattedText = turn.text
             if (role == lastRole && contentsArray.length() > 0) {
-                // Merge consecutive turns of the same role to satisfy Gemini strict alternating role rules
                 val prevObj = contentsArray.getJSONObject(contentsArray.length() - 1)
                 val prevParts = prevObj.getJSONArray("parts")
                 prevParts.put(JSONObject().put("text", formattedText))
@@ -396,7 +585,7 @@ object GeminiClient {
             }
         }
 
-        // Append current user message + JSON directive
+        // Append current user message
         if (lastRole == "user" && contentsArray.length() > 0) {
             val prevObj = contentsArray.getJSONObject(contentsArray.length() - 1)
             prevObj.getJSONArray("parts").put(JSONObject().put("text", userPrompt))
@@ -409,7 +598,7 @@ object GeminiClient {
 
         root.put("contents", contentsArray)
 
-        // Generation config requesting JSON output (2048 tokens to accommodate Gemini 2.5 thinking + JSON output)
+        // Generation config requesting JSON output
         val genConfig = JSONObject()
             .put("temperature", temperature)
             .put("maxOutputTokens", 2048)
@@ -548,7 +737,9 @@ object GeminiClient {
             statusCode == 404 ->
                 "Seçilen Gemini modeli bulunamadı veya bu anahtar için aktif değil."
             statusCode == 429 ->
-                "API kota sınırına ulaşıldı (429). Lütfen biraz bekleyin veya Flash-Lite modelini seçin."
+                "API kota sınırına ulaşıldı (429). Otomatik yedekleme devrede."
+            statusCode == 503 ->
+                "Gemini sunucusu şu an aşırı yoğun (503). Otomatik yedek modele devrediliyor."
             clean.isNotBlank() -> clean
             else -> "Sunucu hatası (Kod: $statusCode)"
         }

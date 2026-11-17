@@ -181,7 +181,8 @@ object DialogueEngine {
         topicContext: String? = null,
         apiKeyInput: String?,
         modelId: String,
-        aiEnabled: Boolean = true
+        aiEnabled: Boolean = true,
+        autoFailoverEnabled: Boolean = true
     ): DialogueExecutionResult {
         val cleanText = userText.trim()
         val baseEnriched = ensureExtendedNpcs(stateBeforeUserMsg)
@@ -241,7 +242,8 @@ object DialogueEngine {
                 preferredModelId = modelId,
                 systemInstruction = systemPrompt,
                 conversationHistory = historyTurns,
-                userMessageWithDirective = userDirective
+                userMessageWithDirective = userDirective,
+                autoFailoverEnabled = autoFailoverEnabled
             )
 
             val structured = aiResult.getOrNull()
@@ -308,7 +310,8 @@ object DialogueEngine {
         userText: String,
         apiKeyInput: String?,
         modelId: String,
-        aiEnabled: Boolean = true
+        aiEnabled: Boolean = true,
+        autoFailoverEnabled: Boolean = true
     ): DialogueExecutionResult {
         val cleanText = userText.trim()
         val thread = currentStateWithUserMsg.instaDmThreads.find { it.id == threadId }
@@ -365,7 +368,8 @@ object DialogueEngine {
                 preferredModelId = modelId,
                 systemInstruction = systemPrompt,
                 conversationHistory = historyTurns,
-                userMessageWithDirective = userDirective
+                userMessageWithDirective = userDirective,
+                autoFailoverEnabled = autoFailoverEnabled
             )
 
             val structured = aiResult.getOrNull()
@@ -574,7 +578,13 @@ object DialogueEngine {
         }
 
         val impactSummary = buildString {
-            append("🤖 AI • ")
+            if (structured.fallbackOccurred && !structured.fallbackNoteTr.isNullOrBlank()) {
+                append("⚡ ${structured.fallbackNoteTr} • ")
+            } else if (structured.modelUsed.isNotBlank()) {
+                append("🤖 AI (${structured.modelUsed}) • ")
+            } else {
+                append("🤖 AI • ")
+            }
             val affSign = if (effectiveAffinityDelta >= 0) "+" else ""
             val trSign = if (effectiveTrustDelta >= 0) "+" else ""
             append("Yakınlık $affSign$effectiveAffinityDelta, Güven $trSign$effectiveTrustDelta")
@@ -675,7 +685,13 @@ object DialogueEngine {
 
         val engineLastReply = thread.messages.lastOrNull { !it.isFromUser }
         val combinedImpact = buildString {
-            append("🤖 AI")
+            if (structured.fallbackOccurred && !structured.fallbackNoteTr.isNullOrBlank()) {
+                append("⚡ ${structured.fallbackNoteTr} • ")
+            } else if (structured.modelUsed.isNotBlank()) {
+                append("🤖 Instagram AI (${structured.modelUsed}) • ")
+            } else {
+                append("🤖 AI")
+            }
             if (structured.moraleDelta != 0) {
                 val s = if (structured.moraleDelta > 0) "+" else ""
                 append(" • Moral $s${structured.moraleDelta}")

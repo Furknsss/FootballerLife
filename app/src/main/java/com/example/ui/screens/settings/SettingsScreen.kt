@@ -130,7 +130,8 @@ fun SettingsScreen(
     onToggleSkipIntro: (Boolean) -> Unit,
     onSaveAccountName: (String) -> Unit,
     externalConnectionStatus: String? = null,
-    onTestGeminiConnection: ((String, String) -> Unit)? = null
+    onTestGeminiConnection: ((String, String) -> Unit)? = null,
+    onToggleAutoFailover: (Boolean) -> Unit = {}
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -475,6 +476,15 @@ fun SettingsScreen(
                                     fontSize = 12.sp,
                                     color = TextPrimary
                                 )
+                                if (currentResult != null && currentResult.fallbackModelTested.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "🛡️ Yedek Hat: ${currentResult.fallbackModelTested} (${currentResult.fallbackLatencyMs} ms) — ${if (currentResult.fallbackSuccess) "Hazır & Aktif ✓" else "Uyarı"}",
+                                        fontFamily = SpaceGroteskFontFamily,
+                                        fontSize = 11.sp,
+                                        color = if (currentResult.fallbackSuccess) AccentBright else Warning
+                                    )
+                                }
                             }
                         }
                     }
@@ -483,6 +493,67 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 HorizontalDivider(color = StrokePremium)
                 Spacer(modifier = Modifier.height(12.dp))
+
+                // Akıllı Model Yedekleme & Hızlı Geçiş (Auto Failover)
+                Surface(
+                    color = DarkTurfGreen.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, if (settings.autoFailoverEnabled) AccentBright else StrokePremium),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "AKILLI MODEL YEDEKLEME (AUTO FAILOVER)",
+                                    fontFamily = SpaceGroteskFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = ChampionshipGold
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    color = AccentPrimary.copy(alpha = 0.25f),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "SMART RELAY",
+                                        fontFamily = SpaceGroteskFontFamily,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 8.5.sp,
+                                        color = AccentBright,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Birincil model kota (429), yoğunluk (503) veya gecikmeye (>5s) takıldığında kesintisiz olarak Gemini 3.8 Flash / Flash-Lite / Çevrimdışı Motora otomatik devreder.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                fontSize = 11.5.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Switch(
+                            checked = settings.autoFailoverEnabled,
+                            onCheckedChange = onToggleAutoFailover,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = BackgroundPrimary,
+                                checkedTrackColor = AccentBright
+                            ),
+                            modifier = Modifier.testTag("switch_auto_failover")
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Gemini Model Selector
                 Text(

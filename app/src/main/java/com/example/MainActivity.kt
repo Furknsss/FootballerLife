@@ -181,7 +181,8 @@ fun FootballLifeApp(
                     onToggleSkipIntro = { viewModel.setSkipIntro(it) },
                     onSaveAccountName = { viewModel.setLocalAccountName(it) },
                     externalConnectionStatus = aiConnectionStatus,
-                    onTestGeminiConnection = { key, model -> viewModel.testGeminiConnection(key, model) }
+                    onTestGeminiConnection = { key, model -> viewModel.testGeminiConnection(key, model) },
+                    onToggleAutoFailover = { viewModel.setAutoFailoverEnabled(it) }
                 )
             }
 

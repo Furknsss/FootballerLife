@@ -38,8 +38,9 @@ data class UserSettings(
     val lastActiveSlotId: Int = 1,
     val accountDisplayName: String = "Misafir Oyuncu (Yerel Kariyer)",
     val geminiApiKey: String = "",
-    val geminiModel: String = "gemini-2.5-flash",
-    val aiDialoguesEnabled: Boolean = true
+    val geminiModel: String = "gemini-3.8-flash",
+    val aiDialoguesEnabled: Boolean = true,
+    val autoFailoverEnabled: Boolean = true
 )
 
 class SettingsRepository(private val context: Context) {
@@ -54,6 +55,7 @@ class SettingsRepository(private val context: Context) {
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
         val GEMINI_MODEL = stringPreferencesKey("gemini_model")
         val AI_ENABLED = booleanPreferencesKey("ai_dialogues_enabled")
+        val AUTO_FAILOVER = booleanPreferencesKey("gemini_auto_failover")
     }
 
     val settingsFlow: Flow<UserSettings> = context.settingsDataStore.data.map { prefs ->
@@ -68,8 +70,9 @@ class SettingsRepository(private val context: Context) {
             lastActiveSlotId = prefs[Keys.LAST_SLOT] ?: 1,
             accountDisplayName = prefs[Keys.ACCOUNT_NAME] ?: "Misafir Oyuncu (Yerel Kariyer)",
             geminiApiKey = prefs[Keys.GEMINI_API_KEY] ?: "",
-            geminiModel = prefs[Keys.GEMINI_MODEL] ?: "gemini-2.5-flash",
-            aiDialoguesEnabled = prefs[Keys.AI_ENABLED] ?: true
+            geminiModel = prefs[Keys.GEMINI_MODEL] ?: "gemini-3.8-flash",
+            aiDialoguesEnabled = prefs[Keys.AI_ENABLED] ?: true,
+            autoFailoverEnabled = prefs[Keys.AUTO_FAILOVER] ?: true
         )
     }
 
@@ -111,6 +114,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun updateAiDialoguesEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.AI_ENABLED] = enabled }
+    }
+
+    suspend fun updateAutoFailoverEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.AUTO_FAILOVER] = enabled }
     }
 }
 

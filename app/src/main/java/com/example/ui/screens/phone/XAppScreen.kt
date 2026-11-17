@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Verified
@@ -67,6 +68,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.engine.social.CommentReactionType
+import com.example.engine.social.PlayerFameTier
 import com.example.engine.social.SocialAccountProfile
 import com.example.engine.social.SocialWorldGenerator
 import com.example.engine.social.VerifiedBadgeType
@@ -303,6 +306,40 @@ fun XAppScreen(
                                                     tint = if (rep.badgeType == VerifiedBadgeType.GOLD_ORG) GoldPrimary else xBlue,
                                                     modifier = Modifier.size(14.dp)
                                                 )
+                                            }
+                                            if (rep.reactionType != null) {
+                                                Spacer(modifier = Modifier.width(5.dp))
+                                                val badgeColor = parseSafeHexColor(rep.reactionType.badgeColorHex, Color(0xFF10B981))
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = badgeColor.copy(alpha = 0.2f),
+                                                    border = BorderStroke(0.5.dp, badgeColor)
+                                                ) {
+                                                    Text(
+                                                        text = rep.reactionType.labelTr,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = badgeColor,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
+                                            val isUserReply = rep.handle.contains(state.player.firstName.lowercase()) || rep.id.startsWith("XREP_USR_")
+                                            if (isUserReply) {
+                                                Spacer(modifier = Modifier.width(5.dp))
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = GoldPrimary.copy(alpha = 0.2f),
+                                                    border = BorderStroke(0.5.dp, GoldPrimary)
+                                                ) {
+                                                    Text(
+                                                        text = "Sen · Oyuncu",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = GoldPrimary,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
                                             }
                                             Spacer(modifier = Modifier.width(5.dp))
                                             Text(
@@ -600,6 +637,21 @@ fun XAppScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .scale(1.24f)
+                            )
+                        }
+                        val fameTier = SocialWorldGenerator.calculatePlayerFameTier(state)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF16181C),
+                            border = BorderStroke(0.6.dp, Color(0xFF2F3336))
+                        ) {
+                            Text(
+                                text = "${fameTier.badgeSymbol} ${fameTier.titleTr}",
+                                fontFamily = OutfitFontFamily,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE7E9EA),
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             )
                         }
                         Box(
@@ -918,6 +970,42 @@ fun XAppScreen(
                                     matchesTab && matchesTopic && matchesSearch
                                 }
 
+                                // Pull-to-Refresh Top Banner
+                                item {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = Color(0xFF16181C),
+                                        border = BorderStroke(0.6.dp, xBorder),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                                            .clickable {
+                                                SocialWorldGenerator.refreshXFeed(state)
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Refresh,
+                                                contentDescription = null,
+                                                tint = xBlue,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "⚡ Yeni Tweetleri Yükle (Akışı Yenile)",
+                                                fontFamily = OutfitFontFamily,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFFE7E9EA)
+                                            )
+                                        }
+                                    }
+                                }
+
                                 items(posts, key = { it.id }) { xp ->
                                     XTweetCardItem(
                                         xp = xp,
@@ -934,6 +1022,42 @@ fun XAppScreen(
                                         },
                                         onQuoteTweet = { quotingPostId = xp.id }
                                     )
+                                }
+
+                                // Infinite Scroll Loader Card
+                                item {
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color(0xFF16181C),
+                                        border = BorderStroke(0.6.dp, xBorder),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                                            .clickable {
+                                                SocialWorldGenerator.loadMoreXPosts(state)
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Repeat,
+                                                contentDescription = null,
+                                                tint = xBlue,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Daha Fazla Tweet Yükle (Sonsuz Akış) ⚡",
+                                                fontFamily = OutfitFontFamily,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

@@ -2,6 +2,7 @@ package com.example.engine.social
 
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import com.example.R
 import com.example.model.CareerSaveState
 import com.example.model.ChatMessage
@@ -44,6 +45,70 @@ object SocialWorldGenerator {
     private val reactedStoryIds = mutableStateMapOf<String, Boolean>()
     private val viewedWaStatusIds = mutableStateMapOf<String, Boolean>()
     private val extraDmThreads = mutableStateMapOf<String, InstaDmThread>()
+
+    // Dynamic Infinite Scroll & Feed Pagination state
+    private val appendedInstaPosts = mutableStateListOf<SocialMediaPost>()
+    private val prependedInstaPosts = mutableStateListOf<SocialMediaPost>()
+    private val currentInstaPage = mutableStateOf(0)
+
+    private val appendedXPosts = mutableStateListOf<XPostItem>()
+    private val prependedXPosts = mutableStateListOf<XPostItem>()
+    private val currentXPage = mutableStateOf(0)
+
+    // Dynamic comment like counters (which grow over time based on fame)
+    private val dynamicCommentLikeCounts = mutableStateMapOf<String, Int>()
+    private val extraNotifications = mutableStateListOf<SocialNotificationItem>()
+
+    // =========================================================================
+    // 0. FAME & REPUTATION ENGINE
+    // =========================================================================
+
+    fun calculatePlayerFameTier(state: CareerSaveState): PlayerFameTier {
+        val p = state.player
+        val leagueId = state.currentClub.leagueId
+        val overall = p.overallRating
+        val followers = p.followersCount.toLong()
+
+        return when {
+            followers >= 4_000_000L || overall >= 86 || p.marketValueEur >= 40_000_000L -> PlayerFameTier.GLOBAL_SUPERSTAR
+            followers >= 800_000L || overall >= 80 || p.marketValueEur >= 15_000_000L -> PlayerFameTier.NATIONAL_HERO
+            followers >= 120_000L || (overall >= 73 && (leagueId == "TR_SUPER_LIG" || leagueId.contains("L1"))) || p.marketValueEur >= 4_000_000L -> PlayerFameTier.SUPER_LIG_STAR
+            followers >= 20_000L || overall >= 65 || leagueId == "TR_1_LIG" || p.marketValueEur >= 750_000L -> PlayerFameTier.RISING_STAR
+            followers >= 2_000L || overall >= 54 || leagueId.startsWith("TR_2_LIG") || leagueId.startsWith("TR_3_LIG") -> PlayerFameTier.SEMI_PRO
+            else -> PlayerFameTier.AMATEUR
+        }
+    }
+
+    fun calculatePlayerCommentLikes(state: CareerSaveState): Int {
+        val tier = calculatePlayerFameTier(state)
+        val base = (tier.minLikes + tier.maxLikes) / 2
+        val delta = (tier.maxLikes - tier.minLikes) / 3
+        val variance = if (delta > 0) (abs(state.currentDayIndex.hashCode() + state.player.followersCount) % delta) else 5
+        return (base + variance).coerceAtLeast(tier.minLikes)
+    }
+
+    fun calculatePlayerPostEngagement(state: CareerSaveState): Pair<Int, Int> {
+        val tier = calculatePlayerFameTier(state)
+        val likes = (tier.minLikes + (tier.maxLikes - tier.minLikes) * 0.65).toInt()
+        val reposts = (tier.minReposts + (tier.maxReposts - tier.minReposts) * 0.60).toInt()
+        return Pair(likes, reposts)
+    }
+
+    fun growCommentEngagement(commentId: String, state: CareerSaveState): Int {
+        val tier = calculatePlayerFameTier(state)
+        val current = dynamicCommentLikeCounts[commentId] ?: calculatePlayerCommentLikes(state)
+        val growth = when (tier) {
+            PlayerFameTier.AMATEUR -> (2..8).random()
+            PlayerFameTier.SEMI_PRO -> (15..45).random()
+            PlayerFameTier.RISING_STAR -> (120..450).random()
+            PlayerFameTier.SUPER_LIG_STAR -> (850..3200).random()
+            PlayerFameTier.NATIONAL_HERO -> (4500..18000).random()
+            PlayerFameTier.GLOBAL_SUPERSTAR -> (25000..95000).random()
+        }
+        val updated = current + growth
+        dynamicCommentLikeCounts[commentId] = updated
+        return updated
+    }
 
     // =========================================================================
     // 1. RICH ACCOUNT CATALOG (35+ REALISTIC ACCOUNTS)
@@ -1120,9 +1185,9 @@ object SocialWorldGenerator {
             )
         )
 
-        // Merge state.socialPosts + generatedWorldPosts without duplicate IDs
+        // Merge prependedInstaPosts + state.socialPosts + generatedWorldPosts + appendedInstaPosts without duplicate IDs
         val existingIds = state.socialPosts.map { it.id }.toSet()
-        val combined = state.socialPosts + generatedWorldPosts.filter { it.id !in existingIds }
+        val combined = prependedInstaPosts + state.socialPosts + generatedWorldPosts.filter { it.id !in existingIds } + appendedInstaPosts
 
         // Apply interactive overrides (likes, saves, extra user comments)
         return combined.map { post ->
@@ -1142,9 +1207,10 @@ object SocialWorldGenerator {
                     extraCommentLikes[cmt.id] == false && cmt.likedByUser -> -1
                     else -> 0
                 }
+                val baseLikes = dynamicCommentLikeCounts[cmt.id] ?: cmt.likesCount
                 cmt.copy(
                     likedByUser = cLiked,
-                    likesCount = (cmt.likesCount + cDelta).coerceAtLeast(0)
+                    likesCount = (baseLikes + cDelta).coerceAtLeast(0)
                 )
             }
             post.copy(
@@ -1166,6 +1232,10 @@ object SocialWorldGenerator {
         val p = state.player
         val club = state.currentClub
 
+        val isPlayerComment = comment.authorHandle.contains(p.firstName.lowercase()) ||
+            comment.id.startsWith("IC_LIV_USR_") ||
+            userAdded.any { it.authorHandle.contains(p.firstName.lowercase()) }
+
         val defaultReplies = when {
             comment.authorHandle.contains("433") -> listOf(
                 InstaCommentReply(
@@ -1178,7 +1248,8 @@ object SocialWorldGenerator {
                     avatarHex = club.primaryColorHex,
                     text = "@433 Admin knows ball! 🇹🇷🔥",
                     timeLabel = "1s",
-                    likesCount = 84
+                    likesCount = 84,
+                    reactionType = CommentReactionType.FAN_SUPPORT
                 ),
                 InstaCommentReply(
                     id = "REP_${comment.id}_2",
@@ -1190,7 +1261,8 @@ object SocialWorldGenerator {
                     avatarHex = "#22C55E",
                     text = "@433 yakında her hafta paylaşacaksınız bu ismi 👀",
                     timeLabel = "45d",
-                    likesCount = 42
+                    likesCount = 42,
+                    reactionType = CommentReactionType.MEME_CULTURE
                 )
             )
             comment.authorHandle.contains("arda") -> listOf(
@@ -1204,7 +1276,8 @@ object SocialWorldGenerator {
                     avatarHex = club.primaryColorHex,
                     text = "@ardaguler Milli takımda ikinizi yan yana izlemek hayalimiz! 🇹🇷❤️",
                     timeLabel = "25d",
-                    likesCount = 310
+                    likesCount = 310,
+                    reactionType = CommentReactionType.FAN_SUPPORT
                 )
             )
             comment.authorHandle.contains("transfermarkt") -> listOf(
@@ -1218,7 +1291,8 @@ object SocialWorldGenerator {
                     avatarHex = "#5DADE2",
                     text = "@transfermarkt_tr Bir sonraki güncellemede en az 2 katına çıkacaktır 📈💼",
                     timeLabel = "30d",
-                    likesCount = 56
+                    likesCount = 56,
+                    reactionType = CommentReactionType.PRESS_CRITIC
                 )
             )
             else -> listOf(
@@ -1232,19 +1306,27 @@ object SocialWorldGenerator {
                     avatarHex = club.primaryColorHex,
                     text = "${comment.authorHandle} Kesinlikle katılıyorum, bu sezon çok farklı olacak! 👏⚽",
                     timeLabel = "20d",
-                    likesCount = 14
+                    likesCount = 14,
+                    reactionType = CommentReactionType.FAN_SUPPORT
                 )
             )
         }
 
-        return (defaultReplies + userAdded).map { rep ->
+        val allReplies = if (isPlayerComment && userAdded.isNotEmpty()) {
+            userAdded
+        } else {
+            defaultReplies + userAdded
+        }
+
+        return allReplies.map { rep ->
             val liked = extraReplyLikes[rep.id] ?: rep.likedByUser
             val delta = when {
                 extraReplyLikes[rep.id] == true && !rep.likedByUser -> 1
                 extraReplyLikes[rep.id] == false && rep.likedByUser -> -1
                 else -> 0
             }
-            rep.copy(likedByUser = liked, likesCount = (rep.likesCount + delta).coerceAtLeast(0))
+            val baseLikes = dynamicCommentLikeCounts[rep.id] ?: rep.likesCount
+            rep.copy(likedByUser = liked, likesCount = (baseLikes + delta).coerceAtLeast(0))
         }
     }
 
@@ -1258,11 +1340,19 @@ object SocialWorldGenerator {
         if (clean.isEmpty()) return
         val p = state.player
         val club = state.currentClub
+        val rivalClub = state.clubs.firstOrNull { it.id != club.id } ?: club
+        val captain = club.keySquadMembers.find { it.isCaptain } ?: club.keySquadMembers.firstOrNull()
         val userHandle = "@${p.firstName.lowercase()}${p.kitNumber}"
+        val fameTier = calculatePlayerFameTier(state)
+        val initialPlayerLikes = calculatePlayerCommentLikes(state)
 
         if (replyToComment != null) {
+            val userReplyId = "REP_USR_${System.currentTimeMillis()}"
+            val likes = (initialPlayerLikes * 0.65).toInt().coerceAtLeast(3)
+            dynamicCommentLikeCounts[userReplyId] = likes
+
             val userReply = InstaCommentReply(
-                id = "REP_USR_${System.currentTimeMillis()}",
+                id = userReplyId,
                 parentCommentId = replyToComment.id,
                 postId = postId,
                 authorHandle = userHandle,
@@ -1271,35 +1361,202 @@ object SocialWorldGenerator {
                 avatarHex = club.primaryColorHex,
                 text = if (clean.startsWith("@")) clean else "${replyToComment.authorHandle} $clean",
                 timeLabel = "Şimdi",
-                likesCount = 1
+                likesCount = likes,
+                reactionType = CommentReactionType.TEAMMATE
             )
             val fanReaction = InstaCommentReply(
                 id = "REP_FAN_${System.currentTimeMillis() + 1}",
                 parentCommentId = replyToComment.id,
                 postId = postId,
-                authorHandle = replyToComment.authorHandle,
-                authorName = replyToComment.authorName,
-                isVerified = replyToComment.isVerified,
-                avatarHex = replyToComment.avatarHex,
-                text = "$userHandle Cevabın için teşekkürler kral! Sahada başarılar 🔥👏",
+                authorHandle = "@${club.shortName.lowercase()}_ultras",
+                authorName = "${club.shortName} Tribün",
+                isVerified = false,
+                avatarHex = club.primaryColorHex,
+                text = "$userHandle Kraldan beklenen cevap geldi! Sahada cevabını ver geç aslanım 👏🔥",
                 timeLabel = "Şimdi",
-                likesCount = 8
+                likesCount = (likes * 0.40).toInt().coerceAtLeast(2),
+                reactionType = CommentReactionType.FAN_SUPPORT
+            )
+            val trollReaction = InstaCommentReply(
+                id = "REP_TRL_${System.currentTimeMillis() + 2}",
+                parentCommentId = replyToComment.id,
+                postId = postId,
+                authorHandle = "@anti_${club.shortName.lowercase()}",
+                authorName = "Tribün Gerçekleri",
+                isVerified = false,
+                avatarHex = rivalClub.primaryColorHex,
+                text = "$userHandle Bahane üretmeyi bırak da takıma katkı ver, boş yapma!",
+                timeLabel = "Şimdi",
+                likesCount = (likes * 0.20).toInt().coerceAtLeast(1),
+                reactionType = CommentReactionType.RIVAL_TROLL
             )
             val existing = nestedCommentReplies[replyToComment.id].orEmpty()
-            nestedCommentReplies[replyToComment.id] = existing + userReply + fanReaction
+            nestedCommentReplies[replyToComment.id] = existing + listOf(userReply, fanReaction, trollReaction)
+
+            extraNotifications.add(
+                0,
+                SocialNotificationItem(
+                    id = "NOTIF_IG_REP_${System.currentTimeMillis()}",
+                    platform = "INSTAGRAM",
+                    type = "COMMENT_REPLY",
+                    actorName = "${club.shortName} Tribün",
+                    actorHandle = "@${club.shortName.lowercase()}_ultras",
+                    actorAvatarHex = club.primaryColorHex,
+                    actorVerified = false,
+                    text = "yorumunuza yanıt verdi: 'Kraldan beklenen cevap geldi! 👏🔥'",
+                    timeLabel = "Şimdi",
+                    targetPostId = postId,
+                    dayIndex = state.currentDayIndex
+                )
+            )
         } else {
+            val cmtId = "IC_LIV_USR_${System.currentTimeMillis()}"
+            dynamicCommentLikeCounts[cmtId] = initialPlayerLikes
+
             val newCmt = InstaCommentItem(
-                id = "IC_LIV_USR_${System.currentTimeMillis()}",
+                id = cmtId,
                 authorHandle = userHandle,
                 authorName = p.fullName,
                 isVerified = true,
                 avatarHex = club.primaryColorHex,
                 text = clean,
                 timeLabel = "Şimdi",
-                likesCount = 1
+                likesCount = initialPlayerLikes
             )
             val existing = extraInstaComments[postId].orEmpty()
             extraInstaComments[postId] = listOf(newCmt) + existing
+
+            // Generate 3 to 4 realistic replies reacting to player's top-level comment
+            val generatedReplies = mutableListOf<InstaCommentReply>()
+
+            // 1. Loyal Fan Reaction
+            val fanQuotes = listOf(
+                "Kral sen sahadaki futboluna bak, arkandayız sonuna kadar! 🦁🔥",
+                "Bu sezon forma arkasına senin adını yazdırdım, sakın moralini bozma!",
+                "Geleceğin kaptanı! Milli takımda banko oynaman lazım 👏⚽",
+                "İşte görmek istediğimiz aidiyet duygusu! Helal olsun sana!",
+                "Senin gibi yürekli oynayanlar bu kulübe 10 yılda bir gelir! 💪"
+            )
+            generatedReplies.add(
+                InstaCommentReply(
+                    id = "REP_LIV_FAN_${System.currentTimeMillis() + 1}",
+                    parentCommentId = cmtId,
+                    postId = postId,
+                    authorHandle = "@${club.shortName.lowercase()}_fanatik",
+                    authorName = "${club.shortName} Sevdalısı",
+                    isVerified = false,
+                    avatarHex = club.primaryColorHex,
+                    text = "$userHandle ${fanQuotes.random()}",
+                    timeLabel = "Şimdi",
+                    likesCount = (initialPlayerLikes * 0.42).toInt().coerceAtLeast(3),
+                    reactionType = CommentReactionType.FAN_SUPPORT
+                )
+            )
+
+            // 2. Rival Troll Reaction
+            val trollQuotes = listOf(
+                "Sen önce boş kaleye gol atmasını öğren de sonra buralarda ahkâm kes 😂",
+                "Bizim stada gelince bacakların titriyor ama klavye başında aslansın haha",
+                "Balon patladı! 3 haftadır sahada yürüyor gelmiş burada şov yapıyor 🤣",
+                "Halı sahada bile yedek kulübesinde üşürsün birader boş yapma!",
+                "Gözyaşlarınızı peçeteyle silin beyler, bu sene de hüsran sksksk"
+            )
+            generatedReplies.add(
+                InstaCommentReply(
+                    id = "REP_LIV_TRL_${System.currentTimeMillis() + 2}",
+                    parentCommentId = cmtId,
+                    postId = postId,
+                    authorHandle = "@superlig_troll",
+                    authorName = "Futbolun Gerçekleri",
+                    isVerified = false,
+                    avatarHex = rivalClub.primaryColorHex,
+                    text = "$userHandle ${trollQuotes.random()}",
+                    timeLabel = "Şimdi",
+                    likesCount = (initialPlayerLikes * 0.22).toInt().coerceAtLeast(2),
+                    reactionType = CommentReactionType.RIVAL_TROLL
+                )
+            )
+
+            // 3. Meme / Pop Culture Reaction
+            val memeQuotes = listOf(
+                "Admin bunu gördü ve taktik tahtasını çöpe attı sksksk 😂",
+                "Hocan bunu görürse yarın çift idman yazdırır, rez al yerimizi alalım 😂🍿",
+                "Arkada Müslüm Gürses - Affet çalıyor şu an 🎵",
+                "Kramponları çıkarıp direkt klavyeye geçmiş kral saygılar 😂🔥",
+                "Yorumu okurken fonda Şampiyonlar Ligi müziği çaldı aniden"
+            )
+            generatedReplies.add(
+                InstaCommentReply(
+                    id = "REP_LIV_MEME_${System.currentTimeMillis() + 3}",
+                    parentCommentId = cmtId,
+                    postId = postId,
+                    authorHandle = "@nocontextsuperlig",
+                    authorName = "No Context Türk Futbolu",
+                    isVerified = true,
+                    avatarHex = "#EAB308",
+                    text = "$userHandle ${memeQuotes.random()}",
+                    timeLabel = "Şimdi",
+                    likesCount = (initialPlayerLikes * 0.35).toInt().coerceAtLeast(2),
+                    reactionType = CommentReactionType.MEME_CULTURE
+                )
+            )
+
+            // 4. Teammate or Press Reaction (if fame >= RISING_STAR or random chance)
+            if (fameTier.ordinal >= PlayerFameTier.RISING_STAR.ordinal || captain != null) {
+                val isCaptainReply = captain != null
+                generatedReplies.add(
+                    InstaCommentReply(
+                        id = "REP_LIV_PEER_${System.currentTimeMillis() + 4}",
+                        parentCommentId = cmtId,
+                        postId = postId,
+                        authorHandle = if (isCaptainReply) "@${captain!!.name.lowercase().replace(" ", "_")}" else "@yagosabuncuoglu",
+                        authorName = if (isCaptainReply) captain!!.name else "Yağız Sabuncuoğlu",
+                        isVerified = true,
+                        avatarHex = if (isCaptainReply) club.primaryColorHex else "#0EA5E9",
+                        text = if (isCaptainReply) "$userHandle Bro yarın sabah 08:30'da salondayız, yorumlarda mesaiyi bırak dinlen haha 💪⚽"
+                               else "$userHandle Bu açıklamanın ardından soyunma odası kulisleri hareketlendi 🔎🇹🇷",
+                        timeLabel = "Şimdi",
+                        likesCount = (initialPlayerLikes * 0.65).toInt().coerceAtLeast(8),
+                        reactionType = if (isCaptainReply) CommentReactionType.TEAMMATE else CommentReactionType.PRESS_CRITIC
+                    )
+                )
+            }
+
+            nestedCommentReplies[cmtId] = generatedReplies
+
+            // Add notifications for player's comment activity
+            extraNotifications.add(
+                0,
+                SocialNotificationItem(
+                    id = "NOTIF_IG_REP_${System.currentTimeMillis()}",
+                    platform = "INSTAGRAM",
+                    type = "COMMENT_REPLY",
+                    actorName = "${club.shortName} Sevdalısı",
+                    actorHandle = "@${club.shortName.lowercase()}_fanatik",
+                    actorAvatarHex = club.primaryColorHex,
+                    actorVerified = false,
+                    text = "yorumunuza yanıt verdi: 'Kral sen sahada konuş, arkandayız!'",
+                    timeLabel = "Şimdi",
+                    targetPostId = postId,
+                    dayIndex = state.currentDayIndex
+                )
+            )
+            extraNotifications.add(
+                0,
+                SocialNotificationItem(
+                    id = "NOTIF_IG_LIKE_${System.currentTimeMillis() + 1}",
+                    platform = "INSTAGRAM",
+                    type = "LIKE",
+                    actorName = "${club.shortName} Taraftarları",
+                    actorHandle = "@${club.shortName.lowercase()}_ultras",
+                    actorAvatarHex = club.primaryColorHex,
+                    actorVerified = true,
+                    text = "yorumunuz ${FLFormatters.formatCompactNumber(initialPlayerLikes.toLong())} beğeniye ulaştı! 🔥",
+                    timeLabel = "Şimdi",
+                    targetPostId = postId,
+                    dayIndex = state.currentDayIndex
+                )
+            )
         }
     }
 
@@ -1824,9 +2081,9 @@ object SocialWorldGenerator {
             )
         )
 
-        // Merge userPublishedXPosts + state.xPosts + generatedTweets
+        // Merge prependedXPosts + userPublishedXPosts + state.xPosts + generatedTweets + appendedXPosts
         val baseIds = (userPublishedXPosts.map { it.id } + state.xPosts.map { it.id }).toSet()
-        val combined = userPublishedXPosts + state.xPosts + generatedTweets.filter { it.id !in baseIds }
+        val combined = prependedXPosts + userPublishedXPosts + state.xPosts + generatedTweets.filter { it.id !in baseIds } + appendedXPosts
 
         return combined.map { xp ->
             val likedOv = extraXLikes[xp.id]
@@ -2002,7 +2259,8 @@ object SocialWorldGenerator {
                 extraReplyXLikes[rep.id] == false && rep.likedByUser -> -1
                 else -> 0
             }
-            rep.copy(likedByUser = liked, likes = (rep.likes + delta).coerceAtLeast(0))
+            val baseLikes = dynamicCommentLikeCounts[rep.id] ?: rep.likes
+            rep.copy(likedByUser = liked, likes = (baseLikes + delta).coerceAtLeast(0))
         }
     }
 
@@ -2011,36 +2269,142 @@ object SocialWorldGenerator {
         if (clean.isEmpty()) return
         val p = state.player
         val club = state.currentClub
+        val rivalClub = state.clubs.firstOrNull { it.id != club.id } ?: club
+        val captain = club.keySquadMembers.find { it.isCaptain } ?: club.keySquadMembers.firstOrNull()
         val userHandle = "@${p.firstName.lowercase()}${p.kitNumber}"
+        val initialPlayerLikes = calculatePlayerCommentLikes(state)
+        val initialPlayerReposts = (initialPlayerLikes / 8).coerceAtLeast(1)
+
+        val userReplyId = "XREP_USR_${System.currentTimeMillis()}"
+        dynamicCommentLikeCounts[userReplyId] = initialPlayerLikes
 
         val userReply = XReplyItem(
-            id = "XREP_USR_${System.currentTimeMillis()}",
+            id = userReplyId,
             parentPostId = parentPost.id,
             authorName = p.fullName,
             handle = userHandle,
             avatarHex = club.primaryColorHex,
             isVerified = true,
+            badgeType = VerifiedBadgeType.BLUE,
             timeLabel = "Şimdi",
             text = clean,
-            likes = 12 + (p.followersCount / 80),
-            reposts = 2
+            likes = initialPlayerLikes,
+            reposts = initialPlayerReposts
         )
 
-        val autoCounter = XReplyItem(
-            id = "XREP_AUTO_${System.currentTimeMillis() + 1}",
+        // Generate 4 varied, realistic replies reacting directly to player's tweet
+        val fanReplies = listOf(
+            "$userHandle Kral sonuna kadar haklısın! Bu ligde senin vizyonunu anlayacak futbol aklı çok az 👏🔥",
+            "$userHandle Sahadaki mücadelenle herkese cevap vereceksin aslanım, arkandayız!",
+            "$userHandle Formanın hakkını veren tek adamsın, şampiyonluk seninle gelecek 🦁⚽",
+            "$userHandle İşte görmek istediğimiz aidiyet ve karakter! Helal olsun!"
+        )
+        val fanReply = XReplyItem(
+            id = "XREP_FAN_${System.currentTimeMillis() + 1}",
             parentPostId = parentPost.id,
-            authorName = parentPost.authorName,
-            handle = parentPost.handle,
-            avatarHex = resolveAccount(parentPost.handle, state).avatarHex,
-            isVerified = parentPost.isVerified,
+            authorName = "${club.shortName} Ultras",
+            handle = "@${club.shortName.lowercase()}_ultras",
+            avatarHex = club.primaryColorHex,
+            isVerified = false,
+            reactionType = CommentReactionType.FAN_SUPPORT,
             timeLabel = "Şimdi",
-            text = "$userHandle Yanıtın gündeme damga vurdu! Sahadaki performansını merakla takip ediyoruz 👏⚽🔥",
-            likes = 45 + (p.followersCount / 50),
-            reposts = 5
+            text = fanReplies.random(),
+            likes = (initialPlayerLikes * 0.45).toInt().coerceAtLeast(3),
+            reposts = (initialPlayerReposts * 0.4).toInt().coerceAtLeast(1)
+        )
+
+        val trollReplies = listOf(
+            "$userHandle Sahada 90 dakika yürü, sonra Twitter'da klavye şov yap. Önce maçı kazan da konuşalım birader 😂",
+            "$userHandle Bizim stadyuma gelince kaleyi tutturamazsın ama burada şairsin haha",
+            "$userHandle Balon patladı! 3 haftadır golün asistin yok boş yapma 🤣",
+            "$userHandle Halı sahada bile yedek kulübesinde üşürsün gelmiş laf yetiştiriyor"
+        )
+        val trollReply = XReplyItem(
+            id = "XREP_TRL_${System.currentTimeMillis() + 2}",
+            parentPostId = parentPost.id,
+            authorName = "Tribün Şamatası",
+            handle = "@tribun_samata",
+            avatarHex = rivalClub.primaryColorHex,
+            isVerified = false,
+            reactionType = CommentReactionType.RIVAL_TROLL,
+            timeLabel = "Şimdi",
+            text = trollReplies.random(),
+            likes = (initialPlayerLikes * 0.22).toInt().coerceAtLeast(2),
+            reposts = (initialPlayerReposts * 0.2).toInt().coerceAtLeast(0)
+        )
+
+        val memeReplies = listOf(
+            "$userHandle Tweeti silmeden önce ekran görüntüsü aldım bile sksksk arkada Müslüm Baba çalıyor 🍿🔥",
+            "$userHandle Hocan bunu görürse idmanda 20 tur koşturur seni, yerimizi alalım rez 😂",
+            "$userHandle Kramponları çıkarıp direkt klavyeye geçmiş kral saygılar 😂🔥",
+            "$userHandle Admin bunu görünce hesabın şifresini değiştirdi kesin sksksk"
+        )
+        val memeReply = XReplyItem(
+            id = "XREP_MEME_${System.currentTimeMillis() + 3}",
+            parentPostId = parentPost.id,
+            authorName = "No Context Türk Futbolu",
+            handle = "@nocontextsuperlig",
+            avatarHex = "#EAB308",
+            isVerified = true,
+            reactionType = CommentReactionType.MEME_CULTURE,
+            timeLabel = "Şimdi",
+            text = memeReplies.random(),
+            likes = (initialPlayerLikes * 0.35).toInt().coerceAtLeast(2),
+            reposts = (initialPlayerReposts * 0.3).toInt().coerceAtLeast(1)
+        )
+
+        val peerReply = XReplyItem(
+            id = "XREP_PEER_${System.currentTimeMillis() + 4}",
+            parentPostId = parentPost.id,
+            authorName = captain?.name ?: "Yağız Sabuncuoğlu",
+            handle = if (captain != null) "@${captain.name.lowercase().replace(" ", "_")}" else "@yagosabuncuoglu",
+            avatarHex = captain?.let { club.primaryColorHex } ?: "#0EA5E9",
+            isVerified = true,
+            badgeType = VerifiedBadgeType.BLUE,
+            reactionType = if (captain != null) CommentReactionType.TEAMMATE else CommentReactionType.PRESS_CRITIC,
+            timeLabel = "Şimdi",
+            text = if (captain != null) "$userHandle Kardeşim yarın sabah taktik idmanı var, yorumlarda mesaiyi bırak dinlen haha 💪⚽"
+                   else "$userHandle Bu yanıt Süper Lig kulislerinde ve spor bültenlerinde flaş haber olarak geçiyor 🔎🇹🇷",
+            likes = (initialPlayerLikes * 0.60).toInt().coerceAtLeast(8),
+            reposts = (initialPlayerReposts * 0.5).toInt().coerceAtLeast(2)
         )
 
         val current = extraXReplies[parentPost.id].orEmpty()
-        extraXReplies[parentPost.id] = listOf(userReply, autoCounter) + current
+        extraXReplies[parentPost.id] = listOf(userReply, fanReply, trollReply, memeReply, peerReply) + current
+
+        // Add notifications
+        extraNotifications.add(
+            0,
+            SocialNotificationItem(
+                id = "NOTIF_X_REP_${System.currentTimeMillis()}",
+                platform = "X",
+                type = "REPLY",
+                actorName = "${club.shortName} Ultras",
+                actorHandle = "@${club.shortName.lowercase()}_ultras",
+                actorAvatarHex = club.primaryColorHex,
+                actorVerified = false,
+                text = "tweetinize yanıt verdi: 'Kral sonuna kadar haklısın!'",
+                timeLabel = "Şimdi",
+                targetPostId = parentPost.id,
+                dayIndex = state.currentDayIndex
+            )
+        )
+        extraNotifications.add(
+            0,
+            SocialNotificationItem(
+                id = "NOTIF_X_ENG_${System.currentTimeMillis() + 1}",
+                platform = "X",
+                type = "REPOST",
+                actorName = "Gündem Bildirimi",
+                actorHandle = "@trendler",
+                actorAvatarHex = "#1D9BF0",
+                actorVerified = true,
+                text = "yanıtınız ${FLFormatters.formatCompactNumber(initialPlayerLikes.toLong())} beğeni ve ${initialPlayerReposts} retweet ile gündeme girdi! ⚡",
+                timeLabel = "Şimdi",
+                targetPostId = parentPost.id,
+                dayIndex = state.currentDayIndex
+            )
+        )
     }
 
     fun toggleXReplyLikeLocal(replyId: String, currentLiked: Boolean) {
@@ -2055,6 +2419,7 @@ object SocialWorldGenerator {
     ) {
         val clean = commentary.trim().ifEmpty { "🔥⚽" }
         val p = state.player
+        val (scaledLikes, scaledReposts) = calculatePlayerPostEngagement(state)
         val newId = "XP_QUOTE_USR_${System.currentTimeMillis()}"
         quotedPostEmbeds[newId] = XQuotedPostEmbed(
             originalPostId = quotedPost.id,
@@ -2074,8 +2439,8 @@ object SocialWorldGenerator {
             category = "OYUNCU",
             isVerified = true,
             text = clean,
-            likes = 310 + (p.followersCount / 20),
-            reposts = 48
+            likes = scaledLikes,
+            reposts = scaledReposts
         )
         userPublishedXPosts.add(0, newPost)
         onDelegatePublish("$clean [Alıntı: ${quotedPost.handle}]")
@@ -2320,6 +2685,677 @@ object SocialWorldGenerator {
                 )
             )
         }
+        val extras = extraNotifications.filter { it.platform.equals(platform, ignoreCase = true) }
+        return extras + baseList
+    }
+
+    // =========================================================================
+    // 6.5. DYNAMIC INFINITE SCROLL & PULL-TO-REFRESH FEED ENGINE
+    // =========================================================================
+
+    fun loadMoreInstaPosts(state: CareerSaveState): Int {
+        currentInstaPage.value++
+        val page = currentInstaPage.value
+        val newPosts = generateDynamicInstaBatch(state, page)
+        appendedInstaPosts.addAll(newPosts)
+        return newPosts.size
+    }
+
+    fun refreshInstaFeed(state: CareerSaveState): Int {
+        val freshBatch = generateBreakingInstaBatch(state)
+        prependedInstaPosts.addAll(0, freshBatch)
+        return freshBatch.size
+    }
+
+    fun loadMoreXPosts(state: CareerSaveState): Int {
+        currentXPage.value++
+        val page = currentXPage.value
+        val newTweets = generateDynamicXBatch(state, page)
+        appendedXPosts.addAll(newTweets)
+        return newTweets.size
+    }
+
+    fun refreshXFeed(state: CareerSaveState): Int {
+        val freshTweets = generateBreakingXBatch(state)
+        prependedXPosts.addAll(0, freshTweets)
+        return freshTweets.size
+    }
+
+    private fun generateDynamicInstaBatch(state: CareerSaveState, page: Int): List<SocialMediaPost> {
+        val p = state.player
+        val club = state.currentClub
+        val day = state.currentDayIndex
+        val rivalClub = state.clubs.firstOrNull { it.id != club.id } ?: club
+        val fameTier = calculatePlayerFameTier(state)
+        val posts = mutableListOf<SocialMediaPost>()
+
+        when (page % 4) {
+            1 -> {
+                // 1. European Champions League Clash (433)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_UCL_P${page}_1",
+                        dayIndex = day,
+                        dateLabel = "2 saat önce",
+                        authorName = "433",
+                        authorHandle = "@433",
+                        isUserPost = false,
+                        content = "WHAT A NIGHT OF CHAMPIONS LEAGUE FOOTBALL! 🤯⚽ Real Madrid 3-2 Manchester City! Vinicius Jr 88. dakikada maçı koparan golü attı. Bernabéu yine büyülü bir geceye tanıklık etti! Sizce bu sezon kupayı kim kaldırır? 🏆✨",
+                        likesCount = 1_240_000,
+                        commentsCount = 18_450,
+                        sentiment = "Destekleyici",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_UCL_1", authorHandle = "ardaguler", authorName = "Arda Güler", isVerified = true, avatarHex = "#F59E0B", text = "¡Hasta el final! 🤍✨", timeLabel = "1s", likesCount = 45_200),
+                            InstaCommentItem(id = "C_UCL_2", authorHandle = "kramponsports", authorName = "Krampon Sports", isVerified = true, avatarHex = "#22C55E", text = "Futbolun zirvesi gerçekten bambaşka bir seviye...", timeLabel = "50d", likesCount = 3_120)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "Santiago Bernabéu, Madrid",
+                        imageSceneType = "STADIUM"
+                    )
+                )
+
+                // 2. Turkish League Banter & Controversy (beIN SPORTS)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_VAR_P${page}_2",
+                        dayIndex = day,
+                        dateLabel = "4 saat önce",
+                        authorName = "beIN SPORTS Türkiye",
+                        authorHandle = "@beinsportstr",
+                        isUserPost = false,
+                        content = "📺 TRIO | ${club.leagueName}'de 88. dakikadaki penaltı kararı doğru muydu? Eski hakemler Deniz Çoban, Bülent Yıldırım ve Bahattin Duran canlı yayında değerlendirdi: 'Pozisyonda temas yetersiz, VAR müdahalesi hatalı!' 🎙️⚽",
+                        likesCount = 48_900,
+                        commentsCount = 2_890,
+                        sentiment = "Eleştirel",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_VAR_1", authorHandle = "${club.shortName.lowercase()}_ultras", authorName = "${club.shortName} Tribün", isVerified = false, avatarHex = club.primaryColorHex, text = "Her hafta aynı senaryo, emeğimize yazık!", timeLabel = "3s", likesCount = 412),
+                            InstaCommentItem(id = "C_VAR_2", authorHandle = "nocontextsuperlig", authorName = "No Context Türk Futbolu", isVerified = true, avatarHex = "#EAB308", text = "VAR monitörünü izlerken kahve içen hakem efsanesi sksksk", timeLabel = "2s", likesCount = 1_840)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "beIN SPORTS Stüdyoları, İstanbul",
+                        imageSceneType = "LOCKER"
+                    )
+                )
+
+                // 3. Coach Press Quote (Sports Digitale)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_COACH_P${page}_3",
+                        dayIndex = day,
+                        dateLabel = "6 saat önce",
+                        authorName = "Sports Digitale",
+                        authorHandle = "@sportsdigitale",
+                        isUserPost = false,
+                        content = "🗣️ Jose Mourinho basın toplantısında konuştu:\n\n\"Eğer hakem ve taktik kararları hakkında gerçek hislerimi söylersem federasyon bana 6 maç ceza verir. O yüzden sadece rakibi tebrik ediyorum ve susuyorum.\" 🤫🔥",
+                        likesCount = 92_400,
+                        commentsCount = 4_100,
+                        sentiment = "Tarafsız",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_MOU_1", authorHandle = "optacan", authorName = "OptaCan", isVerified = true, avatarHex = "#6366F1", text = "Zihin oyunları. Klasik.", timeLabel = "5s", likesCount = 890)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "Basın Odası",
+                        imageSceneType = "TRAINING"
+                    )
+                )
+
+                // 4. Player Fame Recognition / Tagging (Mackolik)
+                val mackolikCaption = if (fameTier.ordinal >= PlayerFameTier.RISING_STAR.ordinal) {
+                    "🌟 HAFTANIN PARLAYAN YILDIZI | ${p.fullName} (@${p.firstName.lowercase()}${p.kitNumber})\n\n${club.name} formasıyla bu sezon ${club.leagueName}'de çıktığı maçlarda hem taraftarın sevgilisi oldu hem de scout raporlarında zirveye yerleşti! Geleceğin A Milli Takım 10 numarası mı? 👇🇹🇷"
+                } else {
+                    "⚽ ALT LİGLERİN GİZLİ CEVHERLERİ | TFF liglerinde altyapıdan yetişip parlayan genç yeteneklerin mücadelesi devam ediyor! Sizin favori genç oyuncunuz kim? 👇"
+                }
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_MACK_P${page}_4",
+                        dayIndex = day,
+                        dateLabel = "7 saat önce",
+                        authorName = "Mackolik",
+                        authorHandle = "@mackolik",
+                        isUserPost = false,
+                        content = mackolikCaption,
+                        likesCount = if (fameTier.ordinal >= PlayerFameTier.RISING_STAR.ordinal) 38_200 else 14_500,
+                        commentsCount = 940,
+                        sentiment = "Destekleyici",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_MACK_1", authorHandle = "${club.shortName.lowercase()}_fanatik", authorName = "${club.shortName} Fanatik", isVerified = false, avatarHex = club.primaryColorHex, text = "Kralımıza sahip çıkalım, geleceğimiz bu çocuk! 👏🔥", timeLabel = "6s", likesCount = 280)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = club.city,
+                        imageSceneType = "STADIUM"
+                    )
+                )
+            }
+            2 -> {
+                // 1. Premier League Derby Action (beIN SPORTS)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_EPL_P${page}_1",
+                        dayIndex = day,
+                        dateLabel = "1 saat önce",
+                        authorName = "beIN SPORTS Türkiye",
+                        authorHandle = "@beinsportstr",
+                        isUserPost = false,
+                        content = "🔥 PREMIER LEAGUE | Arsenal 2-2 Manchester City! Son saniye kornerinde gelen eşitlik golü Emirates'i yıktı geçti. Şampiyonluk yarışında puan farkı 1'e indi! 🏴󠁧󠁢󠁥󠁮󠁧󠁿⚽",
+                        likesCount = 67_200,
+                        commentsCount = 3_120,
+                        sentiment = "Tarafsız",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_EPL_1", authorHandle = "optacan", authorName = "OptaCan", isVerified = true, avatarHex = "#6366F1", text = "Premier League tarihinin en yüksek xG üretilen 5 maçından biri. Tempo.", timeLabel = "40d", likesCount = 420)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "Emirates Stadium, Londra",
+                        imageSceneType = "STADIUM"
+                    )
+                )
+
+                // 2. Transfer Rumor (Yağız Sabuncuoğlu)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_YAGIZ_P${page}_2",
+                        dayIndex = day,
+                        dateLabel = "3 saat önce",
+                        authorName = "Yağız Sabuncuoğlu",
+                        authorHandle = "@yagosabuncuoglu",
+                        isUserPost = false,
+                        content = "🚨 ÖZEL | Süper Lig devinden sürpriz transfer harekatı! Yurt dışından scout edilen genç Türk futbolcu için kulüpler prensip anlaşmasına vardı. Oyuncunun menajeri bu gece sözleşme detayları için İstanbul'a geliyor. ✈️🇹🇷",
+                        likesCount = 84_500,
+                        commentsCount = 4_200,
+                        sentiment = "Destekleyici",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_YAG_1", authorHandle = "ertansuzgun", authorName = "Ertan Süzgün", isVerified = true, avatarHex = "#F59E0B", text = "Hayırlı olsun, doğru proje 👏", timeLabel = "2s", likesCount = 1_410)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "İstanbul",
+                        imageSceneType = "TRANSFER"
+                    )
+                )
+
+                // 3. Turkish Football Meme (No Context Süper Lig)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_MEME_P${page}_3",
+                        dayIndex = day,
+                        dateLabel = "5 saat önce",
+                        authorName = "No Context Türk Futbolu",
+                        authorHandle = "@nocontextsuperlig",
+                        isUserPost = false,
+                        content = "Halı sahada 7-1 geriye düşünce 'Beyler hadi basit oynayalım, ayağa pas' diyen takım kaptanı temsili 😂⚽🏃‍♂️",
+                        likesCount = 112_000,
+                        commentsCount = 2_450,
+                        sentiment = "Tarafsız",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_MEM_1", authorHandle = "futbolmizahtr", authorName = "Futbol Mizah TR", isVerified = false, avatarHex = "#F97316", text = "Sonra ilk topu taca atan yine aynı kaptan sksksk", timeLabel = "4s", likesCount = 3_210)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "Halı Saha Tesisleri",
+                        imageSceneType = "TRAINING"
+                    )
+                )
+
+                // 4. Player Lifestyle / Boots Drop (Nike Türkiye)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_NIKE_P${page}_4",
+                        dayIndex = day,
+                        dateLabel = "8 saat önce",
+                        authorName = "Nike Football Türkiye",
+                        authorHandle = "@niketurkiye",
+                        isUserPost = false,
+                        content = "Sahada fark yaratanlar sıradan kurallara uymaz. Yeni Nike Phantom GX2 Elite ile topu hisset, oyunu yönet. ⚡👟 Türk futbolunun yeni jenerasyonu sahneye çıkıyor. ✔️⚽",
+                        likesCount = 74_200,
+                        commentsCount = 1_180,
+                        sentiment = "Destekleyici",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_NK_1", authorHandle = "semihkilicsoy", authorName = "Semih Kılıçsoy", isVerified = true, avatarHex = "#27272A", text = "⚡🔥", timeLabel = "7s", likesCount = 890)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "İstanbul / Riva Tesisleri",
+                        imageSceneType = "TRAINING"
+                    )
+                )
+            }
+            3 -> {
+                // 1. El Clasico Hype (433)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_CLASICO_P${page}_1",
+                        dayIndex = day,
+                        dateLabel = "2 saat önce",
+                        authorName = "433",
+                        authorHandle = "@433",
+                        isUserPost = false,
+                        content = "EL CLÁSICO WEEK IS HERE! 🇪🇸🔥 Real Madrid vs Barcelona at Spotify Camp Nou. The greatest rivalry in club football returns. Drop your score predictions below! 👇⚽",
+                        likesCount = 1_650_000,
+                        commentsCount = 32_100,
+                        sentiment = "Destekleyici",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_CLAS_1", authorHandle = "ardaguler", authorName = "Arda Güler", isVerified = true, avatarHex = "#F59E0B", text = "Ready. 🤍", timeLabel = "1s", likesCount = 52_400)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "Camp Nou, Barcelona",
+                        imageSceneType = "STADIUM"
+                    )
+                )
+
+                // 2. Sergen Yalçın Legendary Quote (Sokrates Dergi)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_SERGEN_P${page}_2",
+                        dayIndex = day,
+                        dateLabel = "4 saat önce",
+                        authorName = "Sokrates Dergi",
+                        authorHandle = "@sokratesdergi",
+                        isUserPost = false,
+                        content = "🎙️ Sergen Yalçın'dan unutulmaz sözler:\n\n\"Bizim zamanımızda 35 metreden serbest vuruş olunca kaleci baraj kurmazdı, nereye atacağımı tahmin etmeye çalışırdı. Şimdi bakıyorum adamlar 5 metre ötedeki arkadaşına pas veremiyor.\" 😂⚽",
+                        likesCount = 89_200,
+                        commentsCount = 3_400,
+                        sentiment = "Tarafsız",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_SRG_1", authorHandle = "kramponsports", authorName = "Krampon Sports", isVerified = true, avatarHex = "#22C55E", text = "Sergen Hoca haklı dağılın 😂👏", timeLabel = "3s", likesCount = 2_140)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "Sokrates Stüdyosu",
+                        imageSceneType = "LOCKER"
+                    )
+                )
+
+                // 3. Local Turkish Derby Atmosphere (Tribün Dergi)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_TRIB_P${page}_3",
+                        dayIndex = day,
+                        dateLabel = "6 saat önce",
+                        authorName = "Mackolik",
+                        authorHandle = "@mackolik",
+                        isUserPost = false,
+                        content = "🏟️ ANADOLU DERBİSİNDE MEŞALE ŞOV! Stadyumu dolduran 28 bin taraftar maç boyu susmadı. Türk futbolunun kalbi tribünlerde atıyor! 🧣🔥",
+                        likesCount = 54_800,
+                        commentsCount = 1_820,
+                        sentiment = "Destekleyici",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_TRB_1", authorHandle = "${rivalClub.shortName.lowercase()}_fan", authorName = "${rivalClub.shortName} Tribünü", isVerified = false, avatarHex = rivalClub.primaryColorHex, text = "Deplasman tribününden selamlar!", timeLabel = "5s", likesCount = 140)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "${club.stadiumName}",
+                        imageSceneType = "STADIUM"
+                    )
+                )
+
+                // 4. Kenan Yıldız Juventus Highlight
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_KENAN_P${page}_4",
+                        dayIndex = day,
+                        dateLabel = "9 saat önce",
+                        authorName = "Kenan Yıldız",
+                        authorHandle = "@kenanyildiz_official",
+                        isUserPost = false,
+                        content = "Torino'da 10 numaranın sorumluluğunu sahada terimin son damlasına kadar taşımaya devam. ⚪⚫👅 Destekleyen tüm Türk ve Juventus taraftarlarına teşekkürler! 🇹🇷🇮🇹",
+                        likesCount = 412_000,
+                        commentsCount = 8_200,
+                        sentiment = "Destekleyici",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_KN_1", authorHandle = "hakancalhanoglu", authorName = "Hakan Çalhanoğlu", isVerified = true, avatarHex = "#1D4ED8", text = "Aynen devam kardeşim! 👏", timeLabel = "8s", likesCount = 12_400)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "Allianz Stadium, Torino",
+                        imageSceneType = "STADIUM"
+                    )
+                )
+            }
+            else -> {
+                // 1. Champions League Draw / Stage (beIN SPORTS)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_UCL_DRAW_P${page}_1",
+                        dayIndex = day,
+                        dateLabel = "3 saat önce",
+                        authorName = "beIN SPORTS Türkiye",
+                        authorHandle = "@beinsportstr",
+                        isUserPost = false,
+                        content = "🏆 Şampiyonlar Ligi'nde çeyrek final eşleşmeleri belli oldu! Bayern Münih - PSG, Real Madrid - Arsenal, Inter - Barcelona! Erken final niteliğindeki maçlar nefes kesecek. 🌟⚽",
+                        likesCount = 76_400,
+                        commentsCount = 3_890,
+                        sentiment = "Destekleyici",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_DRW_1", authorHandle = "optacan", authorName = "OptaCan", isVerified = true, avatarHex = "#6366F1", text = "Tarihin en dengeli 8 takımı. Zirve.", timeLabel = "2s", likesCount = 670)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "Nyon, İsviçre",
+                        imageSceneType = "STADIUM"
+                    )
+                )
+
+                // 2. Transfer Deadline Rumor (Fabrizio Romano)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_FAB_P${page}_2",
+                        dayIndex = day,
+                        dateLabel = "5 saat önce",
+                        authorName = "Fabrizio Romano",
+                        authorHandle = "@fabrizioromano",
+                        isUserPost = false,
+                        content = "HERE WE GO! 🚨 Borussia Dortmund have completed the signing of 19yo talent on a 5-year contract. €18M fee package agreed. Medicals booked for Wednesday. 🟡⚫✍️",
+                        likesCount = 890_000,
+                        commentsCount = 14_100,
+                        sentiment = "Destekleyici",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_FAB_1", authorHandle = "transfermarkt_tr", authorName = "Transfermarkt TR", isVerified = true, avatarHex = "#00193F", text = "Dortmund scout ekibi yine erkenden bitirdi 📈", timeLabel = "4s", likesCount = 2_450)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "Milano, Italia",
+                        imageSceneType = "TRANSFER"
+                    )
+                )
+
+                // 3. Turkish Football Culture (Krampon Sports)
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_CULT_P${page}_3",
+                        dayIndex = day,
+                        dateLabel = "7 saat önce",
+                        authorName = "Krampon Sports",
+                        authorHandle = "@kramponsports",
+                        isUserPost = false,
+                        content = "Deplasman otobüsünde sabah 06:00'da mola verip sıcak çorba içen taraftarın huzuru kimsede yok... Türk tribün kültürü bambaşka bir tutku! 🧣☕⚽",
+                        likesCount = 98_400,
+                        commentsCount = 2_150,
+                        sentiment = "Destekleyici",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_CLT_1", authorHandle = "nocontextsuperlig", authorName = "No Context Türk Futbolu", isVerified = true, avatarHex = "#EAB308", text = "Yanında da tulum peynirli simit varsa şampiyonluk gelmiş demektir sksksk", timeLabel = "6s", likesCount = 3_450)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "Bolu Dağı Dinlenme Tesisleri",
+                        imageSceneType = "LOCKER"
+                    )
+                )
+
+                // 4. Media Feature of our Player (Sports Digitale)
+                val mediaTitle = if (fameTier.ordinal >= PlayerFameTier.RISING_STAR.ordinal) {
+                    "🎙️ ÖZEL DOSYA | ${p.fullName} (#${p.kitNumber}) Süper Lig'in parlayan yıldızı! Taktik analistler genç yıldızın hücumdaki etkinliğini mercek altına aldı: 'Gelecek sezon Avrupa kapıları ardına kadar açılabilir.' 🇹🇷📊"
+                } else {
+                    "🎙️ AKADEMİ DOSYASI | Altyapı akademilerinden A takıma yükselme sürecindeki en büyük engeller ve gençlerin kariyer yönetimi. ⚽📈"
+                }
+                posts.add(
+                    SocialMediaPost(
+                        id = "DYN_IG_MEDIA_P${page}_4",
+                        dayIndex = day,
+                        dateLabel = "9 saat önce",
+                        authorName = "Sports Digitale",
+                        authorHandle = "@sportsdigitale",
+                        isUserPost = false,
+                        content = mediaTitle,
+                        likesCount = if (fameTier.ordinal >= PlayerFameTier.RISING_STAR.ordinal) 42_100 else 16_800,
+                        commentsCount = 1_120,
+                        sentiment = "Destekleyici",
+                        instaComments = listOf(
+                            InstaCommentItem(id = "C_MED_1", authorHandle = "${club.shortName.lowercase()}_ultras", authorName = "${club.shortName} Tribün", isVerified = false, avatarHex = club.primaryColorHex, text = "Bizim evladımız, kimseye vermeyiz! 🦁🔥", timeLabel = "8s", likesCount = 390)
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "Sports Digitale Stüdyoları",
+                        imageSceneType = "TRAINING"
+                    )
+                )
+            }
+        }
+
+        return posts
+    }
+
+    private fun generateBreakingInstaBatch(state: CareerSaveState): List<SocialMediaPost> {
+        val p = state.player
+        val club = state.currentClub
+        val day = state.currentDayIndex
+
+        return listOf(
+            SocialMediaPost(
+                id = "BREAK_IG_${System.currentTimeMillis()}_1",
+                dayIndex = day,
+                dateLabel = "Az önce",
+                authorName = "beIN SPORTS Türkiye",
+                authorHandle = "@beinsportstr",
+                isUserPost = false,
+                content = "🚨 SON DAKİKA | TFF Kulüpler Birliği toplantısı sona erdi: Yeni yabancı kuralı, hakem atama algoritması ve alt liglerin yayın gelirleri hakkında tarihi kararlar alındı! Canlı yayın bültenimiz başlıyor 📺🇹🇷",
+                likesCount = 31_200,
+                commentsCount = 1_450,
+                sentiment = "Tarafsız",
+                instaComments = listOf(
+                    InstaCommentItem(id = "C_BRK_1", authorHandle = "optacan", authorName = "OptaCan", isVerified = true, avatarHex = "#6366F1", text = "Detaylar yayın gelirinde gizli. Kritik.", timeLabel = "Şimdi", likesCount = 190)
+                ),
+                isVerifiedAuthor = true,
+                locationLabel = "Riva Hasan Doğan Tesisleri",
+                imageSceneType = "TRANSFER"
+            ),
+            SocialMediaPost(
+                id = "BREAK_IG_${System.currentTimeMillis()}_2",
+                dayIndex = day,
+                dateLabel = "2 dakika önce",
+                authorName = "Yağız Sabuncuoğlu",
+                authorHandle = "@yagosabuncuoglu",
+                isUserPost = false,
+                content = "⚡ FLAŞ | Avrupa kulüplerinin Türkiye transfer komitesi başkanı bu akşam resmi görüşmeler için Riva'da. Masada 3 genç Türk yeteneğin bonservis teklifi var! 🔎🇹🇷",
+                likesCount = 44_900,
+                commentsCount = 2_100,
+                sentiment = "Destekleyici",
+                instaComments = listOf(
+                    InstaCommentItem(id = "C_BRK_2", authorHandle = "kramponsports", authorName = "Krampon Sports", isVerified = true, avatarHex = "#22C55E", text = "Burada yine sıcak saatler başlıyor 👀🔥", timeLabel = "Şimdi", likesCount = 512)
+                ),
+                isVerifiedAuthor = true,
+                locationLabel = "İstanbul",
+                imageSceneType = "TRANSFER"
+            )
+        )
+    }
+
+    private fun generateDynamicXBatch(state: CareerSaveState, page: Int): List<XPostItem> {
+        val p = state.player
+        val club = state.currentClub
+        val day = state.currentDayIndex
+        val rivalClub = state.clubs.firstOrNull { it.id != club.id } ?: club
+        val fameTier = calculatePlayerFameTier(state)
+        val tweets = mutableListOf<XPostItem>()
+
+        when (page % 4) {
+            1 -> {
+                tweets.add(
+                    XPostItem(
+                        id = "DYN_XP_P${page}_1",
+                        dayIndex = day,
+                        dateLabel = "15d",
+                        authorName = "Fabrizio Romano",
+                        handle = "@fabrizioromano",
+                        category = "GAZETECİ",
+                        isVerified = true,
+                        text = "Real Madrid are preparing their contract extension proposal for Arda Güler until June 2030. Key part of future project alongside Bellingham, Vinicius and Mbappe. 🤍🇹🇷",
+                        likes = 68_400,
+                        reposts = 8_200
+                    )
+                )
+                tweets.add(
+                    XPostItem(
+                        id = "DYN_XP_P${page}_2",
+                        dayIndex = day,
+                        dateLabel = "32d",
+                        authorName = "No Context Türk Futbolu",
+                        handle = "@nocontextsuperlig",
+                        category = "MİZAH",
+                        isVerified = true,
+                        text = "Hakem 90+6'da VAR ekranına koşarken iki takımın teknik direktörünün aynı anda 4. hakeme sarılma anı 😂📺 Türk futbolu gerçekten dizi gibi.",
+                        likes = 24_500,
+                        reposts = 3_400
+                    )
+                )
+                tweets.add(
+                    XPostItem(
+                        id = "DYN_XP_P${page}_3",
+                        dayIndex = day,
+                        dateLabel = "1s",
+                        authorName = "OptaCan",
+                        handle = "@optacan",
+                        category = "YORUMCU",
+                        isVerified = true,
+                        text = "14.2 - ${club.name} bu sezon ${club.leagueName}'de maç başına 14.2 şut çekerek ligin en üretken takımlarından biri konumunda. Üretkenlik.",
+                        likes = 5_800,
+                        reposts = 420
+                    )
+                )
+                if (fameTier.ordinal >= PlayerFameTier.RISING_STAR.ordinal) {
+                    tweets.add(
+                        XPostItem(
+                            id = "DYN_XP_P${page}_4",
+                            dayIndex = day,
+                            dateLabel = "1s",
+                            authorName = "Yağız Sabuncuoğlu",
+                            handle = "@yagosabuncuoglu",
+                            category = "GAZETECİ",
+                            isVerified = true,
+                            text = "ÖZEL | Süper Lig devleri ve İtalyan kulüpleri, ${club.name} forması giyen ${p.fullName} (@${p.firstName.lowercase()}${p.kitNumber}) için resmi nabız yokladı. Oyuncunun sözleşme serbest kalma maddesi araştırılıyor. 🔎🇮🇹",
+                            likes = 14_200,
+                            reposts = 1_850
+                        )
+                    )
+                }
+            }
+            2 -> {
+                tweets.add(
+                    XPostItem(
+                        id = "DYN_XP_P${page}_1",
+                        dayIndex = day,
+                        dateLabel = "22d",
+                        authorName = "Ertan Süzgün",
+                        handle = "@ertansuzgun",
+                        category = "GAZETECİ",
+                        isVerified = true,
+                        text = "TFF 1. Lig ve Süper Lig kulüpleri arasında sürpriz takas görüşmeleri başladı. Ara transfer dönemi öncesi hareketlilik çok yüksek. 📞⚽",
+                        likes = 8_900,
+                        reposts = 710
+                    )
+                )
+                tweets.add(
+                    XPostItem(
+                        id = "DYN_XP_P${page}_2",
+                        dayIndex = day,
+                        dateLabel = "45d",
+                        authorName = "Krampon Sports",
+                        handle = "@kramponsports",
+                        category = "MİZAH",
+                        isVerified = true,
+                        text = "Teknik direktörün 'Bugün taktik idmanı yok, çift kale maç yapacağız' dediği an futbolcuların gözlerindeki ışıltı paha biçilemez 😂🔥",
+                        likes = 31_200,
+                        reposts = 2_890
+                    )
+                )
+                tweets.add(
+                    XPostItem(
+                        id = "DYN_XP_P${page}_3",
+                        dayIndex = day,
+                        dateLabel = "2s",
+                        authorName = "Sports Digitale",
+                        handle = "@sportsdigitale",
+                        category = "MEDYA",
+                        isVerified = true,
+                        text = "🎙️ Uğur Karakullukçu: \"${club.name} doğru bir oyun planı buldu. Genç oyuncuların cesareti takımın hücum dinamiğini tamamen değiştirdi.\" 📺⚽",
+                        likes = 9_400,
+                        reposts = 890
+                    )
+                )
+            }
+            3 -> {
+                tweets.add(
+                    XPostItem(
+                        id = "DYN_XP_P${page}_1",
+                        dayIndex = day,
+                        dateLabel = "10d",
+                        authorName = "Mackolik",
+                        handle = "@mackolik",
+                        category = "MEDYA",
+                        isVerified = true,
+                        text = "📊 Şampiyonlar Ligi'nde bu sezon en çok dripling yapan Türk futbolcular:\n1️⃣ Arda Güler (18)\n2️⃣ Kenan Yıldız (16)\n3️⃣ Kerem Aktürkoğlu (14)\n\nGurur tablosu! 🇹🇷✨",
+                        likes = 29_400,
+                        reposts = 2_450
+                    )
+                )
+                tweets.add(
+                    XPostItem(
+                        id = "DYN_XP_P${page}_2",
+                        dayIndex = day,
+                        dateLabel = "50d",
+                        authorName = "Tribün Şamatası",
+                        handle = "@tribun_samata",
+                        category = "TARAFTAR",
+                        isVerified = false,
+                        text = "${rivalClub.shortName} taraftarları yine hakem konuşmaya başlamış. Skorboarda bakın kardeşim ağlamayı bırakın 😂🤫",
+                        likes = 3_120,
+                        reposts = 480
+                    )
+                )
+            }
+            else -> {
+                tweets.add(
+                    XPostItem(
+                        id = "DYN_XP_P${page}_1",
+                        dayIndex = day,
+                        dateLabel = "18d",
+                        authorName = "Transfermarkt Türkiye",
+                        handle = "@transfermarkt_tr",
+                        category = "YORUMCU",
+                        isVerified = true,
+                        text = "📈 Süper Lig ara piyasa değeri güncellemesi hazırlıkları başladı! Form grafiklerine göre en az 15 oyuncunun değerinde çift haneli artış bekleniyor. 📊🇹🇷",
+                        likes = 12_800,
+                        reposts = 1_120
+                    )
+                )
+                tweets.add(
+                    XPostItem(
+                        id = "DYN_XP_P${page}_2",
+                        dayIndex = day,
+                        dateLabel = "1s",
+                        authorName = "Sokrates Dergi",
+                        handle = "@sokratesdergi",
+                        category = "MEDYA",
+                        isVerified = true,
+                        text = "Avrupa futbolunda kanat forvetlerin evrimi ve Türkiye'den çıkan modern hücum profilleri üzerine derin bir analiz. Yazı sitemizde. 📚⚽",
+                        likes = 6_450,
+                        reposts = 510
+                    )
+                )
+            }
+        }
+        return tweets
+    }
+
+    private fun generateBreakingXBatch(state: CareerSaveState): List<XPostItem> {
+        val p = state.player
+        val club = state.currentClub
+        val day = state.currentDayIndex
+
+        return listOf(
+            XPostItem(
+                id = "BREAK_XP_${System.currentTimeMillis()}_1",
+                dayIndex = day,
+                dateLabel = "Az önce",
+                authorName = "Yağız Sabuncuoğlu",
+                handle = "@yagosabuncuoglu",
+                category = "GAZETECİ",
+                isVerified = true,
+                text = "⚡ SON DAKİKA | TFF Yönetim Kurulu, MHK hakem değerlendirme raporunu onayladı. 2 hakem dinlendirilecek. Kulisler alev aldı! 🔎🇹🇷",
+                likes = 28_400,
+                reposts = 3_890
+            ),
+            XPostItem(
+                id = "BREAK_XP_${System.currentTimeMillis()}_2",
+                dayIndex = day,
+                dateLabel = "2d",
+                authorName = "Fabrizio Romano",
+                handle = "@fabrizioromano",
+                category = "GAZETECİ",
+                isVerified = true,
+                text = "🚨 BREAKING | Major European clubs are preparing official scout delegations for upcoming Turkish league fixtures. Transfer window heating up! 🇹🇷✈️",
+                likes = 45_100,
+                reposts = 6_200
+            )
+        )
     }
 
     // =========================================================================

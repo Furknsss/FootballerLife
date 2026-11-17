@@ -22,6 +22,100 @@ enum class VerifiedBadgeType {
     NONE
 }
 
+enum class PlayerFameTier(
+    val titleTr: String,
+    val badgeSymbol: String,
+    val minOverall: Int,
+    val minFollowers: Long,
+    val minLikes: Int,
+    val maxLikes: Int,
+    val minReposts: Int,
+    val maxReposts: Int,
+    val verifiedReactionChancePct: Int,
+    val trollReactionChancePct: Int
+) {
+    AMATEUR(
+        titleTr = "Amatör / Bölgesel Lig",
+        badgeSymbol = "🌱",
+        minOverall = 0,
+        minFollowers = 100L,
+        minLikes = 18,
+        maxLikes = 95,
+        minReposts = 1,
+        maxReposts = 8,
+        verifiedReactionChancePct = 0,
+        trollReactionChancePct = 20
+    ),
+    SEMI_PRO(
+        titleTr = "TFF 2./3. Lig Çaylağı",
+        badgeSymbol = "⚡",
+        minOverall = 55,
+        minFollowers = 2_500L,
+        minLikes = 120,
+        maxLikes = 850,
+        minReposts = 10,
+        maxReposts = 65,
+        verifiedReactionChancePct = 8,
+        trollReactionChancePct = 30
+    ),
+    RISING_STAR(
+        titleTr = "TFF 1. Lig / Genç Yetenek",
+        badgeSymbol = "🌟",
+        minOverall = 66,
+        minFollowers = 25_000L,
+        minLikes = 1_200,
+        maxLikes = 6_500,
+        minReposts = 90,
+        maxReposts = 550,
+        verifiedReactionChancePct = 25,
+        trollReactionChancePct = 40
+    ),
+    SUPER_LIG_STAR(
+        titleTr = "Trendyol Süper Lig Yıldızı",
+        badgeSymbol = "🔥",
+        minOverall = 74,
+        minFollowers = 150_000L,
+        minLikes = 12_000,
+        maxLikes = 65_000,
+        minReposts = 900,
+        maxReposts = 5_200,
+        verifiedReactionChancePct = 60,
+        trollReactionChancePct = 50
+    ),
+    NATIONAL_HERO(
+        titleTr = "A Milli Takım Yıldızı",
+        badgeSymbol = "🇹🇷",
+        minOverall = 80,
+        minFollowers = 800_000L,
+        minLikes = 65_000,
+        maxLikes = 280_000,
+        minReposts = 4_500,
+        maxReposts = 22_000,
+        verifiedReactionChancePct = 85,
+        trollReactionChancePct = 45
+    ),
+    GLOBAL_SUPERSTAR(
+        titleTr = "Dünya Çapında Süperstar",
+        badgeSymbol = "👑",
+        minOverall = 86,
+        minFollowers = 4_000_000L,
+        minLikes = 350_000,
+        maxLikes = 1_850_000,
+        minReposts = 25_000,
+        maxReposts = 140_000,
+        verifiedReactionChancePct = 98,
+        trollReactionChancePct = 40
+    )
+}
+
+enum class CommentReactionType(val labelTr: String, val badgeColorHex: String) {
+    FAN_SUPPORT("Sadık Taraftar", "#10B981"),
+    RIVAL_TROLL("Rakip Trolü", "#EF4444"),
+    MEME_CULTURE("Mizah & Caps", "#F59E0B"),
+    TEAMMATE("Takım Arkadaşı", "#3B82F6"),
+    PRESS_CRITIC("Basın & Analiz", "#8B5CF6")
+}
+
 data class SocialAccountProfile(
     val id: String,
     val handle: String, // e.g., "@fabrizioromano"
@@ -61,7 +155,8 @@ data class InstaCommentReply(
     val text: String,
     val timeLabel: String = "1s",
     val likesCount: Int = 4,
-    val likedByUser: Boolean = false
+    val likedByUser: Boolean = false,
+    val reactionType: CommentReactionType? = null
 )
 
 data class XReplyItem(
@@ -76,7 +171,8 @@ data class XReplyItem(
     val text: String,
     val likes: Int,
     val reposts: Int = 0,
-    val likedByUser: Boolean = false
+    val likedByUser: Boolean = false,
+    val reactionType: CommentReactionType? = null
 )
 
 data class XQuotedPostEmbed(

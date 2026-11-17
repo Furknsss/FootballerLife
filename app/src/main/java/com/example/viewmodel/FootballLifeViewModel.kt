@@ -979,6 +979,14 @@ class FootballLifeViewModel(
         }
     }
 
+    fun setAutoFailoverEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.updateAutoFailoverEnabled(enabled)
+            val msg = if (enabled) "Akıllı model yedekleme (Auto Failover) açıldı." else "Akıllı model yedekleme kapatıldı."
+            showToast(msg)
+        }
+    }
+
     private fun persistCareerState(state: CareerSaveState) {
         viewModelScope.launch {
             val dateLabel = CareerEngine.formatGameDate(state.currentDayIndex, state.currentSeasonYear)

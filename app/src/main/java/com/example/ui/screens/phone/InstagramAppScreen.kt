@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Verified
@@ -80,6 +81,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.engine.social.CommentReactionType
+import com.example.engine.social.PlayerFameTier
 import com.example.engine.social.SocialAccountProfile
 import com.example.engine.social.SocialWorldGenerator
 import com.example.engine.social.VerifiedBadgeType
@@ -1039,6 +1042,42 @@ fun InstagramAppScreen(
                                         }
                                     }
 
+                                    // Pull-To-Refresh Top Action Banner
+                                    item {
+                                        Surface(
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = Color(0xFF16181C),
+                                            border = BorderStroke(0.6.dp, Color(0xFF2F3336)),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 14.dp, vertical = 4.dp)
+                                                .clickable {
+                                                    SocialWorldGenerator.refreshInstaFeed(state)
+                                                }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Refresh,
+                                                    contentDescription = null,
+                                                    tint = igBlue,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "⚡ Yeni Gönderileri Yükle (Akışı Yenile)",
+                                                    fontFamily = OutfitFontFamily,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Color(0xFFE0E0E0)
+                                                )
+                                            }
+                                        }
+                                    }
+
                                     items(livingFeed, key = { it.id }) { post ->
                                         InstaFeedPostCard(
                                             post = post,
@@ -1054,6 +1093,42 @@ fun InstagramAppScreen(
                                                 onToggleSave(post.id)
                                             }
                                         )
+                                    }
+
+                                    // Infinite Scroll Pagination Loader Card
+                                    item {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = Color(0xFF121417),
+                                            border = BorderStroke(0.6.dp, Color(0xFF262626)),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                                .clickable {
+                                                    SocialWorldGenerator.loadMoreInstaPosts(state)
+                                                }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(14.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.AddCircleOutline,
+                                                    contentDescription = null,
+                                                    tint = igBlue,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "Daha Fazla Gönderi Yükle (Sonsuz Akış) ⚡",
+                                                    fontFamily = OutfitFontFamily,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1742,6 +1817,23 @@ fun InstagramAppScreen(
                                                     modifier = Modifier.size(13.dp)
                                                 )
                                             }
+                                            val isPlayerCmt = cmt.authorHandle.contains(state.player.firstName.lowercase()) || cmt.id.startsWith("IC_LIV_USR_")
+                                            if (isPlayerCmt) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = GoldPrimary.copy(alpha = 0.2f),
+                                                    border = BorderStroke(0.6.dp, GoldPrimary)
+                                                ) {
+                                                    Text(
+                                                        text = "Sen · Oyuncu",
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = GoldPrimary,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
                                                 text = cmt.timeLabel,
@@ -1859,6 +1951,40 @@ fun InstagramAppScreen(
                                                                 tint = igBlue,
                                                                 modifier = Modifier.size(11.dp)
                                                             )
+                                                        }
+                                                        if (rep.reactionType != null) {
+                                                            Spacer(modifier = Modifier.width(4.dp))
+                                                            val badgeColor = parseSafeHexColor(rep.reactionType.badgeColorHex, Color(0xFF10B981))
+                                                            Surface(
+                                                                shape = RoundedCornerShape(4.dp),
+                                                                color = badgeColor.copy(alpha = 0.2f),
+                                                                border = BorderStroke(0.5.dp, badgeColor)
+                                                            ) {
+                                                                Text(
+                                                                    text = rep.reactionType.labelTr,
+                                                                    fontSize = 8.5.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = badgeColor,
+                                                                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 0.5.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                        val isPlayerRep = rep.authorHandle.contains(state.player.firstName.lowercase()) || rep.id.startsWith("REP_USR_")
+                                                        if (isPlayerRep) {
+                                                            Spacer(modifier = Modifier.width(4.dp))
+                                                            Surface(
+                                                                shape = RoundedCornerShape(4.dp),
+                                                                color = GoldPrimary.copy(alpha = 0.2f),
+                                                                border = BorderStroke(0.5.dp, GoldPrimary)
+                                                            ) {
+                                                                Text(
+                                                                    text = "Sen",
+                                                                    fontSize = 8.5.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = GoldPrimary,
+                                                                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 0.5.dp)
+                                                                )
+                                                            }
                                                         }
                                                         Spacer(modifier = Modifier.width(5.dp))
                                                         Text(rep.timeLabel, fontSize = 10.sp, color = Color(0xFF8E8E93))
