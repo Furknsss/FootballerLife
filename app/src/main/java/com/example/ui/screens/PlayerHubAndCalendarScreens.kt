@@ -1542,7 +1542,7 @@ fun CalendarScreen(
     onOpenTraining: () -> Unit = {},
     onOpenCeremony: () -> Unit = {}
 ) {
-    var viewMode by remember { mutableStateOf("AYLIK") } // Default: AYLIK (7-column FC calendar)
+    val viewMode = "AYLIK" // Sadece aylık görünüm (haftalık kaldırıldı)
     var selectedMonthIdx by remember(career.currentDayIndex) {
         mutableStateOf(CareerEngine.getMonthIndexForDay(career.currentDayIndex))
     }
@@ -1614,79 +1614,6 @@ fun CalendarScreen(
                             )
                         }
 
-                        // Custom Segmented Toggle Pill
-                        Surface(
-                            color = BackgroundPrimary.copy(alpha = 0.85f),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, StrokePremium)
-                        ) {
-                            Row(modifier = Modifier.padding(3.dp)) {
-                                listOf("AYLIK", "HAFTALIK").forEach { mode ->
-                                    val active = viewMode == mode
-                                    Surface(
-                                        color = if (active) AccentPrimary else Color.Transparent,
-                                        shape = RoundedCornerShape(9.dp),
-                                        modifier = Modifier
-                                            .clickable { viewMode = mode }
-                                            .testTag("calendar_mode_$mode")
-                                    ) {
-                                        Text(
-                                            text = mode,
-                                            fontFamily = OutfitFontFamily,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = if (active) BackgroundPrimary else TextSecondary,
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Time advancement control bar
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        val isSeasonOver = remember(career.fixtures, career.currentDayIndex) {
-                            com.example.engine.progression.SeasonTransitionEngine.isSeasonFinished(career)
-                        }
-                        if (isSeasonOver) {
-                            FLPrimaryButton(
-                                text = "🏆 SEZON SONU ÖDÜL TÖRENİ & KUPA GALASI",
-                                onClick = onOpenCeremony,
-                                icon = Icons.Default.Star,
-                                modifier = Modifier.fillMaxWidth(),
-                                testTag = "btn_calendar_open_ceremony"
-                            )
-                        } else if (isMatchToday) {
-                            FLPrimaryButton(
-                                text = "BUGÜNKÜ MAÇA ÇIK",
-                                onClick = onPlayMatchToday,
-                                icon = Icons.Default.SportsSoccer,
-                                modifier = Modifier.fillMaxWidth(),
-                                testTag = "btn_calendar_play_today"
-                            )
-                        } else {
-                            FLPrimaryButton(
-                                text = "SONRAKİ GÜN",
-                                onClick = onAdvanceNextDay,
-                                icon = Icons.Default.SkipNext,
-                                modifier = Modifier.weight(1f),
-                                testTag = "btn_calendar_next_day"
-                            )
-                            FLSecondaryButton(
-                                text = "MAÇ GÜNÜNE İLERLE",
-                                onClick = onAdvanceToMatchDay,
-                                icon = Icons.Default.FastForward,
-                                borderColor = StrokePremiumStrong,
-                                textColor = AccentBright,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("btn_calendar_to_match_day")
-                            )
-                        }
                     }
                 }
             }

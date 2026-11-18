@@ -452,7 +452,11 @@ object CareerEngine {
 
         for (round in 0 until roundsFirstHalf * 2) {
             val weekNumber = round + 1
-            val matchDayIndex = 2 + round * 7 // Weekly schedule (Day 2, 9, 16, 23...) spanning the full 38-week season
+            // Gerçekçilik: Lig maçları kesinlikle HAFTASONU (Cumartesi / Pazar) oynanır!
+            // 1. Hafta -> Gün 6 (Cumartesi), 2. Hafta -> Gün 14 (Pazar)...
+            // Her hafta 1 lig maçı, haftalık 7 gün periyoduyla tam lig takvimi
+            val weekendOffset = if (weekNumber % 2 == 1) 6 else 7
+            val matchDayIndex = (round * 7) + weekendOffset
             val dateLabel = formatGameDate(matchDayIndex)
             val isSecondHalf = round >= roundsFirstHalf
 
@@ -747,17 +751,48 @@ object CareerEngine {
                             )
                         )
                     }
+                    // Pazar = Dinlenme (day % 7 == 0 → Pazar)
                     day % 7 == 0 -> {
                         events.add(
                             CalendarEvent(
                                 id = "CAL_REST_$day",
                                 dayIndex = day,
                                 dateLabel = dateLabel,
-                                timeLabel = "12:00",
-                                location = "Kulüp Dinlenme Tesisi",
+                                timeLabel = "11:00",
+                                location = "Kulüp Tesisi / Ev",
                                 eventType = "DİNLENME",
-                                title = "Haftalık Dinlenme & Bireysel Çalışma",
-                                description = "Kondisyoner eşliğinde hafif stretching ve zihinsel hazırlık."
+                                title = "Pazar Dinlenmesi & Aile/Sosyal Zaman",
+                                description = "Haftanın resmi tatili. Ailenle vakit geçir, maç analizini izle, enerjini topla."
+                            )
+                        )
+                    }
+                    // Cumartesi = Haftasonu maçı ya da gözlemci antrenman (day % 7 == 6)
+                    day % 7 == 6 -> {
+                        events.add(
+                            CalendarEvent(
+                                id = "CAL_MATCHDAY_OBS_$day",
+                                dayIndex = day,
+                                dateLabel = dateLabel,
+                                timeLabel = "19:00",
+                                location = "Tesisler / Stat",
+                                eventType = "SOSYAL",
+                                title = "Haftasonu Ligdeki Diğer Maçları İzle",
+                                description = "Puan tablosunu gözlemle, rakip takımların performansını takip et."
+                            )
+                        )
+                    }
+                    // Çarşamba = Orta hafta antrenman veya kupa
+                    day % 7 == 3 -> {
+                        events.add(
+                            CalendarEvent(
+                                id = "CAL_TRAIN_MID_$day",
+                                dayIndex = day,
+                                dateLabel = dateLabel,
+                                timeLabel = "10:00",
+                                location = "Kulüp Antrenman Sahası",
+                                eventType = "ANTRENMAN",
+                                title = "Orta Hafta Çift İdman & Kondisyon",
+                                description = "Çift antrenman günü. Bireysel teknik çalışma ve takım taktik uygulaması."
                             )
                         )
                     }
@@ -771,7 +806,7 @@ object CareerEngine {
                                 location = "Kulüp Antrenman Sahası",
                                 eventType = "ANTRENMAN",
                                 title = "Gelişim Antrenmanı & Kondisyon",
-                                description = "Bireysel ve takım gelişim programı."
+                                description = "Bireysel ve takım gelişim programı. Paslaşma, pozisyon çalışması, fitness."
                             )
                         )
                     }
