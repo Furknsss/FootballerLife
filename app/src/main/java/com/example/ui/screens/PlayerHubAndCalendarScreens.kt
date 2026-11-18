@@ -78,6 +78,8 @@ import com.example.model.DynamicStoryChoice
 import com.example.model.StartingStatus
 import com.example.ui.components.BroadcastPlayerCard
 import com.example.ui.components.ClubCrestBadge
+import com.example.ui.components.LeagueCrestBadge
+import com.example.ui.components.TournamentCrestBadge
 import com.example.ui.components.FLFormatters
 import com.example.ui.components.FLPrimaryButton
 import com.example.ui.components.FLSecondaryButton
@@ -345,7 +347,9 @@ fun PlayerHubScreen(
                                         shortName = club.shortName,
                                         primaryHex = club.primaryColorHex,
                                         secondaryHex = club.secondaryColorHex,
-                                        size = 26.dp
+                                        size = 28.dp,
+                                        clubId = club.id,
+                                        clubName = club.name
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
@@ -654,7 +658,9 @@ fun PlayerHubScreen(
                                         shortName = homeClub.shortName,
                                         primaryHex = homeClub.primaryColorHex,
                                         secondaryHex = homeClub.secondaryColorHex,
-                                        size = 42.dp
+                                        size = 48.dp,
+                                        clubId = homeClub.id,
+                                        clubName = homeClub.name
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
@@ -687,7 +693,9 @@ fun PlayerHubScreen(
                                         shortName = awayClub.shortName,
                                         primaryHex = awayClub.primaryColorHex,
                                         secondaryHex = awayClub.secondaryColorHex,
-                                        size = 42.dp
+                                        size = 48.dp,
+                                        clubId = awayClub.id,
+                                        clubName = awayClub.name
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
@@ -1866,7 +1874,11 @@ fun CalendarScreen(
                                                     // Event Marker Badge / Micro Tag (Gerçek Turnuva Logosu ile)
                                                     if (cell.isMatchDay) {
                                                         val fx = cell.fixture
-                                                        val oppShort = if (fx != null) {
+                                                        val oppClub = if (fx != null) {
+                                                            if (fx.homeClubId == career.contract.clubId) career.clubs.find { it.id == fx.awayClubId }
+                                                            else career.clubs.find { it.id == fx.homeClubId }
+                                                        } else null
+                                                        val oppShort = oppClub?.shortName ?: if (fx != null) {
                                                             if (fx.homeClubId == career.contract.clubId) fx.awayClubName.take(3).uppercase()
                                                             else fx.homeClubName.take(3).uppercase()
                                                         } else "MAÇ"
@@ -1889,6 +1901,16 @@ fun CalendarScreen(
                                                                         .clip(RoundedCornerShape(2.dp)),
                                                                     contentScale = ContentScale.Fit
                                                                 )
+                                                            } else if (oppClub != null) {
+                                                                ClubCrestBadge(
+                                                                    shortName = oppClub.shortName,
+                                                                    primaryHex = oppClub.primaryColorHex,
+                                                                    secondaryHex = oppClub.secondaryColorHex,
+                                                                    size = 13.dp,
+                                                                    clubId = oppClub.id,
+                                                                    clubName = oppClub.name,
+                                                                    showStars = false
+                                                                )
                                                             }
                                                             Surface(
                                                                 color = if (fx?.played == true) SurfacePrimary else AccentPrimary,
@@ -1905,14 +1927,51 @@ fun CalendarScreen(
                                                                 )
                                                             }
                                                         }
+                                                    } else if (cell.events.any { it.title.contains("Gala", ignoreCase = true) || it.title.contains("Ödül", ignoreCase = true) || it.id.contains("SEASON_END") }) {
+                                                        Surface(
+                                                            color = BrightGold.copy(alpha = 0.22f),
+                                                            shape = RoundedCornerShape(4.dp),
+                                                            border = BorderStroke(0.8.dp, BrightGold)
+                                                        ) {
+                                                            Text(
+                                                                text = "🏆 GALA",
+                                                                fontFamily = SpaceGroteskFontFamily,
+                                                                fontSize = 7.5.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = BrightGold,
+                                                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                                            )
+                                                        }
+                                                    } else if (cell.events.any { it.title.contains("Millî", ignoreCase = true) || it.title.contains("Milli", ignoreCase = true) || it.eventType.contains("NAT") }) {
+                                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                            Image(
+                                                                painter = painterResource(id = R.drawable.logo_milli_takim),
+                                                                contentDescription = "Millî Takım",
+                                                                modifier = Modifier.size(12.dp)
+                                                            )
+                                                            Text(
+                                                                text = "MİLLÎ",
+                                                                fontFamily = SpaceGroteskFontFamily,
+                                                                fontSize = 7.5.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = Color(0xFFE74C3C)
+                                                            )
+                                                        }
                                                     } else if (cell.isTrainingDay) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .width(16.dp)
-                                                                .height(4.dp)
-                                                                .clip(CircleShape)
-                                                                .background(AccentPrimary.copy(alpha = 0.85f))
-                                                        )
+                                                        Surface(
+                                                            color = AccentPrimary.copy(alpha = 0.16f),
+                                                            shape = RoundedCornerShape(3.dp),
+                                                            border = BorderStroke(0.6.dp, AccentPrimary.copy(alpha = 0.7f))
+                                                        ) {
+                                                            Text(
+                                                                text = "İDMAN",
+                                                                fontFamily = SpaceGroteskFontFamily,
+                                                                fontSize = 7.5.sp,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                color = AccentBright,
+                                                                modifier = Modifier.padding(horizontal = 3.dp, vertical = 0.5.dp)
+                                                            )
+                                                        }
                                                     } else if (cell.isSocialOrTransferDay) {
                                                         Box(
                                                             modifier = Modifier
@@ -2013,13 +2072,22 @@ fun CalendarScreen(
                         if (selectedDayFixture != null) {
                             val homeClub = career.clubs.find { it.id == selectedDayFixture.homeClubId } ?: career.currentClub
                             val awayClub = career.clubs.find { it.id == selectedDayFixture.awayClubId } ?: career.clubs.last()
+                            val isUserHome = selectedDayFixture.homeClubId == career.contract.clubId
+                            val opponentClub = if (isUserHome) awayClub else homeClub
+                            val userClub = if (isUserHome) homeClub else awayClub
+                            val opponentRank = career.standings.indexOfFirst { it.clubId == opponentClub.id }.let { if (it >= 0) it + 1 else null }
+                            val opponentStanding = career.standings.find { it.clubId == opponentClub.id }
+                            val userRank = career.standings.indexOfFirst { it.clubId == userClub.id }.let { if (it >= 0) it + 1 else null }
+                            val userStanding = career.standings.find { it.clubId == userClub.id }
+
                             Surface(
-                                color = BackgroundPrimary.copy(alpha = 0.82f),
-                                shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, StrokePremiumStrong),
+                                color = BackgroundPrimary.copy(alpha = 0.88f),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.2.dp, StrokePremiumStrong),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
+                                    // Top Bar: Turnuva / Lig Rozeti & Karşılaşma Bilgisi
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -2029,97 +2097,259 @@ fun CalendarScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            val tourLogoRes = com.example.engine.tournament.getTournamentDrawableRes(
+                                            TournamentCrestBadge(
                                                 leagueId = selectedDayFixture.leagueId,
                                                 fixtureId = selectedDayFixture.id,
-                                                dateLabel = selectedDayFixture.dateLabel
+                                                dateLabel = selectedDayFixture.dateLabel,
+                                                size = 26.dp
                                             )
-                                            if (tourLogoRes != null) {
-                                                Image(
-                                                    painter = painterResource(id = tourLogoRes),
-                                                    contentDescription = "Turnuva Logosu",
-                                                    modifier = Modifier
-                                                        .size(24.dp)
-                                                        .clip(RoundedCornerShape(4.dp)),
-                                                    contentScale = ContentScale.Fit
+                                            Column {
+                                                Text(
+                                                    text = if (selectedDayFixture.isCupMatch) selectedDayFixture.dateLabel.uppercase() else "HAFTA ${selectedDayFixture.week} • ${career.currentClub.leagueName.uppercase()}",
+                                                    fontFamily = SpaceGroteskFontFamily,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 11.sp,
+                                                    color = AccentBright
+                                                )
+                                                Text(
+                                                    text = if (isUserHome) "🏠 İÇ SAHA KARŞILAŞMASI" else "✈️ DEPLASMAN MÜCADELESİ",
+                                                    fontFamily = SpaceGroteskFontFamily,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 9.5.sp,
+                                                    color = TextSecondary
                                                 )
                                             }
+                                        }
+                                        Surface(
+                                            color = if (selectedDayFixture.played) SurfaceElevated else AccentPrimary.copy(alpha = 0.16f),
+                                            shape = RoundedCornerShape(8.dp),
+                                            border = BorderStroke(1.dp, if (selectedDayFixture.played) StrokePremium else AccentPrimary)
+                                        ) {
                                             Text(
-                                                text = if (selectedDayFixture.isCupMatch) selectedDayFixture.dateLabel.uppercase() else "HAFTA ${selectedDayFixture.week} KARŞILAŞMASI",
+                                                text = if (selectedDayFixture.played) "TAMAMLANDI" else "⏰ ${selectedDayFixture.kickOffTime}",
                                                 fontFamily = SpaceGroteskFontFamily,
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp,
-                                                color = AccentBright
+                                                fontSize = 10.sp,
+                                                color = if (selectedDayFixture.played) TextSecondary else AccentBright,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                             )
                                         }
-                                        Text(
-                                            text = "${selectedDayFixture.kickOffTime} • ${selectedDayFixture.stadiumName}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = TextSecondary
-                                        )
                                     }
-                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                    // Scoreboard Row with High-Resolution Crest Badges & Table Ranks
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
+                                        // Home Club
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             ClubCrestBadge(
                                                 shortName = homeClub.shortName,
                                                 primaryHex = homeClub.primaryColorHex,
                                                 secondaryHex = homeClub.secondaryColorHex,
-                                                size = 38.dp
+                                                size = 48.dp,
+                                                clubId = homeClub.id,
+                                                clubName = homeClub.name
                                             )
-                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Spacer(modifier = Modifier.height(6.dp))
                                             Text(
-                                                text = selectedDayFixture.homeClubName,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                color = TextPrimary
-                                            )
-                                        }
-                                        Surface(
-                                            color = SurfaceElevated,
-                                            shape = RoundedCornerShape(8.dp),
-                                            border = BorderStroke(1.dp, StrokePremium)
-                                        ) {
-                                            Text(
-                                                text = if (selectedDayFixture.played) {
-                                                    "${selectedDayFixture.homeScore} - ${selectedDayFixture.awayScore}"
-                                                } else {
-                                                    "VS"
-                                                },
-                                                fontFamily = BarlowCondensedFontFamily,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 20.sp,
-                                                color = if (selectedDayFixture.played) AccentBright else TextPrimary,
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
-                                            )
-                                        }
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.End,
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text(
-                                                text = selectedDayFixture.awayClubName,
+                                                text = homeClub.name,
                                                 style = MaterialTheme.typography.titleSmall,
                                                 color = TextPrimary,
-                                                textAlign = TextAlign.End
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center,
+                                                maxLines = 1
                                             )
-                                            Spacer(modifier = Modifier.width(8.dp))
+                                            val hRank = career.standings.indexOfFirst { it.clubId == homeClub.id }.let { if (it >= 0) it + 1 else null }
+                                            val hStanding = career.standings.find { it.clubId == homeClub.id }
+                                            if (hRank != null) {
+                                                Surface(
+                                                    color = SurfaceElevated.copy(alpha = 0.6f),
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "$hRank. Sıra • ${hStanding?.points ?: 0}P",
+                                                        fontFamily = SpaceGroteskFontFamily,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = if (hRank <= 3) BrightGold else TextSecondary,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Center VS / Score
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.padding(horizontal = 8.dp)
+                                        ) {
+                                            Surface(
+                                                color = SurfaceElevated,
+                                                shape = RoundedCornerShape(10.dp),
+                                                border = BorderStroke(1.2.dp, if (selectedDayFixture.played) AccentBright else StrokePremium)
+                                            ) {
+                                                Text(
+                                                    text = if (selectedDayFixture.played) {
+                                                        "${selectedDayFixture.homeScore} - ${selectedDayFixture.awayScore}"
+                                                    } else {
+                                                        "VS"
+                                                    },
+                                                    fontFamily = BarlowCondensedFontFamily,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 24.sp,
+                                                    color = if (selectedDayFixture.played) AccentBright else BrightGold,
+                                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = if (selectedDayFixture.played) "MAÇ SONUCU" else selectedDayFixture.kickOffTime,
+                                                fontFamily = SpaceGroteskFontFamily,
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = TextSecondary
+                                            )
+                                        }
+
+                                        // Away Club
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
                                             ClubCrestBadge(
                                                 shortName = awayClub.shortName,
                                                 primaryHex = awayClub.primaryColorHex,
                                                 secondaryHex = awayClub.secondaryColorHex,
-                                                size = 38.dp
+                                                size = 48.dp,
+                                                clubId = awayClub.id,
+                                                clubName = awayClub.name
                                             )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = awayClub.name,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = TextPrimary,
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center,
+                                                maxLines = 1
+                                            )
+                                            val aRank = career.standings.indexOfFirst { it.clubId == awayClub.id }.let { if (it >= 0) it + 1 else null }
+                                            val aStanding = career.standings.find { it.clubId == awayClub.id }
+                                            if (aRank != null) {
+                                                Surface(
+                                                    color = SurfaceElevated.copy(alpha = 0.6f),
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "$aRank. Sıra • ${aStanding?.points ?: 0}P",
+                                                        fontFamily = SpaceGroteskFontFamily,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = if (aRank <= 3) BrightGold else TextSecondary,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                    // CANLI RAKİP ANALİZİ & STADYUM KARTI
+                                    Surface(
+                                        color = SurfaceElevated.copy(alpha = 0.55f),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = BorderStroke(1.dp, StrokePremium),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                    Text(text = "🏟️", fontSize = 12.sp)
+                                                    Text(
+                                                        text = "${selectedDayFixture.stadiumName} (${opponentClub.stadiumCapacity} Kapasite)",
+                                                        fontFamily = SpaceGroteskFontFamily,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = TextPrimary
+                                                    )
+                                                }
+                                                if (opponentRank != null) {
+                                                    Surface(
+                                                        color = AccentPrimary.copy(alpha = 0.18f),
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        border = BorderStroke(0.8.dp, AccentPrimary)
+                                                    ) {
+                                                        Text(
+                                                            text = "Rakip: $opponentRank. Sırada",
+                                                            fontFamily = SpaceGroteskFontFamily,
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = AccentBright,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "Teknik Direktör: ${opponentClub.managerName} (${opponentClub.managerTacticalStyle})",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontSize = 10.sp,
+                                                    color = TextSecondary
+                                                )
+                                                if (opponentStanding != null && opponentStanding.recentForm.isNotEmpty()) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                                    ) {
+                                                        opponentStanding.recentForm.takeLast(4).forEach { formLetter ->
+                                                            val formColor = when (formLetter) {
+                                                                "G" -> Color(0xFF2ECC71)
+                                                                "B" -> Color(0xFFF1C40F)
+                                                                else -> Color(0xFFE74C3C)
+                                                            }
+                                                            Surface(
+                                                                color = formColor.copy(alpha = 0.2f),
+                                                                shape = RoundedCornerShape(2.dp),
+                                                                border = BorderStroke(0.6.dp, formColor)
+                                                            ) {
+                                                                Text(
+                                                                    text = formLetter,
+                                                                    fontFamily = SpaceGroteskFontFamily,
+                                                                    fontSize = 8.5.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = formColor,
+                                                                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 0.5.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
                                     Spacer(modifier = Modifier.height(12.dp))
+
                                     if (selectedDayFixture.played) {
                                         Text(
                                             text = "Karşılaşma tamamlandı • Maç Skoru: ${selectedDayFixture.homeScore} - ${selectedDayFixture.awayScore}",
@@ -2136,7 +2366,7 @@ fun CalendarScreen(
                                         )
                                     } else if (isSelectedFuture) {
                                         Text(
-                                            text = "Bu karşılaşma Gün $selectedDayIndex tarihinde oynanacak. Oynamak için takvimi ilerletin.",
+                                            text = "Bu karşılaşma Gün $selectedDayIndex (${selectedDayFixture.kickOffTime}) tarihinde oynanacak. Oynamak için takvimi ilerletin.",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = TextSecondary
                                         )
@@ -2230,6 +2460,10 @@ fun CalendarScreen(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         val fxOnDay = if (isMatch) career.fixtures.find { it.dayIndex == ev.dayIndex && (it.homeClubId == career.contract.clubId || it.awayClubId == career.contract.clubId) } else null
+                        val oppClub = fxOnDay?.let {
+                            if (it.homeClubId == career.contract.clubId) career.clubs.find { c -> c.id == it.awayClubId }
+                            else career.clubs.find { c -> c.id == it.homeClubId }
+                        }
                         val weekTourLogo = com.example.engine.tournament.getTournamentDrawableRes(
                             leagueId = fxOnDay?.leagueId,
                             fixtureId = fxOnDay?.id,
@@ -2245,9 +2479,19 @@ fun CalendarScreen(
                                     painter = painterResource(id = weekTourLogo),
                                     contentDescription = "Turnuva Logosu",
                                     modifier = Modifier
-                                        .size(20.dp)
+                                        .size(22.dp)
                                         .clip(RoundedCornerShape(4.dp)),
                                     contentScale = ContentScale.Fit
+                                )
+                            } else if (oppClub != null) {
+                                ClubCrestBadge(
+                                    shortName = oppClub.shortName,
+                                    primaryHex = oppClub.primaryColorHex,
+                                    secondaryHex = oppClub.secondaryColorHex,
+                                    size = 22.dp,
+                                    clubId = oppClub.id,
+                                    clubName = oppClub.name,
+                                    showStars = false
                                 )
                             }
                             Text(
@@ -2259,8 +2503,25 @@ fun CalendarScreen(
                             )
                         }
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(ev.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
-                        Text(ev.description, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (oppClub != null) {
+                                ClubCrestBadge(
+                                    shortName = oppClub.shortName,
+                                    primaryHex = oppClub.primaryColorHex,
+                                    secondaryHex = oppClub.secondaryColorHex,
+                                    size = 28.dp,
+                                    clubId = oppClub.id,
+                                    clubName = oppClub.name
+                                )
+                            }
+                            Column {
+                                Text(ev.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
+                                Text(ev.description, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            }
+                        }
                     }
                 }
             }

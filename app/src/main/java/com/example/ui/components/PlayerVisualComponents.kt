@@ -84,63 +84,6 @@ fun ClubBadge(
     )
 }
 
-@Composable
-fun ClubCrestBadge(
-    shortName: String,
-    primaryHex: String,
-    secondaryHex: String,
-    size: Dp = 46.dp,
-    modifier: Modifier = Modifier
-) {
-    val primary = parseHexColor(primaryHex, SurfaceElevated)
-    val secondary = parseHexColor(secondaryHex, TextPrimary)
-
-    Box(
-        modifier = modifier.size(size),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = this.size.width
-            val h = this.size.height
-            val shieldPath = Path().apply {
-                moveTo(w * 0.5f, h * 0.04f)
-                lineTo(w * 0.92f, h * 0.17f)
-                lineTo(w * 0.88f, h * 0.62f)
-                cubicTo(w * 0.82f, h * 0.82f, w * 0.62f, h * 0.93f, w * 0.5f, h * 0.97f)
-                cubicTo(w * 0.38f, h * 0.93f, w * 0.18f, h * 0.82f, w * 0.12f, h * 0.62f)
-                lineTo(w * 0.08f, h * 0.17f)
-                close()
-            }
-            drawPath(
-                path = shieldPath,
-                brush = Brush.verticalGradient(
-                    listOf(primary, primary.copy(alpha = 0.85f), BackgroundPrimary)
-                )
-            )
-            // Diagonal sash & center stripe
-            drawRect(
-                color = secondary.copy(alpha = 0.25f),
-                topLeft = Offset(w * 0.38f, h * 0.12f),
-                size = Size(w * 0.24f, h * 0.72f)
-            )
-            // Inner brushed platinum-white rim
-            drawPath(
-                path = shieldPath,
-                color = Color.White.copy(alpha = 0.65f),
-                style = Stroke(width = w * 0.048f)
-            )
-        }
-        Text(
-            text = shortName.take(3).uppercase(),
-            fontFamily = BarlowCondensedFontFamily,
-            fontWeight = FontWeight.ExtraBold,
-            fontSize = (size.value * 0.34f).sp,
-            letterSpacing = 0.6.sp,
-            color = TextPrimary
-        )
-    }
-}
-
 /**
  * Football Life 2.0 Layered 2.5D Athletic Portrait Renderer.
  * Renders a sculpted pro footballer bust with realistic jaw/cheekbone shading,

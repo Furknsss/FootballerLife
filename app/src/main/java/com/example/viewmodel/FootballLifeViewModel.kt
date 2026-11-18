@@ -213,7 +213,7 @@ class FootballLifeViewModel(
         val current = _activeCareer.value ?: return
         val evalSummary = summary ?: com.example.engine.progression.SeasonTransitionEngine.evaluateSeasonEnd(current)
         val (nextState, message) = com.example.engine.progression.SeasonTransitionEngine.finalizeSeasonAndTransition(current, evalSummary)
-        playSfx(GameSoundEffect.MATCH_WIN)
+        playSfx(GameSoundEffect.GOAL_CELEBRATION)
         _activeCareer.value = nextState
         _overlayScreen.value = HubOverlayScreen.NONE
         persistCareerState(nextState)
@@ -855,13 +855,15 @@ class FootballLifeViewModel(
 
     fun unlockPlayerTrait(traitId: String) {
         val current = _activeCareer.value ?: return
-        val (eligible, reason) = com.example.engine.training.PlayerTraitsCatalog.checkUnlockEligibility(current.player, traitId)
-        if (!eligible) {
-            showToast("Kilit açılamadı: $reason")
+        val trait = com.example.engine.training.PlayerTraitsCatalog.getTraitById(traitId)
+        if (trait == null) {
+            showToast("Vasıf bulunamadı.")
             return
         }
-        if (current.player.unlockedTraits.contains(traitId)) {
-            showToast("Bu yetenek zaten açık.")
+        val availablePts = com.example.engine.training.PlayerTraitsCatalog.calculateAvailableSkillPoints(current.player, current.player.trainingCountThisWeek * 2)
+        val check = com.example.engine.training.PlayerTraitsCatalog.checkUnlockEligibility(current.player, trait, availablePts)
+        if (!check.canUnlock) {
+            showToast("Kilit açılamadı: ${check.missingRequirements.firstOrNull() ?: ""}")
             return
         }
         val updatedPlayer = current.player.copy(
@@ -871,7 +873,7 @@ class FootballLifeViewModel(
         playSfx(GameSoundEffect.TRAINING_LEVEL_UP)
         _activeCareer.value = updatedCareer
         persistCareerState(updatedCareer)
-        showToast("Yeni Vasıf Açıldı: $traitId!")
+        showToast("Yeni Vasıf Açıldı: ${trait.nameTr}!")
     }
 
     fun openSponsorshipAndCrisis() {
@@ -887,14 +889,14 @@ class FootballLifeViewModel(
     fun equipBoot(boot: com.example.engine.lifestyle.BootModel) {
         val current = _activeCareer.value ?: return
         val updatedPlayer = current.player.copy(
-            activeCleatBrand = boot.brand.name,
-            activeCleatModel = boot.name,
-            activeCleatBonusStat = boot.bonusDescription
+            activeCleatBrand = boot.brand.brandName,
+            activeCleatModel = boot.modelName,
+            activeCleatBonusStat = boot.description
         )
         val updated = current.copy(player = updatedPlayer)
         _activeCareer.value = updated
         persistCareerState(updated)
-        showToast("${boot.name} kramponları giyildi!")
+        showToast("${boot.modelName} kramponları giyildi!")
     }
 
     fun customizeBootColor(colorHex: String) {
@@ -937,15 +939,13 @@ class FootballLifeViewModel(
     fun applyRomanceOutcome(outcome: com.example.engine.social.RomanceInteractionOutcome) {
         val current = _activeCareer.value ?: return
         val currentBal = (current.balanceEur - outcome.costEur).coerceAtLeast(0L)
-        val updatedMorale = (current.player.morale + outcome.moraleChange).coerceIn(0, 100)
         val updatedPlayer = current.player.copy(
-            morale = updatedMorale,
             relationshipAffection = (current.player.relationshipAffection + outcome.affectionChange).coerceIn(0, 100)
         )
         val updated = current.copy(player = updatedPlayer, balanceEur = currentBal)
         _activeCareer.value = updated
         persistCareerState(updated)
-        showToast(outcome.narrativeMessage)
+        showToast(outcome.resultStoryText)
     }
 
     fun applyNationalTeamPerformance(

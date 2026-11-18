@@ -60,6 +60,12 @@ object FLFormatters {
 
     fun formatEuroFull(eur: Long): String = formatCurrency(eur)
 
+    fun formatEur(eur: Long): String = formatCurrency(eur)
+
+    fun formatFollowers(count: Long): String = formatCompactNumber(count)
+
+    fun formatFollowers(count: Int): String = formatCompactNumber(count.toLong())
+
     fun formatCompactNumber(number: Long): String {
         val absVal = abs(number)
         return when {

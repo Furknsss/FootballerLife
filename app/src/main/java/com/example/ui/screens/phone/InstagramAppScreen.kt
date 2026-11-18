@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.engine.social.CommentReactionType
+import com.example.engine.social.DynamicFeedGenerator
 import com.example.engine.social.PlayerFameTier
 import com.example.engine.social.SocialAccountProfile
 import com.example.engine.social.SocialWorldGenerator
@@ -150,7 +151,7 @@ fun InstagramAppScreen(
     val expandedReplyThreads = remember { mutableStateMapOf<String, Boolean>() }
 
     val livingStories = SocialWorldGenerator.getLivingStories(state)
-    val livingFeed = SocialWorldGenerator.getLivingInstaFeed(state)
+    val livingFeed = DynamicFeedGenerator.getLivingInstaFeed(state).ifEmpty { SocialWorldGenerator.getLivingInstaFeed(state) }
     val allDmThreads = SocialWorldGenerator.getAllInstaDmThreads(state)
     val instaNotes = SocialWorldGenerator.getInstaNotes(state)
     val notifications = SocialWorldGenerator.getNotifications(state, "INSTAGRAM")
@@ -834,7 +835,7 @@ fun InstagramAppScreen(
                 // ================================================================
                 // UNIVERSAL INSTAGRAM ACCOUNT PROFILE PAGE (CLICKED ANY USER/CLUB)
                 // ================================================================
-                val account = SocialWorldGenerator.resolveAccount(inspectedAccountHandle!!, state)
+                val account = DynamicFeedGenerator.resolveAccount(inspectedAccountHandle!!, state)
                 val accountPosts = livingFeed.filter {
                     it.authorHandle.removePrefix("@").equals(account.cleanHandle, ignoreCase = true) ||
                         it.authorName.equals(account.displayName, ignoreCase = true)
@@ -1052,6 +1053,7 @@ fun InstagramAppScreen(
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 14.dp, vertical = 4.dp)
                                                 .clickable {
+                                                    DynamicFeedGenerator.refreshInstaFeed(state)
                                                     SocialWorldGenerator.refreshInstaFeed(state)
                                                 }
                                         ) {
@@ -1105,6 +1107,7 @@ fun InstagramAppScreen(
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 14.dp, vertical = 10.dp)
                                                 .clickable {
+                                                    DynamicFeedGenerator.loadMoreInstaPosts(state)
                                                     SocialWorldGenerator.loadMoreInstaPosts(state)
                                                 }
                                         ) {
@@ -1136,7 +1139,7 @@ fun InstagramAppScreen(
                             1 -> {
                                 // Keşfet (Instagram Explore Search + Categories + Accounts + 3-Col Mosaic)
                                 val categories = listOf("Sana Özel", "Maç Gündemi", "Transfer", "Mizah & Caps", "Avrupa", "Sponsorlar")
-                                val allAccounts = SocialWorldGenerator.getAccounts(state)
+                                val allAccounts = DynamicFeedGenerator.getDynamicAccounts(state) + SocialWorldGenerator.getAccounts(state)
                                 val matchingAccounts = allAccounts.filter {
                                     exploreQuery.isBlank() ||
                                         it.displayName.contains(exploreQuery, ignoreCase = true) ||
@@ -1768,7 +1771,7 @@ fun InstagramAppScreen(
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         items(structuredComments, key = { it.id }) { cmt ->
-                            val replies = SocialWorldGenerator.getRepliesForComment(sheetPost.id, cmt, state)
+                            val replies = DynamicFeedGenerator.getRepliesForComment(sheetPost.id, cmt, state).ifEmpty { SocialWorldGenerator.getRepliesForComment(sheetPost.id, cmt, state) }
                             val isExpanded = expandedReplyThreads[cmt.id] ?: true
 
                             Column(modifier = Modifier.fillMaxWidth()) {
@@ -2748,7 +2751,7 @@ private fun InstaFeedPostCard(
     onToggleLike: () -> Unit,
     onToggleSave: () -> Unit
 ) {
-    val account = SocialWorldGenerator.resolveAccount(post.authorHandle, state)
+    val account = DynamicFeedGenerator.resolveAccount(post.authorHandle, state)
     val isFollowing = SocialWorldGenerator.isFollowingAccount(post.authorHandle, state)
 
     Column(

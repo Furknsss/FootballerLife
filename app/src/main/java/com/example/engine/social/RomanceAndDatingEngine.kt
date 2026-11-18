@@ -13,6 +13,72 @@ import kotlin.random.Random
 object RomanceAndDatingEngine {
 
     val INITIAL_CANDIDATES: List<GirlfriendProfile> = listOf(
+        // Alt Ligler / Yerel Başlangıç Havuzu
+        GirlfriendProfile(
+            id = "partner_lise_elif",
+            fullName = "Elif Demir",
+            handle = "@elifdemir",
+            archetype = PartnerArchetype.HIGH_SCHOOL_SWEETHEART,
+            professionTr = "Lise Aşkı & Çocukluk Arkadaşı",
+            age = 20,
+            city = "Memleket / Mahalle",
+            avatarHex = "#F43F5E",
+            secondaryHex = "#881337",
+            bio = "Öğretmenlik öğrencisi 📚☕ | Mahallemizin çocukları büyüyor ✨",
+            followersCount = 850L,
+            minFameTier = PlayerFameTier.AMATEUR,
+            minCharisma = 20,
+            statusQuote = "Nerede olursan ol, kalbini ve geçmişini asla unutma 🌸"
+        ),
+        GirlfriendProfile(
+            id = "partner_uni_busra",
+            fullName = "Büşra Yılmaz",
+            handle = "@busrayilmaz",
+            archetype = PartnerArchetype.UNIVERSITY_FRIEND,
+            professionTr = "Üniversite & Kampüs Arkadaşı",
+            age = 21,
+            city = "Üniversite Kampüsü",
+            avatarHex = "#0EA5E9",
+            secondaryHex = "#0369A1",
+            bio = "Mimarlık & Tasarım 📐☕ | Kampüs günleri & maç sohbetleri",
+            followersCount = 1_450L,
+            minFameTier = PlayerFameTier.AMATEUR,
+            minCharisma = 25,
+            statusQuote = "Hayallerine giden yolda ilk adımı atmaktan korkma 🎓"
+        ),
+        GirlfriendProfile(
+            id = "partner_esnaf_zeynep",
+            fullName = "Zeynep Çelik",
+            handle = "@zeynepcelik",
+            archetype = PartnerArchetype.LOCAL_TOWN_GIRL,
+            professionTr = "Mahalle Esnaf Kızı & Butik İşletmecisi",
+            age = 21,
+            city = "Mahalle Çarşısı",
+            avatarHex = "#10B981",
+            secondaryHex = "#064E3B",
+            bio = "Tatlılar, kahveler & samimi sohbetler 🧁🍰 | Mahallenin en tatlı durağı",
+            followersCount = 2_100L,
+            minFameTier = PlayerFameTier.AMATEUR,
+            minCharisma = 22,
+            statusQuote = "Samimiyet ve sevgi en büyük zenginliktir 🍰"
+        ),
+        GirlfriendProfile(
+            id = "partner_yerel_cansu",
+            fullName = "Cansu Kurt",
+            handle = "@cansukurt",
+            archetype = PartnerArchetype.LOCAL_REPORTER,
+            professionTr = "Yerel Spor Medyası Muhabiri",
+            age = 23,
+            city = "Yerel Basın Merkezi",
+            avatarHex = "#F59E0B",
+            secondaryHex = "#78350F",
+            bio = "Yerel spor bülteni saha kenarı muhabiri 🎙️⚽ | Alt liglerin kalbi",
+            followersCount = 4_800L,
+            minFameTier = PlayerFameTier.SEMI_PRO,
+            minCharisma = 35,
+            statusQuote = "Futbol sadece 90 dakika değil, bir şehrin tutkusudur 🎙️"
+        ),
+        // Üst Lig & Yıldız Aday Havuzu (Sadece Süper Lig / Milli Takım / Yüksek Şöhrette Açılır)
         GirlfriendProfile(
             id = "partner_yasemin_kaya",
             fullName = "Yasemin Kaya",
@@ -25,8 +91,8 @@ object RomanceAndDatingEngine {
             secondaryHex = "#064E3B",
             bio = "Sağlıklı yaşam, pilates & pozitif enerji ✨ Bebek, İstanbul",
             followersCount = 65_000L,
-            minFameTier = PlayerFameTier.AMATEUR,
-            minCharisma = 30,
+            minFameTier = PlayerFameTier.RISING_STAR,
+            minCharisma = 40,
             statusQuote = "Disiplin ve tutku her şeyin anahtarıdır 💪"
         ),
         GirlfriendProfile(
@@ -41,8 +107,8 @@ object RomanceAndDatingEngine {
             secondaryHex = "#1E3A8A",
             bio = "Futbolun kalbinden canlı yayınlar 🎙️ Trendyol Süper Lig & Avrupa",
             followersCount = 280_000L,
-            minFameTier = PlayerFameTier.SEMI_PRO,
-            minCharisma = 45,
+            minFameTier = PlayerFameTier.SUPER_LIG_STAR,
+            minCharisma = 55,
             statusQuote = "Saha içi performans kadar tutku da konuşulmalı ⚽"
         ),
         GirlfriendProfile(
@@ -57,8 +123,8 @@ object RomanceAndDatingEngine {
             secondaryHex = "#78350F",
             bio = "Müzik, gece ritmi & akustik sahneler 🎵 Yeni teklim dijital platformlarda!",
             followersCount = 680_000L,
-            minFameTier = PlayerFameTier.RISING_STAR,
-            minCharisma = 55,
+            minFameTier = PlayerFameTier.SUPER_LIG_STAR,
+            minCharisma = 65,
             statusQuote = "Hayat bir sahne, en yüksek sesle yaşa ✨"
         ),
         GirlfriendProfile(
@@ -74,7 +140,7 @@ object RomanceAndDatingEngine {
             bio = "Moda, haute couture & lüks yaşam 👠 Paris - Milano - İstanbul",
             followersCount = 1_850_000L,
             minFameTier = PlayerFameTier.SUPER_LIG_STAR,
-            minCharisma = 68,
+            minCharisma = 70,
             statusQuote = "Stil sadece ne giydiğin değil, kim olduğundur 💎"
         ),
         GirlfriendProfile(
@@ -90,7 +156,7 @@ object RomanceAndDatingEngine {
             bio = "Prime-time reyting rekortmeni dizi başrolü 🎬 Altın Kelebek En İyi Kadın Oyuncu",
             followersCount = 4_200_000L,
             minFameTier = PlayerFameTier.SUPER_LIG_STAR,
-            minCharisma = 75,
+            minCharisma = 78,
             statusQuote = "Kendi hikayenin başrolü olmaktan asla vazgeçme 🌟"
         ),
         GirlfriendProfile(
@@ -106,7 +172,7 @@ object RomanceAndDatingEngine {
             bio = "Vogue & Harper's Bazaar cover girl 💃 Paris Fashion Week runway model",
             followersCount = 8_900_000L,
             minFameTier = PlayerFameTier.NATIONAL_HERO,
-            minCharisma = 82,
+            minCharisma = 85,
             statusQuote = "From runway to real life with pure elegance 👑"
         )
     )
@@ -271,7 +337,9 @@ object RomanceAndDatingEngine {
         currentInboundDms: List<RomanceDmInvitation>
     ): List<RomanceDmInvitation> {
         val fameTier = resolvePlayerFameTier(state.player)
-        val candidatePool = if (existingCandidates.isNotEmpty()) existingCandidates else INITIAL_CANDIDATES
+        val rawPool = if (existingCandidates.isNotEmpty()) existingCandidates else INITIAL_CANDIDATES
+        // Strict Tier Gating: Alt liglerde Chloé Dubois, süpermodeller ve dizi başrolleri filtrelenir!
+        val candidatePool = SocialRealismEngine.filterCandidatePartnersForRealism(state, rawPool)
         val result = currentInboundDms.toMutableList()
 
         val activePartnerId = candidatePool.firstOrNull { it.isActivePartner }?.id
@@ -313,6 +381,14 @@ object RomanceAndDatingEngine {
 
     private fun generateDmOpeningMessage(candidate: GirlfriendProfile, player: PlayerProfile): String {
         return when (candidate.archetype) {
+            PartnerArchetype.HIGH_SCHOOL_SWEETHEART ->
+                "Selam ${player.firstName}! Lise günlerini ve okul bahçesindeki maçlarını hatırladım. Televizyonda seni görünce çok duygulandım, tebrik ederim! 🎒✨"
+            PartnerArchetype.UNIVERSITY_FRIEND ->
+                "Hey ${player.firstName}! Amfideki arkadaşlarla senin maçını izledik, harika oynadın! Kampüse yolun düşerse kahve borcun olsun ☕🎓"
+            PartnerArchetype.LOCAL_TOWN_GIRL ->
+                "Selam ${player.firstName}! Babam dükkanda tüm mahalleye senin dünkü maçını anlatıyordu, herkes seninle gurur duyuyor. Başarılar dilerim! 🌸🍰"
+            PartnerArchetype.LOCAL_REPORTER ->
+                "Merhaba ${player.firstName}! Gazetemiz için maç sonu röportajı hazırlıyoruz. Saha içindeki enerjin dikkat çekiciydi, bir ara konuşalım mı? 🎙️📰"
             PartnerArchetype.SPORTS_PRESENTER ->
                 "Selam ${player.firstName}! Dünkü maçtaki performansın harikaydı, programda da bahsettik. Bir kahve içip futbol sohbeti yapalım mı? ☕🎙️"
             PartnerArchetype.FASHION_INFLUENCER ->

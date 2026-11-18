@@ -612,7 +612,7 @@ fun generateNotificationsFromState(state: CareerSaveState): List<PhoneNotificati
             PhoneNotificationItem(
                 id = "notif_msg_${npc.id}",
                 title = "WhatsApp: ${npc.name}",
-                message = npc.lastMessage ?: "Yeni bir mesaj gönderdi.",
+                message = npc.messages.lastOrNull()?.text ?: "Yeni bir mesaj gönderdi.",
                 timeFormatted = "5d",
                 appType = PhoneAppId.MESSAGES,
                 category = "WHATSAPP",
@@ -627,8 +627,8 @@ fun generateNotificationsFromState(state: CareerSaveState): List<PhoneNotificati
         list.add(
             PhoneNotificationItem(
                 id = "notif_dm_${dm.id}",
-                title = "Instagram: ${dm.participantHandle}",
-                message = dm.lastMessageText.ifBlank { "Yeni bir fotoğraf veya mesaj gönderdi." },
+                title = "Instagram: ${dm.senderHandle}",
+                message = dm.messages.lastOrNull()?.text ?: "Yeni bir mesaj gönderdi.",
                 timeFormatted = "15d",
                 appType = PhoneAppId.INSTAPITCH,
                 category = "INSTAGRAM",

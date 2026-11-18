@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.engine.social.CommentReactionType
+import com.example.engine.social.DynamicFeedGenerator
 import com.example.engine.social.PlayerFameTier
 import com.example.engine.social.SocialAccountProfile
 import com.example.engine.social.SocialWorldGenerator
@@ -110,8 +111,8 @@ fun XAppScreen(
     var quotingPostId by rememberSaveable { mutableStateOf<String?>(null) }
     var quoteDraftText by rememberSaveable { mutableStateOf("") }
 
-    val livingFeed = SocialWorldGenerator.getLivingXFeed(state)
-    val trendingTopics = SocialWorldGenerator.getXTrendingTopics(state)
+    val livingFeed = DynamicFeedGenerator.getLivingXFeed(state).ifEmpty { SocialWorldGenerator.getLivingXFeed(state) }
+    val trendingTopics = DynamicFeedGenerator.getDynamicTrendingTopics(state)
     val notifications = SocialWorldGenerator.getNotifications(state, "X")
 
     val selectedThreadPost = livingFeed.find { it.id == selectedThreadPostId }
@@ -128,9 +129,9 @@ fun XAppScreen(
                 // ============================================================
                 // X POST DETAIL & CONVERSATION REPLY THREAD SCREEN
                 // ============================================================
-                val replies = SocialWorldGenerator.getXRepliesForPost(selectedThreadPost, state)
-                val quotedEmbed = SocialWorldGenerator.getQuotedEmbedForPost(selectedThreadPost.id)
-                val authorAcc = SocialWorldGenerator.resolveAccount(selectedThreadPost.handle, state)
+                val replies = DynamicFeedGenerator.getXRepliesForPost(selectedThreadPost, state).ifEmpty { SocialWorldGenerator.getXRepliesForPost(selectedThreadPost, state) }
+                val quotedEmbed = DynamicFeedGenerator.getQuotedEmbedForPost(selectedThreadPost.id) ?: SocialWorldGenerator.getQuotedEmbedForPost(selectedThreadPost.id)
+                val authorAcc = DynamicFeedGenerator.resolveAccount(selectedThreadPost.handle, state)
 
                 Column(
                     modifier = Modifier
@@ -439,7 +440,7 @@ fun XAppScreen(
                 // ============================================================
                 // X ACCOUNT PROFILE PAGE (BANNER + BIO + FOLLOW + TWEETS)
                 // ============================================================
-                val acc = SocialWorldGenerator.resolveAccount(inspectedXHandle!!, state)
+                val acc = DynamicFeedGenerator.resolveAccount(inspectedXHandle!!, state)
                 val isFollowing = SocialWorldGenerator.isFollowingAccount(acc.handle, state)
                 val accTweets = livingFeed.filter {
                     it.handle.removePrefix("@").equals(acc.cleanHandle, ignoreCase = true) ||
@@ -980,6 +981,7 @@ fun XAppScreen(
                                             .fillMaxWidth()
                                             .padding(horizontal = 14.dp, vertical = 6.dp)
                                             .clickable {
+                                                DynamicFeedGenerator.refreshXFeed(state)
                                                 SocialWorldGenerator.refreshXFeed(state)
                                             }
                                     ) {
@@ -1034,6 +1036,7 @@ fun XAppScreen(
                                             .fillMaxWidth()
                                             .padding(horizontal = 14.dp, vertical = 10.dp)
                                             .clickable {
+                                                DynamicFeedGenerator.loadMoreXPosts(state)
                                                 SocialWorldGenerator.loadMoreXPosts(state)
                                             }
                                     ) {
@@ -1172,9 +1175,9 @@ private fun XTweetCardItem(
     val xBlue = Color(0xFF1D9BF0)
     val xGray = Color(0xFF71767B)
     val xBorder = Color(0xFF2F3336)
-    val account = SocialWorldGenerator.resolveAccount(xp.handle, state)
-    val quotedEmbed = SocialWorldGenerator.getQuotedEmbedForPost(xp.id)
-    val repliesCount = SocialWorldGenerator.getXRepliesForPost(xp, state).size
+    val account = DynamicFeedGenerator.resolveAccount(xp.handle, state)
+    val quotedEmbed = DynamicFeedGenerator.getQuotedEmbedForPost(xp.id) ?: SocialWorldGenerator.getQuotedEmbedForPost(xp.id)
+    val repliesCount = (DynamicFeedGenerator.getXRepliesForPost(xp, state).ifEmpty { SocialWorldGenerator.getXRepliesForPost(xp, state) }).size
     val bookmarked = SocialWorldGenerator.isXPostBookmarked(xp.id)
 
     Column(

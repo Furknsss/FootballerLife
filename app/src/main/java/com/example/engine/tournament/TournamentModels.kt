@@ -345,7 +345,7 @@ fun getTournamentDrawableRes(
         lid.startsWith("NAT_") || fid.startsWith("NAT_") || dLabel.contains("MİLLÎ") || dLabel.contains("MILLI") -> {
             com.example.R.drawable.logo_milli_takim
         }
-        lid.contains("SUPER_LIG") || dLabel.contains("SÜPER LİG") -> {
+        lid.contains("SUPER_LIG") || lid.contains("TSL") || dLabel.contains("SÜPER LİG") || dLabel.contains("SUPER LIG") -> {
             com.example.R.drawable.logo_super_lig
         }
         else -> null

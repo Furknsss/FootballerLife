@@ -68,11 +68,24 @@ object SocialWorldGenerator {
         val leagueId = state.currentClub.leagueId
         val overall = p.overallRating
         val followers = p.followersCount.toLong()
+        val isLower = SocialRealismEngine.isLowerTier(leagueId)
+        val hasNationalCaps = p.nationalTeamCaps > 0 || p.nationalTeamGoals > 0
+
+        // Strict Tier Gating: Alt liglerde (BAL, 3. Lig, 2. Lig, 1. Lig)
+        // milli takım çağrısı veya Süper Lig yükselmesi olmadan şöhret SUPER_LIG_STAR / GLOBAL olamaz!
+        if (isLower && !hasNationalCaps) {
+            val tier = SocialRealismEngine.getLeagueTier(leagueId)
+            return when {
+                tier == LeagueCompetitionTier.TFF_1_LIG && (overall >= 66 || followers >= 20_000L) -> PlayerFameTier.RISING_STAR
+                (tier == LeagueCompetitionTier.TFF_2_LIG || tier == LeagueCompetitionTier.TFF_3_LIG) && (overall >= 55 || followers >= 2_000L) -> PlayerFameTier.SEMI_PRO
+                else -> PlayerFameTier.AMATEUR
+            }
+        }
 
         return when {
             followers >= 4_000_000L || overall >= 86 || p.marketValueEur >= 40_000_000L -> PlayerFameTier.GLOBAL_SUPERSTAR
             followers >= 800_000L || overall >= 80 || p.marketValueEur >= 15_000_000L -> PlayerFameTier.NATIONAL_HERO
-            followers >= 120_000L || (overall >= 73 && (leagueId == "TR_SUPER_LIG" || leagueId.contains("L1"))) || p.marketValueEur >= 4_000_000L -> PlayerFameTier.SUPER_LIG_STAR
+            followers >= 120_000L || (overall >= 73 && (leagueId == "TR_SUPER_LIG")) || p.marketValueEur >= 4_000_000L -> PlayerFameTier.SUPER_LIG_STAR
             followers >= 20_000L || overall >= 65 || leagueId == "TR_1_LIG" || p.marketValueEur >= 750_000L -> PlayerFameTier.RISING_STAR
             followers >= 2_000L || overall >= 54 || leagueId.startsWith("TR_2_LIG") || leagueId.startsWith("TR_3_LIG") -> PlayerFameTier.SEMI_PRO
             else -> PlayerFameTier.AMATEUR
@@ -122,6 +135,13 @@ object SocialWorldGenerator {
         val rivalClub = state.clubs.firstOrNull { it.id != club.id && it.leagueId == club.leagueId }
             ?: state.clubs.lastOrNull() ?: club
         val userHandle = "@${p.firstName.lowercase()}${p.kitNumber}"
+        val canAccess = SocialRealismEngine.canAccessSuperstarsAndGlobalMedia(state)
+        val localMedia = SocialRealismEngine.resolveLocalMediaForClub(club)
+        val userMutuals = if (canAccess) {
+            "ardaguler, 433 ve ${club.shortName.lowercase()}resmi takip ediyor"
+        } else {
+            "${localMedia.name}, takım arkadaşların ve yerel taraftarlar takip ediyor"
+        }
 
         val baseList = mutableListOf(
             SocialAccountProfile(
@@ -140,8 +160,26 @@ object SocialWorldGenerator {
                 followingCount = 348,
                 postsCount = state.galleryPhotos.size + state.socialPosts.count { it.isUserPost },
                 isFollowedByDefault = true,
-                mutualFollowersText = "ardaguler, 433 ve ${club.shortName.lowercase()}resmi takip ediyor"
+                mutualFollowersText = userMutuals
             ),
+            SocialAccountProfile(
+                id = "ACC_LOCAL_PRESS",
+                handle = localMedia.handle,
+                displayName = localMedia.name,
+                category = SocialAccountCategory.JOURNALIST,
+                isVerified = false,
+                badgeType = VerifiedBadgeType.NONE,
+                avatarHex = localMedia.avatarHex,
+                bannerHex = club.primaryColorHex,
+                bio = localMedia.bio,
+                location = localMedia.city,
+                followersCountText = localMedia.followersText,
+                followingCount = 140,
+                postsCount = 890,
+                isFollowedByDefault = true
+            ),
+            SocialRealismEngine.resolveClubAmigoProfile(club),
+            SocialRealismEngine.resolveLowerTierScoutProfile(),
             SocialAccountProfile(
                 id = "ACC_CLUB_OWN",
                 handle = "@${club.shortName.lowercase()}resmi",
@@ -1188,9 +1226,10 @@ object SocialWorldGenerator {
         // Merge prependedInstaPosts + state.socialPosts + generatedWorldPosts + appendedInstaPosts without duplicate IDs
         val existingIds = state.socialPosts.map { it.id }.toSet()
         val combined = prependedInstaPosts + state.socialPosts + generatedWorldPosts.filter { it.id !in existingIds } + appendedInstaPosts
+        val realismFiltered = SocialRealismEngine.filterRealismInstaFeed(combined, state)
 
         // Apply interactive overrides (likes, saves, extra user comments)
-        return combined.map { post ->
+        return realismFiltered.map { post ->
             val likedOverride = extraInstaLikes[post.id]
             val savedOverride = extraInstaSaves[post.id]
             val addedComments = extraInstaComments[post.id].orEmpty()
@@ -1265,21 +1304,25 @@ object SocialWorldGenerator {
                     reactionType = CommentReactionType.MEME_CULTURE
                 )
             )
-            comment.authorHandle.contains("arda") -> listOf(
-                InstaCommentReply(
-                    id = "REP_${comment.id}_ARDA",
-                    parentCommentId = comment.id,
-                    postId = postId,
-                    authorHandle = "@${club.shortName.lowercase()}_12numara",
-                    authorName = "12. Numara",
-                    isVerified = false,
-                    avatarHex = club.primaryColorHex,
-                    text = "@ardaguler Milli takımda ikinizi yan yana izlemek hayalimiz! 🇹🇷❤️",
-                    timeLabel = "25d",
-                    likesCount = 310,
-                    reactionType = CommentReactionType.FAN_SUPPORT
-                )
-            )
+            comment.authorHandle.contains("arda") -> {
+                if (SocialRealismEngine.canAccessSuperstarsAndGlobalMedia(state)) {
+                    listOf(
+                        InstaCommentReply(
+                            id = "REP_${comment.id}_ARDA",
+                            parentCommentId = comment.id,
+                            postId = postId,
+                            authorHandle = "@${club.shortName.lowercase()}_12numara",
+                            authorName = "12. Numara",
+                            isVerified = false,
+                            avatarHex = club.primaryColorHex,
+                            text = "@ardaguler Milli takımda ikinizi yan yana izlemek hayalimiz! 🇹🇷❤️",
+                            timeLabel = "25d",
+                            likesCount = 310,
+                            reactionType = CommentReactionType.FAN_SUPPORT
+                        )
+                    )
+                } else emptyList()
+            }
             comment.authorHandle.contains("transfermarkt") -> listOf(
                 InstaCommentReply(
                     id = "REP_${comment.id}_TM",
@@ -1659,7 +1702,8 @@ object SocialWorldGenerator {
         )
 
         val existingIds = state.stories.map { it.id }.toSet()
-        val combined = state.stories + extraStories.filter { it.id !in existingIds }
+        val filteredExtra = SocialRealismEngine.filterRealismStories(extraStories, state)
+        val combined = state.stories + filteredExtra.filter { it.id !in existingIds }
 
         return combined.map { st ->
             st.copy(
@@ -1675,67 +1719,8 @@ object SocialWorldGenerator {
     }
 
     fun getInstaNotes(state: CareerSaveState): List<InstaNoteItem> {
-        val p = state.player
-        val club = state.currentClub
-        val captain = club.keySquadMembers.find { it.isCaptain } ?: club.keySquadMembers.firstOrNull()
-        val userNote = customUserNotes[state.saveSlotId] ?: "Maç günü odaklıyız ⚽🔥"
-
-        return listOf(
-            InstaNoteItem(
-                id = "NOTE_USER",
-                handle = "@${p.firstName.lowercase()}${p.kitNumber}",
-                authorName = "Notun",
-                avatarHex = club.primaryColorHex,
-                noteText = userNote,
-                isVerified = true,
-                dmThreadId = null
-            ),
-            InstaNoteItem(
-                id = "NOTE_ARDA",
-                handle = "@ardaguler",
-                authorName = "Arda Güler",
-                avatarHex = "#F59E0B",
-                noteText = "Hala Madrid! 🤍✨",
-                isVerified = true,
-                dmThreadId = "IDM_ARDA"
-            ),
-            InstaNoteItem(
-                id = "NOTE_ELVIN",
-                handle = "@elvinyildirim",
-                authorName = "Elvin",
-                avatarHex = "#E1306C",
-                noteText = "Akşam kahvesi? ☕✨",
-                isVerified = true,
-                dmThreadId = "IDM_REQ_INFLUENCER"
-            ),
-            InstaNoteItem(
-                id = "NOTE_CAPTAIN",
-                handle = "@${(captain?.name ?: "kaptan").lowercase().replace(" ", "_")}",
-                authorName = captain?.name?.substringBefore(" ") ?: "Kaptan",
-                avatarHex = "#20CF79",
-                noteText = "3 puan bizimdir 💪⚽",
-                isVerified = true,
-                dmThreadId = "IDM_CLUB_MEDIA"
-            ),
-            InstaNoteItem(
-                id = "NOTE_FAB",
-                handle = "@fabrizioromano",
-                authorName = "Fabrizio",
-                avatarHex = "#1D9BF0",
-                noteText = "Here we go soon... ⏳🚨",
-                isVerified = true,
-                dmThreadId = "IDM_REQ_FABRIZIO"
-            ),
-            InstaNoteItem(
-                id = "NOTE_NIKE",
-                handle = "@niketurkiye",
-                authorName = "Nike TR",
-                avatarHex = "#111827",
-                noteText = "Mercurial 16 ⚡👟",
-                isVerified = true,
-                dmThreadId = "IDM_REQ_NIKE"
-            )
-        )
+        val userNote = customUserNotes[state.saveSlotId]
+        return SocialRealismEngine.generateRealismInstaNotes(state, userNote)
     }
 
     fun updateUserInstaNote(slotId: Int, text: String) {
@@ -1778,11 +1763,25 @@ object SocialWorldGenerator {
     }
 
     fun getAllInstaDmThreads(state: CareerSaveState): List<InstaDmThread> {
+        val canAccess = SocialRealismEngine.canAccessSuperstarsAndGlobalMedia(state)
         val existingHandles = state.instaDmThreads.map { it.senderHandle.removePrefix("@").lowercase() }.toSet()
         val extras = extraDmThreads.values.filter {
             it.senderHandle.removePrefix("@").lowercase() !in existingHandles
         }
-        return state.instaDmThreads + extras
+        val allThreads = state.instaDmThreads + extras
+
+        return if (!canAccess) {
+            val safe = allThreads.filter { th ->
+                SocialRealismEngine.isHandleAllowedToMessageUser(th.senderHandle, state)
+            }
+            if (safe.isEmpty()) {
+                SocialRealismEngine.generateLowerTierDmPool(state, state.currentDayIndex)
+            } else {
+                safe
+            }
+        } else {
+            allThreads
+        }
     }
 
     fun appendLocalDmMessageIfExtra(threadId: String, state: CareerSaveState, text: String): Boolean {
@@ -2084,8 +2083,9 @@ object SocialWorldGenerator {
         // Merge prependedXPosts + userPublishedXPosts + state.xPosts + generatedTweets + appendedXPosts
         val baseIds = (userPublishedXPosts.map { it.id } + state.xPosts.map { it.id }).toSet()
         val combined = prependedXPosts + userPublishedXPosts + state.xPosts + generatedTweets.filter { it.id !in baseIds } + appendedXPosts
+        val realismFiltered = SocialRealismEngine.filterRealismXFeed(combined, state)
 
-        return combined.map { xp ->
+        return realismFiltered.map { xp ->
             val likedOv = extraXLikes[xp.id]
             val rpOv = extraXReposts[xp.id]
             val finalLiked = likedOv ?: xp.likedByUser
@@ -2447,86 +2447,7 @@ object SocialWorldGenerator {
     }
 
     fun getXTrendingTopics(state: CareerSaveState): List<XTrendTopic> {
-        val p = state.player
-        val club = state.currentClub
-        val rivalClub = state.clubs.firstOrNull { it.id != club.id && it.leagueId == club.leagueId }
-            ?: state.clubs.lastOrNull() ?: club
-        val topScorer = state.topScorers.firstOrNull()
-
-        return listOf(
-            XTrendTopic(
-                id = "TR_1",
-                rank = 1,
-                categoryLabel = "Spor · Türkiye gündeminde",
-                topicTitle = "#${club.shortName}",
-                postsCountLabel = "42,8 B gönderi",
-                liveContextSubtitle = "${club.name} taraftarları gelecek maç kadrosunu ve taktiği tartışıyor",
-                filterKeyword = club.shortName
-            ),
-            XTrendTopic(
-                id = "TR_2",
-                rank = 2,
-                categoryLabel = "Futbol · Canlı Gündem",
-                topicTitle = p.fullName,
-                postsCountLabel = "19,4 B gönderi",
-                liveContextSubtitle = "Avrupa scoutları ve @yagosabuncuoglu özel haberi sonrası gündemde",
-                filterKeyword = p.lastName
-            ),
-            XTrendTopic(
-                id = "TR_3",
-                rank = 3,
-                categoryLabel = "Transfer · Gündemdekiler",
-                topicTitle = "Fabrizio Romano",
-                postsCountLabel = "96,2 B gönderi",
-                liveContextSubtitle = "Here we go! Avrupa ve Türkiye transfer gelişmeleri",
-                filterKeyword = "Fabrizio"
-            ),
-            XTrendTopic(
-                id = "TR_4",
-                rank = 4,
-                categoryLabel = "Futbol · Türkiye gündeminde",
-                topicTitle = "#Transfermarkt",
-                postsCountLabel = "31,5 B gönderi",
-                liveContextSubtitle = "${club.leagueName} güncel piyasa değeri değişimleri açıklandı",
-                filterKeyword = "Transfermarkt"
-            ),
-            XTrendTopic(
-                id = "TR_5",
-                rank = 5,
-                categoryLabel = "Avrupa Futbolu · Gündemdekiler",
-                topicTitle = "Arda Güler",
-                postsCountLabel = "118,0 B gönderi",
-                liveContextSubtitle = "Santiago Bernabéu'daki performansı İspanya basınında manşet",
-                filterKeyword = "Arda"
-            ),
-            XTrendTopic(
-                id = "TR_6",
-                rank = 6,
-                categoryLabel = "Spor · Gündemdekiler",
-                topicTitle = rivalClub.name,
-                postsCountLabel = "24,1 B gönderi",
-                liveContextSubtitle = "${rivalClub.shortName} cephesinde transfer ve zirve yarışı tartışmaları",
-                filterKeyword = rivalClub.shortName
-            ),
-            XTrendTopic(
-                id = "TR_7",
-                rank = 7,
-                categoryLabel = "Futbol Mizah · Gündemdekiler",
-                topicTitle = "VAR Kayıtları",
-                postsCountLabel = "54,9 B gönderi",
-                liveContextSubtitle = "Haftanın tartışmalı pozisyonları sosyal medyayı ikiye böldü",
-                filterKeyword = "VAR"
-            ),
-            XTrendTopic(
-                id = "TR_8",
-                rank = 8,
-                categoryLabel = "İstatistik · Gündemdekiler",
-                topicTitle = topScorer?.playerName ?: "Gol Krallığı",
-                postsCountLabel = "14,2 B gönderi",
-                liveContextSubtitle = "${club.leagueName}'de gol krallığı yarışı kızışıyor",
-                filterKeyword = "Gol"
-            )
-        )
+        return SocialRealismEngine.generateRealismTrendingTopics(state)
     }
 
     // =========================================================================
@@ -2534,157 +2455,7 @@ object SocialWorldGenerator {
     // =========================================================================
 
     fun getNotifications(state: CareerSaveState, platform: String): List<SocialNotificationItem> {
-        val p = state.player
-        val club = state.currentClub
-        val day = state.currentDayIndex
-        val userHandle = "@${p.firstName.lowercase()}${p.kitNumber}"
-
-        val baseList = if (platform == "INSTAGRAM") {
-            listOf(
-                SocialNotificationItem(
-                    id = "NOTIF_IG_1",
-                    platform = "INSTAGRAM",
-                    type = "LIKE",
-                    actorName = "Arda Güler",
-                    actorHandle = "@ardaguler",
-                    actorAvatarHex = "#F59E0B",
-                    actorVerified = true,
-                    text = "son antrenman gönderini ve hikayeni beğendi. ❤️",
-                    timeLabel = "18d",
-                    dayIndex = day
-                ),
-                SocialNotificationItem(
-                    id = "NOTIF_IG_2",
-                    platform = "INSTAGRAM",
-                    type = "MENTION",
-                    actorName = "Fabrizio Romano",
-                    actorHandle = "@fabrizioromano",
-                    actorAvatarHex = "#1D9BF0",
-                    actorVerified = true,
-                    text = "bir gönderide senden bahsetti: \"🚨✨ ${club.name} kadrosunda dikkat çeken genç yetenek: $userHandle\"",
-                    timeLabel = "1s",
-                    targetPostId = "SOC_FABRIZIO_1",
-                    dayIndex = day
-                ),
-                SocialNotificationItem(
-                    id = "NOTIF_IG_3",
-                    platform = "INSTAGRAM",
-                    type = "COMMENT",
-                    actorName = "433",
-                    actorHandle = "@433",
-                    actorAvatarHex = "#FF3B30",
-                    actorVerified = true,
-                    text = "gönderine yorum yaptı: \"Future star in the making 🔥⚽\"",
-                    timeLabel = "2s",
-                    targetPostId = "SOC_433_1",
-                    dayIndex = day
-                ),
-                SocialNotificationItem(
-                    id = "NOTIF_IG_4",
-                    platform = "INSTAGRAM",
-                    type = "FOLLOW",
-                    actorName = "Elvin Yıldırım",
-                    actorHandle = "@elvinyildirim",
-                    actorAvatarHex = "#E1306C",
-                    actorVerified = true,
-                    text = "seni takip etmeye başladı ve bir DM isteği gönderdi. ✨",
-                    timeLabel = "3s",
-                    dayIndex = day
-                ),
-                SocialNotificationItem(
-                    id = "NOTIF_IG_5",
-                    platform = "INSTAGRAM",
-                    type = "MENTION",
-                    actorName = "Transfermarkt Türkiye",
-                    actorHandle = "@transfermarkt_tr",
-                    actorAvatarHex = "#00193F",
-                    actorVerified = true,
-                    text = "piyasa değeri güncellemesinde seni etiketledi: \"${FLFormatters.formatMarketValue(p.marketValueEur)} 📈\"",
-                    timeLabel = "4s",
-                    targetPostId = "LIV_IG_TM_UPDATE_D$day",
-                    dayIndex = day
-                ),
-                SocialNotificationItem(
-                    id = "NOTIF_IG_6",
-                    platform = "INSTAGRAM",
-                    type = "LIKE",
-                    actorName = "${club.shortName} Tribün & Ultras",
-                    actorHandle = "@${club.shortName.lowercase()}_ultras",
-                    actorAvatarHex = club.primaryColorHex,
-                    actorVerified = false,
-                    text = "ve 1.420 diğer kişi fotoğrafını beğendi.",
-                    timeLabel = "5s",
-                    dayIndex = day
-                )
-            )
-        } else {
-            listOf(
-                SocialNotificationItem(
-                    id = "NOTIF_X_1",
-                    platform = "X",
-                    type = "MENTION",
-                    actorName = "Yağız Sabuncuoğlu",
-                    actorHandle = "@yagosabuncuoglu",
-                    actorAvatarHex = "#0EA5E9",
-                    actorVerified = true,
-                    text = "ÖZEL | Avrupa'dan iki kulübün scout ekibi $userHandle (#${p.kitNumber}) için canlı maç raporu hazırladı. 🔎",
-                    timeLabel = "35d",
-                    targetPostId = "XP_LIV_YAGIZ_D$day",
-                    dayIndex = day
-                ),
-                SocialNotificationItem(
-                    id = "NOTIF_X_2",
-                    platform = "X",
-                    type = "QUOTE",
-                    actorName = "Uğur Karakullukçu",
-                    actorHandle = "@ugurkarakullukcu",
-                    actorAvatarHex = "#DC2626",
-                    actorVerified = true,
-                    text = "hakkındaki haberi alıntıladı: \"${p.age} yaşında bu fizik kalite ve top tekniğiyle fark yaratmaması imkansızdı.\"",
-                    timeLabel = "22d",
-                    targetPostId = "XP_LIV_UGUR_QUOTE_D$day",
-                    dayIndex = day
-                ),
-                SocialNotificationItem(
-                    id = "NOTIF_X_3",
-                    platform = "X",
-                    type = "MENTION",
-                    actorName = "OptaCan",
-                    actorHandle = "@OptaCan",
-                    actorAvatarHex = "#6366F1",
-                    actorVerified = true,
-                    text = "istatistik analizinde senden bahsetti: \"Hücum üçüncü bölgesinde en yüksek verimlilik: ${p.fullName}. Dinamik.\"",
-                    timeLabel = "3s",
-                    targetPostId = "XP_LIV_OPTACAN_STAT_D$day",
-                    dayIndex = day
-                ),
-                SocialNotificationItem(
-                    id = "NOTIF_X_4",
-                    platform = "X",
-                    type = "REPOST",
-                    actorName = "Krampon Sports",
-                    actorHandle = "@kramponsports",
-                    actorAvatarHex = "#22C55E",
-                    actorVerified = true,
-                    text = "anketinde seni aday gösterdi: \"90+3'te frikikte topun başına kim geçmeli? 🎯\"",
-                    timeLabel = "3s",
-                    targetPostId = "XP_LIV_KRAMPON_POLL",
-                    dayIndex = day
-                ),
-                SocialNotificationItem(
-                    id = "NOTIF_X_5",
-                    platform = "X",
-                    type = "FOLLOW",
-                    actorName = "Sokrates Dergi",
-                    actorHandle = "@sokratesdergi",
-                    actorAvatarHex = "#EC4899",
-                    actorVerified = true,
-                    text = "seni takip etmeye başladı.",
-                    timeLabel = "5s",
-                    dayIndex = day
-                )
-            )
-        }
+        val baseList = SocialRealismEngine.generateRealismNotifications(state, platform)
         val extras = extraNotifications.filter { it.platform.equals(platform, ignoreCase = true) }
         return extras + baseList
     }
@@ -3411,6 +3182,8 @@ object SocialWorldGenerator {
         val club = state.currentClub
         val rivalClub = state.clubs.firstOrNull { it.id != club.id } ?: club
         val topTierClub = state.clubs.minByOrNull { it.tier } ?: rivalClub
+        val canAccessGlobal = SocialRealismEngine.canAccessSuperstarsAndGlobalMedia(state)
+        val localMedia = SocialRealismEngine.resolveLocalMediaForClub(club)
 
         val userOfferRumors = state.transferOffers.mapIndexed { idx, offer ->
             RumorMillEntry(
@@ -3423,7 +3196,7 @@ object SocialWorldGenerator {
                 toClubHex = offer.primaryColorHex,
                 marketValueEur = p.marketValueEur,
                 probabilityPct = (62 + idx * 11).coerceAtMost(89),
-                sourceHandle = "@yagosabuncuoglu",
+                sourceHandle = if (canAccessGlobal) "@yagosabuncuoglu" else localMedia.handle,
                 isUserPlayer = true
             )
         }
@@ -3435,11 +3208,15 @@ object SocialWorldGenerator {
                 playerPosition = p.primaryPosition.code,
                 age = p.age,
                 fromClubName = club.shortName,
-                toClubName = if (topTierClub.id != club.id) topTierClub.name else "Eintracht Frankfurt",
+                toClubName = if (canAccessGlobal) {
+                    if (topTierClub.id != club.id) topTierClub.name else "Eintracht Frankfurt"
+                } else {
+                    if (topTierClub.id != club.id) topTierClub.name else "${club.city} Üst Lig Grubu"
+                },
                 toClubHex = topTierClub.primaryColorHex,
                 marketValueEur = p.marketValueEur,
                 probabilityPct = (42 + (p.overallRating - 55).coerceAtLeast(0)).coerceIn(35, 84),
-                sourceHandle = "@fabrizioromano",
+                sourceHandle = if (canAccessGlobal) "@fabrizioromano" else "@hasan_tff_scout",
                 isUserPlayer = true
             ),
             RumorMillEntry(

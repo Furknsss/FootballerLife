@@ -44,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -162,7 +163,7 @@ fun FreeKickWallCinematicOverlay(
 
             // Baraj zıplar (0f -> 1f -> 0f)
             onPlaySfx(GameSoundEffect.DEFENSE_WALL_JUMP)
-            val jumpJob = kotlinx.coroutines.launch {
+            val jumpJob = launch {
                 jumpAnim.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(380, easing = FastOutSlowInEasing)
@@ -574,7 +575,7 @@ fun PenaltyDuelCinematicOverlay(
             val ballAnim = Animatable(0f)
 
             // Kaleci köşeye atlar
-            val keeperJob = kotlinx.coroutines.launch {
+            val keeperJob = launch {
                 keeperAnim.animateTo(1f, animationSpec = tween(650, easing = FastOutSlowInEasing))
             }
             ballAnim.animateTo(1f, animationSpec = tween(600, easing = LinearEasing)) {

@@ -472,7 +472,7 @@ fun FootballLifeApp(
                                         state = career,
                                         onBackHome = { viewModel.closeOverlay() },
                                         onPartnerUpdated = { partner ->
-                                            viewModel.updateRomanticPartner(partner.name, partner.stage.titleTr, partner.affectionLevel)
+                                            viewModel.updateRomanticPartner(partner.fullName, partner.stage.titleTr, partner.affection)
                                         },
                                         onDatingOutcome = { outcome ->
                                             viewModel.applyRomanceOutcome(outcome)

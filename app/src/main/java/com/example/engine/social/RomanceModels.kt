@@ -48,6 +48,38 @@ enum class PartnerArchetype(
     val defaultMinOverall: Int,
     val basePaparazziInterest: Int // 0..100
 ) {
+    HIGH_SCHOOL_SWEETHEART(
+        labelTr = "Lise Aşkı & Çocukluk Arkadaşı",
+        emoji = "🎒",
+        defaultPrimaryHex = "#F43F5E",
+        defaultSecondaryHex = "#881337",
+        defaultMinOverall = 0,
+        basePaparazziInterest = 5
+    ),
+    UNIVERSITY_FRIEND(
+        labelTr = "Üniversite & Kampüs Arkadaşı",
+        emoji = "🎓",
+        defaultPrimaryHex = "#0EA5E9",
+        defaultSecondaryHex = "#0369A1",
+        defaultMinOverall = 0,
+        basePaparazziInterest = 8
+    ),
+    LOCAL_TOWN_GIRL(
+        labelTr = "Mahalle & Yerel Esnaf Kızı",
+        emoji = "🌸",
+        defaultPrimaryHex = "#10B981",
+        defaultSecondaryHex = "#064E3B",
+        defaultMinOverall = 0,
+        basePaparazziInterest = 6
+    ),
+    LOCAL_REPORTER(
+        labelTr = "Yerel Spor Medyası Muhabiri",
+        emoji = "🎙️",
+        defaultPrimaryHex = "#F59E0B",
+        defaultSecondaryHex = "#78350F",
+        defaultMinOverall = 50,
+        basePaparazziInterest = 18
+    ),
     SUPERMODEL(
         labelTr = "Uluslararası Podyum Süpermodeli",
         emoji = "💃",

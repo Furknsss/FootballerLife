@@ -2581,273 +2581,446 @@ object CareerEngine {
             list
         }
 
+        val isLower = com.example.engine.social.SocialRealismEngine.isLowerTier(club.leagueId)
+        val hasNationalHonor = p.nationalTeamCaps > 0 || p.nationalTeamGoals > 0
+        val canAccessGlobal = !isLower || hasNationalHonor
+        val localMedia = com.example.engine.social.SocialRealismEngine.resolveLocalMediaForClub(club)
+
         val stories = state.stories.ifEmpty {
             val captain = club.keySquadMembers.find { it.isCaptain } ?: club.keySquadMembers.first()
-            listOf(
-                StoryItem(
-                    id = "ST_CLUB_1",
-                    authorName = "${club.shortName.lowercase()}resmi",
-                    authorRole = "Resmi Kulüp Hesabı",
-                    avatarHex = club.primaryColorHex,
-                    title = "Yeni Sezon Kampı Başladı!",
-                    caption = "${club.stadiumName} çimlerinde yeni sezon heyecanı. #${club.shortName}",
-                    sceneType = "STADIUM",
-                    dayIndex = state.currentDayIndex
-                ),
-                StoryItem(
-                    id = "ST_433",
-                    authorName = "433",
-                    authorRole = "Futbol Medyası",
-                    avatarHex = "#FF3B30",
-                    title = "Haftanın Genç Yıldız Adayları ✨",
-                    caption = "${p.fullName} (#${p.kitNumber}) bu sezon ${club.name} formasıyla vitrine çıkıyor! 👀🔥",
-                    sceneType = "STADIUM",
-                    dayIndex = state.currentDayIndex
-                ),
-                StoryItem(
-                    id = "ST_FABRIZIO",
-                    authorName = "fabrizioromano",
-                    authorRole = "Transfer Gazetecisi",
-                    avatarHex = "#1D9BF0",
-                    title = "Here We Go! ⏳",
-                    caption = "Avrupa scoutları bu sezon ${club.leagueName} maçlarını yakından takip ediyor.",
-                    sceneType = "TRANSFER",
-                    dayIndex = state.currentDayIndex
-                ),
-                StoryItem(
-                    id = "ST_CAPTAIN_1",
-                    authorName = captain.name.lowercase().replace(" ", "_"),
-                    authorRole = "Takım Kaptanı",
-                    avatarHex = "#20CF79",
-                    title = "Antrenman Sonrası",
-                    caption = "Soyunma odasında moraller yüksek, maça hazırız! 💪⚽",
-                    sceneType = "LOCKER",
-                    dayIndex = state.currentDayIndex
-                ),
-                StoryItem(
-                    id = "ST_AGENT_1",
-                    authorName = "kemalsoylu_mgmt",
-                    authorRole = "Menajer",
-                    avatarHex = "#5DADE2",
-                    title = "Transfer & Kariyer Masası",
-                    caption = "Oyuncumuz ${p.fullName} için bu sezon çok büyük bir vitrin olacak.",
-                    sceneType = "TRANSFER",
-                    dayIndex = state.currentDayIndex
+            if (!canAccessGlobal) {
+                listOf(
+                    StoryItem(
+                        id = "ST_CLUB_1",
+                        authorName = "${club.shortName.lowercase()}resmi",
+                        authorRole = "Resmi Kulüp Hesabı",
+                        avatarHex = club.primaryColorHex,
+                        title = "Yeni Sezon Kampı Başladı!",
+                        caption = "${club.stadiumName} çimlerinde yeni sezon heyecanı. #${club.shortName}",
+                        sceneType = "STADIUM",
+                        dayIndex = state.currentDayIndex
+                    ),
+                    StoryItem(
+                        id = "ST_LOC_PRESS_INIT",
+                        authorName = localMedia.handle.removePrefix("@"),
+                        authorRole = localMedia.name,
+                        avatarHex = localMedia.avatarHex,
+                        title = "Yeni Sezon Hazırlıkları 🗞️",
+                        caption = "${club.name} yeni sezon hazırlıklarına başladı. #${club.shortName}",
+                        sceneType = "STADIUM",
+                        dayIndex = state.currentDayIndex
+                    ),
+                    StoryItem(
+                        id = "ST_CAPTAIN_1",
+                        authorName = captain.name.lowercase().replace(" ", "_"),
+                        authorRole = "Takım Kaptanı",
+                        avatarHex = "#20CF79",
+                        title = "Antrenman Sonrası",
+                        caption = "Soyunma odasında moraller yüksek, maça hazırız! 💪⚽",
+                        sceneType = "LOCKER",
+                        dayIndex = state.currentDayIndex
+                    ),
+                    StoryItem(
+                        id = "ST_AMIGO_INIT",
+                        authorName = "amigo_murat_${club.shortName.lowercase()}",
+                        authorRole = "${club.shortName} Tribün Lideri",
+                        avatarHex = club.primaryColorHex,
+                        title = "Yeni Sezon Heyecanı 🧣🔥",
+                        caption = "Tribünler hazır, bu sezon sonuna kadar takımımızın arkasındayız!",
+                        sceneType = "STADIUM",
+                        dayIndex = state.currentDayIndex
+                    )
                 )
-            )
+            } else {
+                listOf(
+                    StoryItem(
+                        id = "ST_CLUB_1",
+                        authorName = "${club.shortName.lowercase()}resmi",
+                        authorRole = "Resmi Kulüp Hesabı",
+                        avatarHex = club.primaryColorHex,
+                        title = "Yeni Sezon Kampı Başladı!",
+                        caption = "${club.stadiumName} çimlerinde yeni sezon heyecanı. #${club.shortName}",
+                        sceneType = "STADIUM",
+                        dayIndex = state.currentDayIndex
+                    ),
+                    StoryItem(
+                        id = "ST_433",
+                        authorName = "433",
+                        authorRole = "Futbol Medyası",
+                        avatarHex = "#FF3B30",
+                        title = "Haftanın Genç Yıldız Adayları ✨",
+                        caption = "${p.fullName} (#${p.kitNumber}) bu sezon ${club.name} formasıyla vitrine çıkıyor! 👀🔥",
+                        sceneType = "STADIUM",
+                        dayIndex = state.currentDayIndex
+                    ),
+                    StoryItem(
+                        id = "ST_FABRIZIO",
+                        authorName = "fabrizioromano",
+                        authorRole = "Transfer Gazetecisi",
+                        avatarHex = "#1D9BF0",
+                        title = "Here We Go! ⏳",
+                        caption = "Avrupa scoutları bu sezon ${club.leagueName} maçlarını yakından takip ediyor.",
+                        sceneType = "TRANSFER",
+                        dayIndex = state.currentDayIndex
+                    ),
+                    StoryItem(
+                        id = "ST_CAPTAIN_1",
+                        authorName = captain.name.lowercase().replace(" ", "_"),
+                        authorRole = "Takım Kaptanı",
+                        avatarHex = "#20CF79",
+                        title = "Antrenman Sonrası",
+                        caption = "Soyunma odasında moraller yüksek, maça hazırız! 💪⚽",
+                        sceneType = "LOCKER",
+                        dayIndex = state.currentDayIndex
+                    ),
+                    StoryItem(
+                        id = "ST_AGENT_1",
+                        authorName = "kemalsoylu_mgmt",
+                        authorRole = "Menajer",
+                        avatarHex = "#5DADE2",
+                        title = "Transfer & Kariyer Masası",
+                        caption = "Oyuncumuz ${p.fullName} için bu sezon çok büyük bir vitrin olacak.",
+                        sceneType = "TRANSFER",
+                        dayIndex = state.currentDayIndex
+                    )
+                )
+            }
         }
 
         val enrichedSocialPosts = if (state.socialPosts.size <= 1 || state.socialPosts.all { it.instaComments.isEmpty() }) {
-            listOf(
-                SocialMediaPost(
-                    id = "SOC_FABRIZIO_1",
-                    dayIndex = state.currentDayIndex,
-                    dateLabel = "2 saat önce",
-                    authorName = "Fabrizio Romano",
-                    authorHandle = "@fabrizioromano",
-                    isUserPost = false,
-                    content = "🚨✨ ${club.name} kadrosunda dikkat çeken genç yetenek: ${p.fullName} (#${p.kitNumber}). Teknik direktör ${club.managerName} oyuncunun potansiyeline (${p.potential}) çok güveniyor. Avrupa kulüplerinin scout ekipleri takipte! 🇹🇷⚽ #HereWeGo",
-                    likesCount = 48_920,
-                    commentsCount = 614,
-                    sentiment = "Destekleyici",
-                    topFanComments = listOf(
-                        "433: Future star in the making 🔥",
-                        "${club.shortName.lowercase()}_ultras: Bizim çocuk! Bu sezon patlama yapacak ❤️"
-                    ),
-                    instaComments = listOf(
-                        InstaCommentItem(
-                            id = "IC_FAB_1",
-                            authorHandle = "433",
-                            authorName = "433",
-                            isVerified = true,
-                            avatarHex = "#FF3B30",
-                            text = "Future star in the making 🔥⚽",
-                            timeLabel = "2s",
-                            likesCount = 1_420
+            if (!canAccessGlobal) {
+                listOf(
+                    SocialMediaPost(
+                        id = "SOC_LOC_PRESS_INIT_1",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "2 saat önce",
+                        authorName = localMedia.name,
+                        authorHandle = localMedia.handle,
+                        isUserPost = false,
+                        content = "🗞️ ${localMedia.city.uppercase()} SPOR | ${club.name} altyapısından çıkan genç yetenek ${p.fullName} (#${p.kitNumber}) yeni sezon öncesi performansıyla teknik heyetin gözüne girdi. Bu sezon ilk 11 şansı yüksek! ⚽👏",
+                        likesCount = 520,
+                        commentsCount = 34,
+                        sentiment = "Destekleyici",
+                        topFanComments = listOf(
+                            "Bizim çocuk formayı hak ediyor!",
+                            "Bu ligi sallar."
                         ),
-                        InstaCommentItem(
-                            id = "IC_FAB_2",
-                            authorHandle = "${club.shortName.lowercase()}_ultras",
-                            authorName = "${club.shortName} Taraftar",
-                            isVerified = false,
-                            avatarHex = club.primaryColorHex,
-                            text = "Bizim çocuk! Bu sezon ${club.stadiumName}'da tarih yazacak 👏",
-                            timeLabel = "1s",
-                            likesCount = 318
+                        instaComments = listOf(
+                            InstaCommentItem(
+                                id = "IC_LOC_1",
+                                authorHandle = "amigo_murat_${club.shortName.lowercase()}",
+                                authorName = "Amigo Murat",
+                                isVerified = false,
+                                avatarHex = club.primaryColorHex,
+                                text = "Tribün senin arkanda koçum, terinin son damlasına kadar savaş! 🧣🔥",
+                                timeLabel = "1s",
+                                likesCount = 42
+                            ),
+                            InstaCommentItem(
+                                id = "IC_LOC_2",
+                                authorHandle = "${club.shortName.lowercase()}_fan_1923",
+                                authorName = "${club.shortName} Sevdalısı",
+                                isVerified = false,
+                                avatarHex = club.secondaryColorHex,
+                                text = "Maşallah nazar değmesin, formanın hakkını verir inşallah.",
+                                timeLabel = "45d",
+                                likesCount = 18
+                            )
                         ),
-                        InstaCommentItem(
-                            id = "IC_FAB_3",
-                            authorHandle = "transfermarkt_tr",
-                            authorName = "Transfermarkt Türkiye",
-                            isVerified = true,
-                            avatarHex = "#00A6FF",
-                            text = "Güncel piyasa değeri: ${FLFormatters.formatMarketValue(p.marketValueEur)} 📈",
-                            timeLabel = "45d",
-                            likesCount = 205
+                        isVerifiedAuthor = false,
+                        locationLabel = club.city,
+                        imageSceneType = "TRAINING"
+                    ),
+                    SocialMediaPost(
+                        id = "SOC_CLUB_OFFICIAL_1",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "6 saat önce",
+                        authorName = "${club.name} Resmi",
+                        authorHandle = "@${club.shortName.lowercase()}resmi",
+                        isUserPost = false,
+                        content = "📸 Takımımız yeni sezonun ilk lig maçı için hazırlıklarını ${club.stadiumName} tesislerinde sürdürdü. #${club.shortName} ⚽💪",
+                        likesCount = 1_580,
+                        commentsCount = 42,
+                        sentiment = "Destekleyici",
+                        topFanComments = listOf(
+                            "Bu sene o kupa buraya gelecek!",
+                            "${p.kitName} ilk 11'de başlasın hocam!"
                         ),
-                        InstaCommentItem(
-                            id = "IC_FAB_4",
-                            authorHandle = "ardaguler",
-                            authorName = "Arda Güler",
-                            isVerified = true,
-                            avatarHex = "#F59E0B",
-                            text = "Yolun açık olsun kardeşim! 💪🇹🇷",
-                            timeLabel = "30d",
-                            likesCount = 4_890
-                        )
-                    ),
-                    isVerifiedAuthor = true,
-                    locationLabel = "${club.city}, ${club.country}",
-                    imageSceneType = "TRANSFER"
-                ),
-                SocialMediaPost(
-                    id = "SOC_433_1",
-                    dayIndex = state.currentDayIndex,
-                    dateLabel = "4 saat önce",
-                    authorName = "433",
-                    authorHandle = "@433",
-                    isUserPost = false,
-                    content = "Yeni sezon hazırlıklarında ${p.fullName} antrenman temposuyla göz dolduruyor! Sizce bu sezon kaç gol + asist katkısı yapar? 👇⚽",
-                    likesCount = 92_340,
-                    commentsCount = 1_280,
-                    sentiment = "Destekleyici",
-                    topFanComments = listOf(
-                        "En az 15 gol katkısı yazar! 🔥",
-                        "Sol ayağı / tekniği çok klas."
-                    ),
-                    instaComments = listOf(
-                        InstaCommentItem(
-                            id = "IC_433_1",
-                            authorHandle = "futbolarena_tr",
-                            authorName = "Futbol Arena",
-                            isVerified = true,
-                            avatarHex = "#10B981",
-                            text = "İlk 11'de düzenli oynarsa çift haneli gol ve asist sayısına rahat ulaşır 🎯",
-                            timeLabel = "3s",
-                            likesCount = 512
+                        instaComments = listOf(
+                            InstaCommentItem(
+                                id = "IC_CLB_1",
+                                authorHandle = "${club.shortName.lowercase()}_12numara",
+                                authorName = "12. Numara Tribün",
+                                isVerified = false,
+                                avatarHex = club.primaryColorHex,
+                                text = "${p.kitName} (#${p.kitNumber}) ilk 11'de başlamalı hocam! 🔥",
+                                timeLabel = "5s",
+                                likesCount = 52
+                            )
                         ),
-                        InstaCommentItem(
-                            id = "IC_433_2",
-                            authorHandle = "kerem_akturkoglu",
-                            authorName = "Kerem",
-                            isVerified = true,
-                            avatarHex = "#EF4444",
-                            text = "Başarılar kardeşim, sakatlıksız güzel bir sezon olsun 🙏⚽",
-                            timeLabel = "2s",
-                            likesCount = 1_190
-                        ),
-                        InstaCommentItem(
-                            id = "IC_433_3",
-                            authorHandle = "burak_futbolsever",
-                            authorName = "Burak Yılmaz",
-                            isVerified = false,
-                            avatarHex = "#8B5CF6",
-                            text = "İlk hafta maçını sabırsızlıkla bekliyoruz!",
-                            timeLabel = "1s",
-                            likesCount = 64
-                        )
-                    ),
-                    isVerifiedAuthor = true,
-                    locationLabel = club.stadiumName,
-                    imageSceneType = "TRAINING"
-                ),
-                SocialMediaPost(
-                    id = "SOC_CLUB_OFFICIAL_1",
-                    dayIndex = state.currentDayIndex,
-                    dateLabel = "6 saat önce",
-                    authorName = "${club.name} Resmi",
-                    authorHandle = "@${club.shortName.lowercase()}resmi",
-                    isUserPost = false,
-                    content = "📸 Takımımız yeni sezonun ilk lig maçı için hazırlıklarını ${club.stadiumName} tesislerinde sürdürdü. #${club.shortName} ⚽💪",
-                    likesCount = 14_580,
-                    commentsCount = 342,
-                    sentiment = "Destekleyici",
-                    topFanComments = listOf(
-                        "Bu sene o kupa buraya gelecek!",
-                        "${p.kitName} ilk 11'de başlasın hocam!"
-                    ),
-                    instaComments = listOf(
-                        InstaCommentItem(
-                            id = "IC_CLB_1",
-                            authorHandle = "${club.shortName.lowercase()}_12numara",
-                            authorName = "12. Numara Tribün",
-                            isVerified = false,
-                            avatarHex = club.primaryColorHex,
-                            text = "${p.kitName} (#${p.kitNumber}) ilk 11'de başlamalı hocam! 🔥",
-                            timeLabel = "5s",
-                            likesCount = 289
-                        ),
-                        InstaCommentItem(
-                            id = "IC_CLB_2",
-                            authorHandle = "trtspor",
-                            authorName = "TRT Spor",
-                            isVerified = true,
-                            avatarHex = "#2563EB",
-                            text = "${club.name}'da yeni sezon heyecanı zirvede.",
-                            timeLabel = "4s",
-                            likesCount = 114
-                        )
-                    ),
-                    isVerifiedAuthor = true,
-                    locationLabel = "${club.name} Tesisleri",
-                    imageSceneType = "STADIUM"
+                        isVerifiedAuthor = true,
+                        locationLabel = "${club.name} Tesisleri",
+                        imageSceneType = "STADIUM"
+                    )
                 )
-            )
+            } else {
+                listOf(
+                    SocialMediaPost(
+                        id = "SOC_FABRIZIO_1",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "2 saat önce",
+                        authorName = "Fabrizio Romano",
+                        authorHandle = "@fabrizioromano",
+                        isUserPost = false,
+                        content = "🚨✨ ${club.name} kadrosunda dikkat çeken genç yetenek: ${p.fullName} (#${p.kitNumber}). Teknik direktör ${club.managerName} oyuncunun potansiyeline (${p.potential}) çok güveniyor. Avrupa kulüplerinin scout ekipleri takipte! 🇹🇷⚽ #HereWeGo",
+                        likesCount = 48_920,
+                        commentsCount = 614,
+                        sentiment = "Destekleyici",
+                        topFanComments = listOf(
+                            "433: Future star in the making 🔥",
+                            "${club.shortName.lowercase()}_ultras: Bizim çocuk! Bu sezon patlama yapacak ❤️"
+                        ),
+                        instaComments = listOf(
+                            InstaCommentItem(
+                                id = "IC_FAB_1",
+                                authorHandle = "433",
+                                authorName = "433",
+                                isVerified = true,
+                                avatarHex = "#FF3B30",
+                                text = "Future star in the making 🔥⚽",
+                                timeLabel = "2s",
+                                likesCount = 1_420
+                            ),
+                            InstaCommentItem(
+                                id = "IC_FAB_2",
+                                authorHandle = "${club.shortName.lowercase()}_ultras",
+                                authorName = "${club.shortName} Taraftar",
+                                isVerified = false,
+                                avatarHex = club.primaryColorHex,
+                                text = "Bizim çocuk! Bu sezon ${club.stadiumName}'da tarih yazacak 👏",
+                                timeLabel = "1s",
+                                likesCount = 318
+                            ),
+                            InstaCommentItem(
+                                id = "IC_FAB_3",
+                                authorHandle = "transfermarkt_tr",
+                                authorName = "Transfermarkt Türkiye",
+                                isVerified = true,
+                                avatarHex = "#00A6FF",
+                                text = "Güncel piyasa değeri: ${FLFormatters.formatMarketValue(p.marketValueEur)} 📈",
+                                timeLabel = "45d",
+                                likesCount = 205
+                            ),
+                            InstaCommentItem(
+                                id = "IC_FAB_4",
+                                authorHandle = "ardaguler",
+                                authorName = "Arda Güler",
+                                isVerified = true,
+                                avatarHex = "#F59E0B",
+                                text = "Yolun açık olsun kardeşim! 💪🇹🇷",
+                                timeLabel = "30d",
+                                likesCount = 4_890
+                            )
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "${club.city}, ${club.country}",
+                        imageSceneType = "TRANSFER"
+                    ),
+                    SocialMediaPost(
+                        id = "SOC_433_1",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "4 saat önce",
+                        authorName = "433",
+                        authorHandle = "@433",
+                        isUserPost = false,
+                        content = "Yeni sezon hazırlıklarında ${p.fullName} antrenman temposuyla göz dolduruyor! Sizce bu sezon kaç gol + asist katkısı yapar? 👇⚽",
+                        likesCount = 92_340,
+                        commentsCount = 1_280,
+                        sentiment = "Destekleyici",
+                        topFanComments = listOf(
+                            "En az 15 gol katkısı yazar! 🔥",
+                            "Sol ayağı / tekniği çok klas."
+                        ),
+                        instaComments = listOf(
+                            InstaCommentItem(
+                                id = "IC_433_1",
+                                authorHandle = "futbolarena_tr",
+                                authorName = "Futbol Arena",
+                                isVerified = true,
+                                avatarHex = "#10B981",
+                                text = "İlk 11'de düzenli oynarsa çift haneli gol ve asist sayısına rahat ulaşır 🎯",
+                                timeLabel = "3s",
+                                likesCount = 512
+                            ),
+                            InstaCommentItem(
+                                id = "IC_433_2",
+                                authorHandle = "kerem_akturkoglu",
+                                authorName = "Kerem",
+                                isVerified = true,
+                                avatarHex = "#EF4444",
+                                text = "Başarılar kardeşim, sakatlıksız güzel bir sezon olsun 🙏⚽",
+                                timeLabel = "2s",
+                                likesCount = 1_190
+                            ),
+                            InstaCommentItem(
+                                id = "IC_433_3",
+                                authorHandle = "burak_futbolsever",
+                                authorName = "Burak Yılmaz",
+                                isVerified = false,
+                                avatarHex = "#8B5CF6",
+                                text = "İlk hafta maçını sabırsızlıkla bekliyoruz!",
+                                timeLabel = "1s",
+                                likesCount = 64
+                            )
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = club.stadiumName,
+                        imageSceneType = "TRAINING"
+                    ),
+                    SocialMediaPost(
+                        id = "SOC_CLUB_OFFICIAL_1",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "6 saat önce",
+                        authorName = "${club.name} Resmi",
+                        authorHandle = "@${club.shortName.lowercase()}resmi",
+                        isUserPost = false,
+                        content = "📸 Takımımız yeni sezonun ilk lig maçı için hazırlıklarını ${club.stadiumName} tesislerinde sürdürdü. #${club.shortName} ⚽💪",
+                        likesCount = 14_580,
+                        commentsCount = 342,
+                        sentiment = "Destekleyici",
+                        topFanComments = listOf(
+                            "Bu sene o kupa buraya gelecek!",
+                            "${p.kitName} ilk 11'de başlasın hocam!"
+                        ),
+                        instaComments = listOf(
+                            InstaCommentItem(
+                                id = "IC_CLB_1",
+                                authorHandle = "${club.shortName.lowercase()}_12numara",
+                                authorName = "12. Numara Tribün",
+                                isVerified = false,
+                                avatarHex = club.primaryColorHex,
+                                text = "${p.kitName} (#${p.kitNumber}) ilk 11'de başlamalı hocam! 🔥",
+                                timeLabel = "5s",
+                                likesCount = 289
+                            ),
+                            InstaCommentItem(
+                                id = "IC_CLB_2",
+                                authorHandle = "trtspor",
+                                authorName = "TRT Spor",
+                                isVerified = true,
+                                avatarHex = "#2563EB",
+                                text = "${club.name}'da yeni sezon heyecanı zirvede.",
+                                timeLabel = "4s",
+                                likesCount = 114
+                            )
+                        ),
+                        isVerifiedAuthor = true,
+                        locationLabel = "${club.name} Tesisleri",
+                        imageSceneType = "STADIUM"
+                    )
+                )
+            }
         } else {
             state.socialPosts
         }
 
-        val xPosts = state.xPosts.ifEmpty {
-            listOf(
-                XPostItem(
-                    id = "XP_INIT_1",
-                    dayIndex = state.currentDayIndex,
-                    dateLabel = "2s",
-                    authorName = "Fabrizio Romano",
-                    handle = "@FabrizioRomano",
-                    category = "GAZETECİ",
-                    isVerified = true,
-                    text = "🔎 ${club.name} Teknik Direktörü ${club.managerName}, yeni sezon öncesinde ${p.fullName} (#${p.kitNumber}) ile özel bir görüşme gerçekleştirdi. Genç oyuncunun idman temposu teknik heyetten tam not aldı. 🇹🇷✨",
-                    likes = 12_450,
-                    reposts = 1_280
-                ),
-                XPostItem(
-                    id = "XP_INIT_2",
-                    dayIndex = state.currentDayIndex,
-                    dateLabel = "4s",
-                    authorName = "Sports Digitale",
-                    handle = "@SportsDigitale",
-                    category = "YORUMCU",
-                    isVerified = true,
-                    text = "📊 ÖZEL ANALİZ | ${club.name} bu sezon ${club.managerTacticalStyle} sistemiyle sahada olacak. ${p.primaryPosition.titleTr} bölgesinde ${p.fullName} (OVR ${p.overallRating} -> POT ${p.potential}) takımın kilit ismi olabilir.",
-                    likes = 3_840,
-                    reposts = 412
-                ),
-                XPostItem(
-                    id = "XP_INIT_3",
-                    dayIndex = state.currentDayIndex,
-                    dateLabel = "5s",
-                    authorName = "OptaCan",
-                    handle = "@OptaCan",
-                    category = "YORUMCU",
-                    isVerified = true,
-                    text = "${p.kitNumber} - ${club.name} formasıyla yeni sezona hazırlanan ${p.fullName}, antrenman maçlarında %88 pas isabeti ve yüksek hücum presiyle dikkat çekti. Vizyon.",
-                    likes = 2_190,
-                    reposts = 215
-                ),
-                XPostItem(
-                    id = "XP_INIT_4",
-                    dayIndex = state.currentDayIndex,
-                    dateLabel = "6s",
-                    authorName = "${club.shortName} Ruhu",
-                    handle = "@${club.shortName.lowercase()}_ruhu",
-                    category = "TARAFTAR",
-                    isVerified = false,
-                    text = "Bu sezon ${club.stadiumName} tribünlerinde ${p.kitName} tezahüratları yankılanacak! Maç gününü iple çekiyoruz! ⚽🔥",
-                    likes = 845,
-                    reposts = 94
+        val rawXPosts = state.xPosts.ifEmpty {
+            if (!canAccessGlobal) {
+                listOf(
+                    XPostItem(
+                        id = "XP_INIT_LOC_1",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "2s",
+                        authorName = localMedia.name,
+                        handle = localMedia.handle,
+                        category = "GAZETECİ",
+                        isVerified = true,
+                        text = "🗞️ ${localMedia.city} SPOR | ${club.name} yeni sezon hazırlıklarında ${p.fullName} (#${p.kitNumber}) idman performansıyla hocanın gözüne girdi. Bu sezon ilk 11'in değişmezi olabilir.",
+                        likes = 340,
+                        reposts = 48
+                    ),
+                    XPostItem(
+                        id = "XP_INIT_LOC_2",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "4s",
+                        authorName = "Alt Ligler Günlüğü",
+                        handle = "@tff1lig_gunlugu",
+                        category = "YORUMCU",
+                        isVerified = true,
+                        text = "📊 ${club.leagueName} radarımızda: ${club.name} kadrosundaki ${p.primaryPosition.titleTr} ${p.fullName} dikkatle takip edilmesi gereken genç yeteneklerden biri.",
+                        likes = 215,
+                        reposts = 32
+                    ),
+                    XPostItem(
+                        id = "XP_INIT_LOC_3",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "6s",
+                        authorName = "${club.shortName} Tribün Sesi",
+                        handle = "@${club.shortName.lowercase()}_ruhu",
+                        category = "TARAFTAR",
+                        isVerified = false,
+                        text = "Bu sezon ${club.stadiumName} tribünlerinde ${p.kitName} tezahüratları yankılanacak! Maç gününü iple çekiyoruz! ⚽🔥",
+                        likes = 845,
+                        reposts = 94
+                    )
                 )
-            )
+            } else {
+                listOf(
+                    XPostItem(
+                        id = "XP_INIT_1",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "2s",
+                        authorName = "Fabrizio Romano",
+                        handle = "@FabrizioRomano",
+                        category = "GAZETECİ",
+                        isVerified = true,
+                        text = "🔎 ${club.name} Teknik Direktörü ${club.managerName}, yeni sezon öncesinde ${p.fullName} (#${p.kitNumber}) ile özel bir görüşme gerçekleştirdi. Genç oyuncunun idman temposu teknik heyetten tam not aldı. 🇹🇷✨",
+                        likes = 12_450,
+                        reposts = 1_280
+                    ),
+                    XPostItem(
+                        id = "XP_INIT_2",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "4s",
+                        authorName = "Sports Digitale",
+                        handle = "@SportsDigitale",
+                        category = "YORUMCU",
+                        isVerified = true,
+                        text = "📊 ÖZEL ANALİZ | ${club.name} bu sezon ${club.managerTacticalStyle} sistemiyle sahada olacak. ${p.primaryPosition.titleTr} bölgesinde ${p.fullName} (OVR ${p.overallRating} -> POT ${p.potential}) takımın kilit ismi olabilir.",
+                        likes = 3_840,
+                        reposts = 412
+                    ),
+                    XPostItem(
+                        id = "XP_INIT_3",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "5s",
+                        authorName = "OptaCan",
+                        handle = "@OptaCan",
+                        category = "YORUMCU",
+                        isVerified = true,
+                        text = "${p.kitNumber} - ${club.name} formasıyla yeni sezona hazırlanan ${p.fullName}, antrenman maçlarında %88 pas isabeti ve yüksek hücum presiyle dikkat çekti. Vizyon.",
+                        likes = 2_190,
+                        reposts = 215
+                    ),
+                    XPostItem(
+                        id = "XP_INIT_4",
+                        dayIndex = state.currentDayIndex,
+                        dateLabel = "6s",
+                        authorName = "${club.shortName} Ruhu",
+                        handle = "@${club.shortName.lowercase()}_ruhu",
+                        category = "TARAFTAR",
+                        isVerified = false,
+                        text = "Bu sezon ${club.stadiumName} tribünlerinde ${p.kitName} tezahüratları yankılanacak! Maç gününü iple çekiyoruz! ⚽🔥",
+                        likes = 845,
+                        reposts = 94
+                    )
+                )
+            }
+        }
+        val xPosts = if (!canAccessGlobal) {
+            com.example.engine.social.SocialRealismEngine.filterRealismXFeed(rawXPosts, state)
+        } else {
+            rawXPosts
         }
 
         // Enrich WhatsApp NPCs with Team Group Chat and Journalist if not present
@@ -2888,30 +3061,39 @@ object CareerEngine {
             )
         }
         if (enrichedNpcs.none { it.id == "NPC_PRESS" }) {
+            val pressName = if (!canAccessGlobal) localMedia.name else "Yağız Sabuncuoğlu"
+            val pressRole = if (!canAccessGlobal) "Yerel Spor Muhabiri" else "Spor Gazetecisi"
+            val pressAvatar = if (!canAccessGlobal) localMedia.avatarHex else "#1D9BF0"
+            val pressPersonality = if (!canAccessGlobal) "${localMedia.city} Yerel Basın" else "Özel Haber & Transfer Kulis"
+            val pressMsg = if (!canAccessGlobal) {
+                "Selam ${p.firstName}, ${localMedia.name} olarak yeni transferini manşete taşıdık. İlk maç öncesi kısa bir röportaj yapabilir miyiz? 🗞️📸"
+            } else {
+                "Selam ${p.firstName}, yeni sezonun hayırlı olsun. ${club.name} taraftarı seni çok merak ediyor, ilk maç öncesi kısa bir değerlendirmen olur mu?"
+            }
             enrichedNpcs.add(
                 NpcCharacter(
                     id = "NPC_PRESS",
-                    name = "Yağız Sabuncuoğlu",
-                    roleTitle = "Spor Gazetecisi",
-                    avatarColorHex = "#1D9BF0",
-                    personality = "Özel Haber & Transfer Kulis",
+                    name = pressName,
+                    roleTitle = pressRole,
+                    avatarColorHex = pressAvatar,
+                    personality = pressPersonality,
                     affinity = 58,
                     trust = 60,
                     currentMood = "Meraklı",
                     shortTermGoal = "Özel röportaj ve kulis bilgisi almak",
-                    longTermGoal = "Transfer gelişmelerini ilk duyuran olmak",
-                    importantMemories = listOf("Numaranı menajerin üzerinden aldı."),
+                    longTermGoal = if (!canAccessGlobal) "Yerel basında haber yapmak" else "Transfer gelişmelerini ilk duyuran olmak",
+                    importantMemories = listOf(if (!canAccessGlobal) "Numaranı kulüp medya sorumlusundan aldı." else "Numaranı menajerin üzerinden aldı."),
                     quickReplyOptions = listOf(
                         "Şu an sadece kulübümün başarısına odaklandım.",
                         "Hedefim bu sezon çift haneli skora ulaşmak.",
-                        "Avrupa hedefim var ama önce burada şampiyonluk yaşamak istiyorum."
+                        "Tüm şehre kendimi kanıtlamak istiyorum."
                     ),
                     messages = listOf(
                         ChatMessage(
                             id = "MSG_PRS_1",
-                            senderName = "Yağız Sabuncuoğlu",
+                            senderName = pressName,
                             isFromUser = false,
-                            text = "Selam ${p.firstName}, yeni sezonun hayırlı olsun. ${club.name} taraftarı seni çok merak ediyor, ilk maç öncesi kısa bir değerlendirmen olur mu?",
+                            text = pressMsg,
                             dayIndex = 1,
                             timeLabel = "12:15",
                             emotionTag = "Basın"
@@ -2923,115 +3105,127 @@ object CareerEngine {
         }
 
         // Enrich Instagram Direct (DM) Threads & Pending Message Requests ("İstekler")
-        val instaDms = state.instaDmThreads.ifEmpty {
-            listOf(
-                InstaDmThread(
-                    id = "IDM_ARDA",
-                    senderName = "Arda Güler",
-                    senderHandle = "@ardaguler",
-                    senderRole = "Real Madrid • Milli Futbolcu",
-                    avatarHex = "#F59E0B",
-                    isVerified = true,
-                    followersLabel = "14,8M takipçi",
-                    isPendingRequest = false,
-                    unreadCount = 1,
-                    messages = listOf(
-                        ChatMessage(
-                            id = "IDM_MSG_ARDA_1",
-                            senderName = "Arda Güler",
-                            isFromUser = false,
-                            text = "Kardeşim yeni sezonun hayırlı olsun! ${club.name} formasıyla gollerini bekliyorum, sahada başarılar 🇹🇷⚽🔥",
-                            dayIndex = 1,
-                            timeLabel = "10:30"
+        val sanitizedExistingDms = if (!canAccessGlobal) {
+            state.instaDmThreads.filter { th ->
+                com.example.engine.social.SocialRealismEngine.isHandleAllowedToMessageUser(th.senderHandle, state)
+            }
+        } else {
+            state.instaDmThreads
+        }
+
+        val instaDms = sanitizedExistingDms.ifEmpty {
+            if (!canAccessGlobal) {
+                com.example.engine.social.SocialRealismEngine.generateLowerTierDmPool(state, 1)
+            } else {
+                listOf(
+                    InstaDmThread(
+                        id = "IDM_ARDA",
+                        senderName = "Arda Güler",
+                        senderHandle = "@ardaguler",
+                        senderRole = "Real Madrid • Milli Futbolcu",
+                        avatarHex = "#F59E0B",
+                        isVerified = true,
+                        followersLabel = "14,8M takipçi",
+                        isPendingRequest = false,
+                        unreadCount = 1,
+                        messages = listOf(
+                            ChatMessage(
+                                id = "IDM_MSG_ARDA_1",
+                                senderName = "Arda Güler",
+                                isFromUser = false,
+                                text = "Kardeşim yeni sezonun hayırlı olsun! ${club.name} formasıyla gollerini bekliyorum, sahada başarılar 🇹🇷⚽🔥",
+                                dayIndex = 1,
+                                timeLabel = "10:30"
+                            )
                         )
-                    )
-                ),
-                InstaDmThread(
-                    id = "IDM_CLUB_MEDIA",
-                    senderName = "${club.name} Medya",
-                    senderHandle = "@${club.shortName.lowercase()}resmi",
-                    senderRole = "Resmi Kulüp Hesabı",
-                    avatarHex = club.primaryColorHex,
-                    isVerified = true,
-                    followersLabel = "485B takipçi",
-                    isPendingRequest = false,
-                    unreadCount = 0,
-                    messages = listOf(
-                        ChatMessage(
-                            id = "IDM_MSG_CLB_1",
-                            senderName = "${club.name} Medya",
-                            isFromUser = false,
-                            text = "Hoş geldin ${p.firstName}! Maç ve antrenman fotoğraflarını buradan da etiketleyerek paylaşabilirsin 📸",
-                            dayIndex = 1,
-                            timeLabel = "09:15"
+                    ),
+                    InstaDmThread(
+                        id = "IDM_CLUB_MEDIA",
+                        senderName = "${club.name} Medya",
+                        senderHandle = "@${club.shortName.lowercase()}resmi",
+                        senderRole = "Resmi Kulüp Hesabı",
+                        avatarHex = club.primaryColorHex,
+                        isVerified = true,
+                        followersLabel = "485B takipçi",
+                        isPendingRequest = false,
+                        unreadCount = 0,
+                        messages = listOf(
+                            ChatMessage(
+                                id = "IDM_MSG_CLB_1",
+                                senderName = "${club.name} Medya",
+                                isFromUser = false,
+                                text = "Hoş geldin ${p.firstName}! Maç ve antrenman fotoğraflarını buradan da etiketleyerek paylaşabilirsin 📸",
+                                dayIndex = 1,
+                                timeLabel = "09:15"
+                            )
                         )
-                    )
-                ),
-                // PENDING MESSAGE REQUESTS ("İstekler" tab in Instagram Direct!)
-                InstaDmThread(
-                    id = "IDM_REQ_NIKE",
-                    senderName = "Nike Football Türkiye",
-                    senderHandle = "@niketurkiye",
-                    senderRole = "Resmi Marka Sponsorluğu",
-                    avatarHex = "#111827",
-                    isVerified = true,
-                    followersLabel = "2,4M takipçi",
-                    isPendingRequest = true,
-                    unreadCount = 1,
-                    messages = listOf(
-                        ChatMessage(
-                            id = "IDM_MSG_NIKE_1",
-                            senderName = "Nike Football Türkiye",
-                            isFromUser = false,
-                            text = "Merhaba ${p.fullName}! Yeni sezon yükselişini yakından takip ediyoruz. Mercurial serisi krampon sponsorluğu ve ortak tanıtım için seninle iletişime geçmek istedik 👟⚡",
-                            dayIndex = 1,
-                            timeLabel = "11:20"
+                    ),
+                    // PENDING MESSAGE REQUESTS ("İstekler" tab in Instagram Direct!)
+                    InstaDmThread(
+                        id = "IDM_REQ_NIKE",
+                        senderName = "Nike Football Türkiye",
+                        senderHandle = "@niketurkiye",
+                        senderRole = "Resmi Marka Sponsorluğu",
+                        avatarHex = "#111827",
+                        isVerified = true,
+                        followersLabel = "2,4M takipçi",
+                        isPendingRequest = true,
+                        unreadCount = 1,
+                        messages = listOf(
+                            ChatMessage(
+                                id = "IDM_MSG_NIKE_1",
+                                senderName = "Nike Football Türkiye",
+                                isFromUser = false,
+                                text = "Merhaba ${p.fullName}! Yeni sezon yükselişini yakından takip ediyoruz. Mercurial serisi krampon sponsorluğu ve ortak tanıtım için seninle iletişime geçmek istedik 👟⚡",
+                                dayIndex = 1,
+                                timeLabel = "11:20"
+                            )
                         )
-                    )
-                ),
-                InstaDmThread(
-                    id = "IDM_REQ_INFLUENCER",
-                    senderName = "Elvin Yıldırım",
-                    senderHandle = "@elvinyildirim",
-                    senderRole = "Moda & Dijital İçerik Üreticisi",
-                    avatarHex = "#E1306C",
-                    isVerified = true,
-                    followersLabel = "420B takipçi",
-                    isPendingRequest = true,
-                    unreadCount = 1,
-                    messages = listOf(
-                        ChatMessage(
-                            id = "IDM_MSG_ELV_1",
-                            senderName = "Elvin Yıldırım",
-                            isFromUser = false,
-                            text = "Selam ${p.firstName}! ✨ ${club.stadiumName}'daki imza gününde çok karizmatik görünüyordun. Müsait bir akşam kahve içip tanışmak ister misin? ☕😊",
-                            dayIndex = 1,
-                            timeLabel = "12:05"
+                    ),
+                    InstaDmThread(
+                        id = "IDM_REQ_INFLUENCER",
+                        senderName = "Elvin Yıldırım",
+                        senderHandle = "@elvinyildirim",
+                        senderRole = "Moda & Dijital İçerik Üreticisi",
+                        avatarHex = "#E1306C",
+                        isVerified = true,
+                        followersLabel = "420B takipçi",
+                        isPendingRequest = true,
+                        unreadCount = 1,
+                        messages = listOf(
+                            ChatMessage(
+                                id = "IDM_MSG_ELV_1",
+                                senderName = "Elvin Yıldırım",
+                                isFromUser = false,
+                                text = "Selam ${p.firstName}! ✨ ${club.stadiumName}'daki imza gününde çok karizmatik görünüyordun. Müsait bir akşam kahve içip tanışmak ister misin? ☕😊",
+                                dayIndex = 1,
+                                timeLabel = "12:05"
+                            )
                         )
-                    )
-                ),
-                InstaDmThread(
-                    id = "IDM_REQ_FABRIZIO",
-                    senderName = "Fabrizio Romano",
-                    senderHandle = "@fabrizioromano",
-                    senderRole = "Futbol Gazetecisi",
-                    avatarHex = "#1D9BF0",
-                    isVerified = true,
-                    followersLabel = "32,5M takipçi",
-                    isPendingRequest = true,
-                    unreadCount = 1,
-                    messages = listOf(
-                        ChatMessage(
-                            id = "IDM_MSG_FAB_1",
-                            senderName = "Fabrizio Romano",
-                            isFromUser = false,
-                            text = "Hi ${p.firstName}! 🇮🇹⚽ Avrupa scoutları seni soruyor. Kariyer hedeflerinle ilgili özel bir DM röportajı yapmak isterim. Here we go!",
-                            dayIndex = 1,
-                            timeLabel = "12:40"
+                    ),
+                    InstaDmThread(
+                        id = "IDM_REQ_FABRIZIO",
+                        senderName = "Fabrizio Romano",
+                        senderHandle = "@fabrizioromano",
+                        senderRole = "Futbol Gazetecisi",
+                        avatarHex = "#1D9BF0",
+                        isVerified = true,
+                        followersLabel = "32,5M takipçi",
+                        isPendingRequest = true,
+                        unreadCount = 1,
+                        messages = listOf(
+                            ChatMessage(
+                                id = "IDM_MSG_FAB_1",
+                                senderName = "Fabrizio Romano",
+                                isFromUser = false,
+                                text = "Hi ${p.firstName}! 🇮🇹⚽ Avrupa scoutları seni soruyor. Kariyer hedeflerinle ilgili özel bir DM röportajı yapmak isterim. Here we go!",
+                                dayIndex = 1,
+                                timeLabel = "12:40"
+                            )
                         )
                     )
                 )
-            )
+            }
         }
 
         val gallery = state.galleryPhotos.ifEmpty {
@@ -3102,16 +3296,34 @@ object CareerEngine {
             )
         }
 
+        val finalSocialPosts = if (!canAccessGlobal) {
+            com.example.engine.social.SocialRealismEngine.filterRealismInstaFeed(enrichedSocialPosts, state)
+        } else {
+            enrichedSocialPosts
+        }
+
+        val finalStories = if (!canAccessGlobal) {
+            com.example.engine.social.SocialRealismEngine.filterRealismStories(stories, state)
+        } else {
+            stories
+        }
+
+        val finalXPosts = if (!canAccessGlobal) {
+            com.example.engine.social.SocialRealismEngine.filterRealismXFeed(xPosts, state)
+        } else {
+            xPosts
+        }
+
         return state.copy(
             saveVersion = 3,
             npcs = enrichedNpcs,
-            socialPosts = enrichedSocialPosts,
+            socialPosts = finalSocialPosts,
             marketValueHistory = marketHistory,
             transferHistory = transferHist,
             attributeHistory = attrHistory,
             achievements = achievements,
-            stories = stories,
-            xPosts = xPosts,
+            stories = finalStories,
+            xPosts = finalXPosts,
             galleryPhotos = gallery,
             callRecords = calls,
             instaDmThreads = instaDms
@@ -3258,71 +3470,164 @@ object CareerEngine {
         club: Club,
         dayIndex: Int
     ): List<InstaDmThread> {
-        val candidatePool = listOf(
-            InstaDmThread(
-                id = "IDM_REQ_PUMA_D$dayIndex",
-                senderName = "PUMA Football",
-                senderHandle = "@pumafootball",
-                senderRole = "Global Spor Markası",
-                avatarHex = "#10B981",
-                isVerified = true,
-                followersLabel = "8,1M takipçi",
-                isPendingRequest = true,
-                unreadCount = 1,
-                messages = listOf(
-                    ChatMessage(
-                        id = "IDM_PUMA_M1_$dayIndex",
-                        senderName = "PUMA Football",
-                        isFromUser = false,
-                        text = "Selam ${player.firstName}! 🐆 Sahadaki hızın ve tekniğin PUMA Future serisiyle tam uyumlu. Özel lansman davetimiz için DM'den dönüşünü bekliyoruz!",
-                        dayIndex = dayIndex,
-                        timeLabel = "19:30"
+        val isLower = com.example.engine.social.SocialRealismEngine.isLowerTier(club.leagueId)
+        val hasNationalHonor = player.nationalTeamCaps > 0 || player.nationalTeamGoals > 0
+
+        val candidatePool = if (isLower && !hasNationalHonor) {
+            val localMedia = com.example.engine.social.SocialRealismEngine.resolveLocalMediaForClub(club)
+            listOf(
+                InstaDmThread(
+                    id = "IDM_REQ_LOCAL_JOURNALIST_$dayIndex",
+                    senderName = localMedia.name,
+                    senderHandle = localMedia.handle,
+                    senderRole = "Yerel Spor Muhabiri",
+                    avatarHex = localMedia.avatarHex,
+                    isVerified = false,
+                    followersLabel = "${localMedia.followersText} takipçi",
+                    isPendingRequest = true,
+                    unreadCount = 1,
+                    messages = listOf(
+                        ChatMessage(
+                            id = "IDM_LOC_J_$dayIndex",
+                            senderName = localMedia.name,
+                            isFromUser = false,
+                            text = "Selam ${player.firstName}! ${localMedia.city} Spor Postası olarak dünkü mücadeleci oyununu çok beğendik. Haftalık yerel gazetemizin 'Haftanın Genç Yeteneği' köşesi için kısa bir röportaj yapabilir miyiz? 🗞️📸",
+                            dayIndex = dayIndex,
+                            timeLabel = "18:40"
+                        )
                     )
-                )
-            ),
-            InstaDmThread(
-                id = "IDM_REQ_SCOUT_D$dayIndex",
-                senderName = "Marco Rossi (UEFA Scout)",
-                senderHandle = "@marcorossi_scout",
-                senderRole = "Avrupa Yetenek Avcısı",
-                avatarHex = "#6366F1",
-                isVerified = true,
-                followersLabel = "94B takipçi",
-                isPendingRequest = true,
-                unreadCount = 1,
-                messages = listOf(
-                    ChatMessage(
-                        id = "IDM_SCT_M1_$dayIndex",
-                        senderName = "Marco Rossi",
-                        isFromUser = false,
-                        text = "Ciao ${player.firstName}! ${club.name} maçındaki son performans raporunu inceledim. Serie A ve La Liga kulüpleri için radarımızdasın 👀⚽",
-                        dayIndex = dayIndex,
-                        timeLabel = "19:45"
+                ),
+                InstaDmThread(
+                    id = "IDM_REQ_AMIGO_$dayIndex",
+                    senderName = "Amigo Murat (${club.shortName})",
+                    senderHandle = "@amigo_murat_${club.shortName.lowercase()}",
+                    senderRole = "Tribün Lideri",
+                    avatarHex = club.primaryColorHex,
+                    isVerified = false,
+                    followersLabel = "4,2B takipçi",
+                    isPendingRequest = true,
+                    unreadCount = 1,
+                    messages = listOf(
+                        ChatMessage(
+                            id = "IDM_AMG_M1_$dayIndex",
+                            senderName = "Amigo Murat",
+                            isFromUser = false,
+                            text = "Koçum benim! 🧣 Dün sahada formanın hakkını verdin, tribünden senin adını haykırdık. Yarınki idmandan sonra tesislerde tatlı ikram edeceğiz, sakın disiplini bozma! 🔥⚽",
+                            dayIndex = dayIndex,
+                            timeLabel = "19:15"
+                        )
                     )
-                )
-            ),
-            InstaDmThread(
-                id = "IDM_REQ_CELEB_D$dayIndex",
-                senderName = "Selin Derin",
-                senderHandle = "@selinderin_official",
-                senderRole = "Oyuncu & Sunucu",
-                avatarHex = "#EC4899",
-                isVerified = true,
-                followersLabel = "1,1M takipçi",
-                isPendingRequest = true,
-                unreadCount = 1,
-                messages = listOf(
-                    ChatMessage(
-                        id = "IDM_CEL_M1_$dayIndex",
-                        senderName = "Selin Derin",
-                        isFromUser = false,
-                        text = "Selam ${player.firstName}! 🌟 Spor ödülleri gecesinde seninle de tanışmak çok isterim, başarıların daim olsun!",
-                        dayIndex = dayIndex,
-                        timeLabel = "20:00"
+                ),
+                InstaDmThread(
+                    id = "IDM_REQ_LOWER_SCOUT_$dayIndex",
+                    senderName = "Hasan Hoca (TFF Alt Lig Scoutu)",
+                    senderHandle = "@hasan_tff_scout",
+                    senderRole = "Alt Lig Yetenek Avcısı",
+                    avatarHex = "#0D9488",
+                    isVerified = true,
+                    followersLabel = "12,4B takipçi",
+                    isPendingRequest = true,
+                    unreadCount = 1,
+                    messages = listOf(
+                        ChatMessage(
+                            id = "IDM_SCT_ALT_$dayIndex",
+                            senderName = "Hasan Hoca",
+                            isFromUser = false,
+                            text = "Tebrikler ${player.firstName}. ${club.name} maçındaki pozisyon bilgin ve top tekniğin dikkat çekiciydi. Üst lig kulüpleri için hazırladığım rapora notunu aldım, aynen devam! 📋⚽",
+                            dayIndex = dayIndex,
+                            timeLabel = "20:10"
+                        )
+                    )
+                ),
+                InstaDmThread(
+                    id = "IDM_REQ_LOCAL_FRIEND_$dayIndex",
+                    senderName = "Mahalleden Emre",
+                    senderHandle = "@emre_mahalle",
+                    senderRole = "Liseden Arkadaşı",
+                    avatarHex = "#F59E0B",
+                    isVerified = false,
+                    followersLabel = "620 takipçi",
+                    isPendingRequest = true,
+                    unreadCount = 1,
+                    messages = listOf(
+                        ChatMessage(
+                            id = "IDM_LOC_FR_$dayIndex",
+                            senderName = "Mahalleden Emre",
+                            isFromUser = false,
+                            text = "Helal olsun ${player.firstName}! Maçın özetini televizyondan izledik, mahalleli gurur duydu seninle! Akşam çay ocağına bekliyoruz ☕⚽",
+                            dayIndex = dayIndex,
+                            timeLabel = "21:00"
+                        )
                     )
                 )
             )
-        )
+        } else {
+            listOf(
+                InstaDmThread(
+                    id = "IDM_REQ_PUMA_D$dayIndex",
+                    senderName = "PUMA Football",
+                    senderHandle = "@pumafootball",
+                    senderRole = "Global Spor Markası",
+                    avatarHex = "#10B981",
+                    isVerified = true,
+                    followersLabel = "8,1M takipçi",
+                    isPendingRequest = true,
+                    unreadCount = 1,
+                    messages = listOf(
+                        ChatMessage(
+                            id = "IDM_PUMA_M1_$dayIndex",
+                            senderName = "PUMA Football",
+                            isFromUser = false,
+                            text = "Selam ${player.firstName}! 🐆 Sahadaki hızın ve tekniğin PUMA Future serisiyle tam uyumlu. Özel lansman davetimiz için DM'den dönüşünü bekliyoruz!",
+                            dayIndex = dayIndex,
+                            timeLabel = "19:30"
+                        )
+                    )
+                ),
+                InstaDmThread(
+                    id = "IDM_REQ_SCOUT_D$dayIndex",
+                    senderName = "Marco Rossi (UEFA Scout)",
+                    senderHandle = "@marcorossi_scout",
+                    senderRole = "Avrupa Yetenek Avcısı",
+                    avatarHex = "#6366F1",
+                    isVerified = true,
+                    followersLabel = "94B takipçi",
+                    isPendingRequest = true,
+                    unreadCount = 1,
+                    messages = listOf(
+                        ChatMessage(
+                            id = "IDM_SCT_M1_$dayIndex",
+                            senderName = "Marco Rossi",
+                            isFromUser = false,
+                            text = "Ciao ${player.firstName}! ${club.name} maçındaki son performans raporunu inceledim. Serie A ve La Liga kulüpleri için radarımızdasın 👀⚽",
+                            dayIndex = dayIndex,
+                            timeLabel = "19:45"
+                        )
+                    )
+                ),
+                InstaDmThread(
+                    id = "IDM_REQ_CELEB_D$dayIndex",
+                    senderName = "Selin Derin",
+                    senderHandle = "@selinderin_official",
+                    senderRole = "Oyuncu & Sunucu",
+                    avatarHex = "#EC4899",
+                    isVerified = true,
+                    followersLabel = "1,1M takipçi",
+                    isPendingRequest = true,
+                    unreadCount = 1,
+                    messages = listOf(
+                        ChatMessage(
+                            id = "IDM_CEL_M1_$dayIndex",
+                            senderName = "Selin Derin",
+                            isFromUser = false,
+                            text = "Selam ${player.firstName}! 🌟 Spor ödülleri gecesinde seninle de tanışmak çok isterim, başarıların daim olsun!",
+                            dayIndex = dayIndex,
+                            timeLabel = "20:00"
+                        )
+                    )
+                )
+            )
+        }
         val pick = candidatePool[dayIndex % candidatePool.size]
         if (currentThreads.any { it.senderHandle == pick.senderHandle }) return currentThreads
         return listOf(pick) + currentThreads

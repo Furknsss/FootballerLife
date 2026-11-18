@@ -154,6 +154,7 @@ data class PlayerProfile(
     val activeCleatBrand: String = "Standart",
     val activeCleatModel: String = "Klasik Deri",
     val activeCleatBonusStat: String = "",
+    val activeCleatColorHex: String = "#FFFFFF",
     val activeSponsorshipBonusEur: Long = 0L,
     val trophyCabinet: List<String> = emptyList(),
     val romanticPartnerName: String? = null,
