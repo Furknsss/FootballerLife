@@ -442,7 +442,7 @@ object CareerEngine {
      * so on Day 1 the user arrives at the training ground, trains, gets family message,
      * and on Day 2 the first match squad is announced and played!
      */
-    private fun generateLeagueSchedule(leagueId: String, clubs: List<Club>): List<LeagueFixture> {
+    fun generateLeagueSchedule(leagueId: String, clubs: List<Club>): List<LeagueFixture> {
         val n = clubs.size
         if (n < 2) return emptyList()
         val fixtures = mutableListOf<LeagueFixture>()
@@ -452,7 +452,7 @@ object CareerEngine {
 
         for (round in 0 until roundsFirstHalf * 2) {
             val weekNumber = round + 1
-            val matchDayIndex = 2 + round * 3 // Day 2, 5, 8, 11, 14...
+            val matchDayIndex = 2 + round * 7 // Weekly schedule (Day 2, 9, 16, 23...) spanning the full 38-week season
             val dateLabel = formatGameDate(matchDayIndex)
             val isSecondHalf = round >= roundsFirstHalf
 
@@ -667,20 +667,25 @@ object CareerEngine {
         )
     }
 
-    private fun buildCalendarFromFixtures(
+    fun buildCalendarFromFixtures(
         fixtures: List<LeagueFixture>,
-        userClubId: String
+        userClubId: String,
+        seasonYear: Int = 2026
     ): List<CalendarEvent> {
         val events = mutableListOf<CalendarEvent>()
         val userFixtures = fixtures.filter { it.homeClubId == userClubId || it.awayClubId == userClubId }
+        val maxFixtureDay = fixtures.maxOfOrNull { it.dayIndex } ?: 270
+        val totalDays = maxOf(300, maxFixtureDay + 14)
 
-        for (day in 1..45) {
-            val dateLabel = formatGameDate(day)
+        for (day in 1..totalDays) {
+            val dateLabel = formatGameDate(day, seasonYear)
             val matchOnDay = userFixtures.find { it.dayIndex == day }
             if (matchOnDay != null) {
                 val isHome = matchOnDay.homeClubId == userClubId
                 val opponentName = if (isHome) matchOnDay.awayClubName else matchOnDay.homeClubName
                 val venueTag = if (isHome) "İç Saha (${matchOnDay.stadiumName})" else "Deplasman (${matchOnDay.stadiumName})"
+                val matchType = if (matchOnDay.isCupMatch) "KUPA MAÇI" else "LİG MAÇI"
+                val prefix = if (matchOnDay.isCupMatch) "Kupa Turu" else "Hafta ${matchOnDay.week}"
                 events.add(
                     CalendarEvent(
                         id = "CAL_MATCH_${matchOnDay.id}",
@@ -689,8 +694,8 @@ object CareerEngine {
                         timeLabel = matchOnDay.kickOffTime,
                         location = venueTag,
                         eventType = "MAÇ",
-                        title = "Hafta ${matchOnDay.week}: ${matchOnDay.homeClubName} vs ${matchOnDay.awayClubName}",
-                        description = "Rakip: $opponentName • $venueTag",
+                        title = "$prefix: ${matchOnDay.homeClubName} vs ${matchOnDay.awayClubName}",
+                        description = "$matchType • Rakip: $opponentName • $venueTag",
                         opponentClubId = if (isHome) matchOnDay.awayClubId else matchOnDay.homeClubId,
                         fixtureId = matchOnDay.id,
                         completed = matchOnDay.played
@@ -698,32 +703,78 @@ object CareerEngine {
                 )
             } else {
                 val nextMatch = userFixtures.find { it.dayIndex == day + 1 }
-                if (nextMatch != null) {
-                    events.add(
-                        CalendarEvent(
-                            id = "CAL_TACTIC_$day",
-                            dayIndex = day,
-                            dateLabel = dateLabel,
-                            timeLabel = "15:00",
-                            location = "Kulüp Tesisleri",
-                            eventType = "ANTRENMAN",
-                            title = "Maç Öncesi Taktik Prova & Kadro Açıklaması",
-                            description = "Yarınki ${nextMatch.homeClubName} - ${nextMatch.awayClubName} maçı öncesi son idman."
+                val prevMatch = userFixtures.find { it.dayIndex == day - 1 }
+                when {
+                    nextMatch != null -> {
+                        events.add(
+                            CalendarEvent(
+                                id = "CAL_TACTIC_$day",
+                                dayIndex = day,
+                                dateLabel = dateLabel,
+                                timeLabel = "15:00",
+                                location = "Kulüp Tesisleri",
+                                eventType = "ANTRENMAN",
+                                title = "Maç Öncesi Taktik Prova & Kadro Açıklaması",
+                                description = "Yarınki ${nextMatch.homeClubName} - ${nextMatch.awayClubName} maçı öncesi son idman."
+                            )
                         )
-                    )
-                } else {
-                    events.add(
-                        CalendarEvent(
-                            id = "CAL_TRAIN_$day",
-                            dayIndex = day,
-                            dateLabel = dateLabel,
-                            timeLabel = "11:00",
-                            location = "Kulüp Antrenman Sahası",
-                            eventType = "ANTRENMAN",
-                            title = "Gelişim Antrenmanı & Kondisyon",
-                            description = "Bireysel ve takım gelişim programı."
+                    }
+                    prevMatch != null -> {
+                        events.add(
+                            CalendarEvent(
+                                id = "CAL_REGEN_$day",
+                                dayIndex = day,
+                                dateLabel = dateLabel,
+                                timeLabel = "11:00",
+                                location = "Kulüp Tesisleri & Havuz",
+                                eventType = "DİNLENME",
+                                title = "Maç Sonu Yenilenme & Rejenerasyon",
+                                description = "Dünkü zorlu maç sonrası hafif koşu, masaj ve taktik analiz toplantısı."
+                            )
                         )
-                    )
+                    }
+                    day > maxFixtureDay -> {
+                        events.add(
+                            CalendarEvent(
+                                id = "CAL_SEASON_END_$day",
+                                dayIndex = day,
+                                dateLabel = dateLabel,
+                                timeLabel = "14:00",
+                                location = "Kulüp Kongre Merkezi",
+                                eventType = "SOSYAL",
+                                title = if (day == maxFixtureDay + 1) "Sezon Sonu Değerlendirmesi" else "Yıl Sonu Kupa & Ödül Töreni",
+                                description = "Sezon tamamlandı. Gelecek sezon planlaması ve ödül töreni kutlamaları."
+                            )
+                        )
+                    }
+                    day % 7 == 0 -> {
+                        events.add(
+                            CalendarEvent(
+                                id = "CAL_REST_$day",
+                                dayIndex = day,
+                                dateLabel = dateLabel,
+                                timeLabel = "12:00",
+                                location = "Kulüp Dinlenme Tesisi",
+                                eventType = "DİNLENME",
+                                title = "Haftalık Dinlenme & Bireysel Çalışma",
+                                description = "Kondisyoner eşliğinde hafif stretching ve zihinsel hazırlık."
+                            )
+                        )
+                    }
+                    else -> {
+                        events.add(
+                            CalendarEvent(
+                                id = "CAL_TRAIN_$day",
+                                dayIndex = day,
+                                dateLabel = dateLabel,
+                                timeLabel = "11:00",
+                                location = "Kulüp Antrenman Sahası",
+                                eventType = "ANTRENMAN",
+                                title = "Gelişim Antrenmanı & Kondisyon",
+                                description = "Bireysel ve takım gelişim programı."
+                            )
+                        )
+                    }
                 }
             }
         }

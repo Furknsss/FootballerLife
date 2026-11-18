@@ -138,7 +138,7 @@ fun PostMatchInterviewScreen(
     onSubmitPressStatement: (String, String) -> Unit = { _, _ -> },
     onPlaySfx: (GameSoundEffect) -> Unit = {},
     geminiApiKey: String? = null,
-    geminiModel: String = "gemini-2.5-flash",
+    geminiModel: String = "gemini-4-hydrogen",
     aiEnabled: Boolean = true,
     onContinueToCareerHub: () -> Unit
 ) {

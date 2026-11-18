@@ -79,6 +79,7 @@ import androidx.compose.ui.unit.sp
 import com.example.engine.LiveMatchUiState
 import com.example.engine.MatchPhase
 import com.example.engine.PitchPlayerNode
+import com.example.engine.PlayerVisualPose
 import com.example.engine.TacticalDecisionOption
 import com.example.engine.match.GestureActionKind
 import com.example.engine.match.GestureTrajectoryInput
@@ -214,12 +215,12 @@ fun InteractiveMatchScreen(
     // Smoothly animated camera zoom factor
     val perspectiveZoom by animateFloatAsState(
         targetValue = when (liveMatch.phase) {
-            MatchPhase.CRITICAL_DECISION -> 1.18f
-            MatchPhase.ACTION_RESOLUTION -> 1.12f
-            MatchPhase.GOAL_CELEBRATION -> 1.24f
+            MatchPhase.CRITICAL_DECISION -> liveMatch.cameraZoom.coerceIn(1.15f, 1.45f)
+            MatchPhase.ACTION_RESOLUTION -> (liveMatch.cameraZoom * 0.95f).coerceIn(1.08f, 1.36f)
+            MatchPhase.GOAL_CELEBRATION -> 1.28f
             else -> 1.0f
         },
-        animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing),
         label = "cameraZoom"
     )
     val currentZoom by rememberUpdatedState(perspectiveZoom)
@@ -1458,7 +1459,7 @@ private fun SoccerSuperstarPitchCanvas(
                         animTimeSec = animTimeSec
                     )
                 } else if (rawDrawnPoints.size >= 2) {
-                    // Draw subtle raw path while starting drag
+                    // Draw glowing raw path while starting drag
                     val rawPath = Path()
                     rawDrawnPoints.forEachIndexed { idx, pt ->
                         val proj = projectPitchToScreen(pt.x, pt.y, 0f, w, h, attackingRight, usePerspective)
@@ -1467,8 +1468,18 @@ private fun SoccerSuperstarPitchCanvas(
                     }
                     drawPath(
                         path = rawPath,
-                        color = AccentBright.copy(alpha = 0.7f),
-                        style = Stroke(width = 4f, cap = StrokeCap.Round)
+                        color = Color.White.copy(alpha = 0.90f),
+                        style = Stroke(width = 5f, cap = StrokeCap.Round)
+                    )
+                } else {
+                    // Animated 3D Gesture Hand Guide & Banana Curve Hint (Soccer Superstar Style - Photo 2)
+                    drawGestureGuideHandAndHint(
+                        matchState = matchState,
+                        w = w,
+                        h = h,
+                        attackingRight = attackingRight,
+                        usePerspective = usePerspective,
+                        animTimeSec = animTimeSec
                     )
                 }
             }
@@ -1579,64 +1590,211 @@ private fun DrawScope.drawPerspectiveStadiumAndPitch(
     matchState: LiveMatchUiState,
     animTimeSec: Float
 ) {
-    // 1. Stadium Crowd Stands & LED Ad Boards behind the attacking goal (top 16.5% of canvas)
-    val standHeight = h * 0.125f
+    val homeColor = parseHexColor(matchState.homeClub.primaryColorHex, Color(0xFFDC2626))
+    val awayColor = parseHexColor(matchState.awayClub.primaryColorHex, Color(0xFF2563EB))
+    val excitement = matchState.crowdExcitementLevel.coerceIn(0.2f, 1.0f)
+
+    // ============================================================================================
+    // 1. MULTI-TIERED PACKED STADIUM GRANDSTANDS & ATMOSPHERE (Top 16.5% of canvas - Photos 1 & 3)
+    // ============================================================================================
+    val standHeight = h * 0.165f
+
+    // Concrete bleachers tiered backdrop
     drawRect(
         brush = Brush.verticalGradient(
-            colors = listOf(Color(0xFF050C09), Color(0xFF0D1F18))
+            colors = listOf(
+                Color(0xFF091017),
+                Color(0xFF131D28),
+                Color(0xFF1E2B37)
+            )
         ),
         topLeft = Offset(0f, 0f),
         size = Size(w, standHeight)
     )
 
-    // Animated crowd dots cheering in the stands
-    val crowdRows = 4
-    val crowdCols = 28
-    val excitement = matchState.crowdExcitementLevel
-    for (r in 0 until crowdRows) {
-        for (c in 0 until crowdCols) {
-            val cx = (w / crowdCols) * (c + 0.5f)
-            val bounce = sin(animTimeSec * (4f + excitement * 5f) + c * 0.7f + r * 1.3f) * (2.5f * excitement)
-            val cy = (standHeight / (crowdRows + 1)) * (r + 1f) + bounce
-            val dotColor = when ((r + c) % 4) {
-                0 -> AccentBright.copy(alpha = 0.45f)
-                1 -> Color.White.copy(alpha = 0.35f)
-                2 -> ChampionshipGold.copy(alpha = 0.40f)
-                else -> Color(0xFF38BDF8).copy(alpha = 0.30f)
-            }
-            drawCircle(
-                color = dotColor,
-                radius = 2.8f,
-                center = Offset(cx, cy)
+    // Concrete tiered horizontal risers
+    val tierCount = 6
+    val tierH = standHeight / tierCount
+    for (t in 0 until tierCount) {
+        val ty = t * tierH
+        drawLine(
+            color = Color(0xFF334155).copy(alpha = 0.50f),
+            start = Offset(0f, ty),
+            end = Offset(w, ty),
+            strokeWidth = 1.2f
+        )
+    }
+
+    // 4 vertical concrete stair aisles dividing crowd bays
+    val aisleXs = listOf(w * 0.22f, w * 0.42f, w * 0.62f, w * 0.82f)
+    aisleXs.forEach { ax ->
+        drawRect(
+            color = Color(0xFF94A3B8).copy(alpha = 0.28f),
+            topLeft = Offset(ax - 6f, 0f),
+            size = Size(12f, standHeight)
+        )
+        for (t in 0 until tierCount) {
+            drawLine(
+                color = Color.White.copy(alpha = 0.45f),
+                start = Offset(ax - 5f, t * tierH + tierH * 0.5f),
+                end = Offset(ax + 5f, t * tierH + tierH * 0.5f),
+                strokeWidth = 1.0f
             )
         }
     }
 
-    // Stadium LED Advertising Ribbon just behind the goal line
-    val ledTop = h * 0.125f
-    val ledH = h * 0.032f
-    drawRoundRect(
+    // Densely packed spectators in color-blocked club bays
+    val crowdRows = 6
+    val crowdCols = 38
+    for (r in 0 until crowdRows) {
+        val ry = (standHeight / (crowdRows + 1)) * (r + 1f)
+        for (c in 0 until crowdCols) {
+            val cx = (w / crowdCols) * (c + 0.5f)
+            // Skip spectator if standing directly on an aisle
+            if (aisleXs.any { abs(it - cx) < 8f }) continue
+
+            val bounce = sin(animTimeSec * (3.5f + excitement * 5.2f) + c * 0.65f + r * 1.35f) * (2.8f * excitement)
+            val bay = when {
+                cx < w * 0.38f -> 0 // Home Fan Bay (Red / Maroon)
+                cx < w * 0.65f -> 1 // Neutral / VIP Bay (White / Gold / Emerald)
+                else -> 2           // Away / Rival Fan Bay (Blue / Navy)
+            }
+            val shirtColor = when (bay) {
+                0 -> if ((r + c) % 3 == 0) Color.White.copy(alpha = 0.85f) else homeColor.copy(alpha = 0.90f)
+                1 -> when ((r + c) % 4) {
+                    0 -> ChampionshipGold.copy(alpha = 0.85f)
+                    1 -> Color.White.copy(alpha = 0.85f)
+                    2 -> AccentBright.copy(alpha = 0.80f)
+                    else -> Color(0xFF38BDF8).copy(alpha = 0.80f)
+                }
+                else -> if ((r + c) % 3 == 0) Color.White.copy(alpha = 0.85f) else awayColor.copy(alpha = 0.90f)
+            }
+
+            // Spectator Torso
+            drawRect(
+                color = shirtColor,
+                topLeft = Offset(cx - 2.8f, ry + bounce),
+                size = Size(5.6f, 4.2f)
+            )
+            // Spectator Head
+            val skinColor = when ((c * 7 + r * 13) % 4) {
+                0 -> Color(0xFFF6D8B8)
+                1 -> Color(0xFFE0AC69)
+                2 -> Color(0xFF8D5524)
+                else -> Color(0xFFC68642)
+            }
+            drawCircle(
+                color = skinColor,
+                radius = 2.0f,
+                center = Offset(cx, ry + bounce - 2.4f)
+            )
+        }
+    }
+
+    // Animated Supporter Flags waving in both bays
+    val flagDefs = listOf(
+        Triple(w * 0.12f, standHeight * 0.35f, homeColor),
+        Triple(w * 0.28f, standHeight * 0.50f, homeColor),
+        Triple(w * 0.72f, standHeight * 0.40f, awayColor),
+        Triple(w * 0.90f, standHeight * 0.55f, awayColor)
+    )
+    flagDefs.forEach { (fx, fy, col) ->
+        val flagWave = sin(animTimeSec * 5.5f + fx) * 4f
+        drawLine(
+            color = Color.White.copy(alpha = 0.75f),
+            start = Offset(fx, fy + 12f),
+            end = Offset(fx, fy - 6f),
+            strokeWidth = 1.2f
+        )
+        val flagPath = Path().apply {
+            moveTo(fx, fy - 6f)
+            lineTo(fx + 14f + flagWave, fy - 3f)
+            lineTo(fx + 12f + flagWave, fy + 5f)
+            lineTo(fx, fy + 2f)
+            close()
+        }
+        drawPath(flagPath, color = col.copy(alpha = 0.88f))
+    }
+
+    // Camera flash bulbs popping randomly across the crowd
+    for (i in 0..4) {
+        val flashSeed = (animTimeSec * 4.2f + i * 1.9f).toInt()
+        val flashPhase = (animTimeSec * 4.2f + i * 1.9f) - flashSeed
+        if (flashPhase < 0.15f) {
+            val fx = ((flashSeed * 173) % 94) / 100f * w + w * 0.03f
+            val fy = ((flashSeed * 269) % 85) / 100f * standHeight + 4f
+            val flashAlpha = 1f - (flashPhase / 0.15f)
+            drawCircle(color = Color.White.copy(alpha = flashAlpha), radius = 4.5f, center = Offset(fx, fy))
+            drawLine(
+                color = Color.White.copy(alpha = flashAlpha * 0.8f),
+                start = Offset(fx - 7f, fy),
+                end = Offset(fx + 7f, fy),
+                strokeWidth = 1.2f
+            )
+        }
+    }
+
+    // TV Camera Broadcast Crane in the corner (Seen in Photos 1 & 3)
+    val craneX = w * 0.10f
+    val craneY = standHeight - 4f
+    // Tripod Base
+    drawLine(color = Color(0xFF1E293B), start = Offset(craneX, craneY), end = Offset(craneX - 10f, craneY + 12f), strokeWidth = 2.4f)
+    drawLine(color = Color(0xFF1E293B), start = Offset(craneX, craneY), end = Offset(craneX + 10f, craneY + 12f), strokeWidth = 2.4f)
+    drawLine(color = Color(0xFF334155), start = Offset(craneX, craneY), end = Offset(craneX, craneY - 14f), strokeWidth = 2.8f)
+    // Articulated Jib Arm
+    val armEndX = craneX + 22f
+    val armEndY = craneY - 26f
+    drawLine(color = Color(0xFFE2E8F0), start = Offset(craneX - 6f, craneY - 8f), end = Offset(armEndX, armEndY), strokeWidth = 2.0f)
+    // Counterweight
+    drawRect(color = Color(0xFFDC2626), topLeft = Offset(craneX - 10f, craneY - 11f), size = Size(6f, 6f))
+    // Camera Head & Lens Hood
+    drawRect(color = Color(0xFF0F172A), topLeft = Offset(armEndX - 2f, armEndY - 4f), size = Size(10f, 7f))
+    drawCircle(color = Color(0xFFEF4444), radius = 1.5f, center = Offset(armEndX + 8f, armEndY - 2f)) // Red Tally Light!
+
+    // Stadium Perimeter Digital LED Advertising Ribbon (Photos 1, 2, 3, 4)
+    val ledTop = standHeight - 2f
+    val ledH = h * 0.026f
+    drawRect(
         brush = Brush.horizontalGradient(
             colors = listOf(
-                Color(0xFF07281B),
-                Color(0xFF104932),
-                Color(0xFF07281B)
+                Color(0xFF02170E),
+                Color(0xFF063321),
+                Color(0xFF032215),
+                Color(0xFF063321),
+                Color(0xFF02170E)
             )
         ),
-        topLeft = Offset(w * 0.14f, ledTop),
-        size = Size(w * 0.72f, ledH),
-        cornerRadius = CornerRadius(4f, 4f)
+        topLeft = Offset(w * 0.08f, ledTop),
+        size = Size(w * 0.84f, ledH)
     )
+    // Glowing animated neon LED border
+    val ledBorderColor = when (((animTimeSec * 1.5f).toInt()) % 3) {
+        0 -> AccentBright
+        1 -> ChampionshipGold
+        else -> Color(0xFF38BDF8)
+    }
     drawRoundRect(
-        color = AccentBright.copy(alpha = 0.55f),
-        topLeft = Offset(w * 0.14f, ledTop),
-        size = Size(w * 0.72f, ledH),
-        cornerRadius = CornerRadius(4f, 4f),
-        style = Stroke(width = 1.5f)
+        color = ledBorderColor.copy(alpha = 0.85f),
+        topLeft = Offset(w * 0.08f, ledTop),
+        size = Size(w * 0.84f, ledH),
+        cornerRadius = CornerRadius(3f, 3f),
+        style = Stroke(width = 1.8f)
     )
+    // Subtle digital LED sponsor notches
+    for (b in 1..7) {
+        val bx = w * 0.08f + (w * 0.84f / 8f) * b
+        drawLine(
+            color = Color.White.copy(alpha = 0.45f),
+            start = Offset(bx, ledTop + 2f),
+            end = Offset(bx, ledTop + ledH - 2f),
+            strokeWidth = 1f
+        )
+    }
 
-    // 2. Trapezoidal Mowed Turf Bands (10 horizontal perspective bands from u=0 to u=1)
-    val bandCount = 10
+    // ============================================================================================
+    // 2. VIBRANT LUSH SOCCER TURF & PERSPECTIVE MOWING BANDS (Photos 1, 3, 4)
+    // ============================================================================================
+    val bandCount = 14
     val goalU = if (attackingRight) 100f else 0f
     val ownU = if (attackingRight) 0f else 100f
 
@@ -1658,20 +1816,31 @@ private fun DrawScope.drawPerspectiveStadiumAndPitch(
             lineTo(tl.screenX, tl.groundY)
             close()
         }
-        drawPath(
-            path = bandPath,
-            color = if (i % 2 == 0) Color(0xFF0C3B28) else Color(0xFF104832)
+        // Alternating vibrant fresh lawn shades matching the photos!
+        val grassColor = if (i % 2 == 0) Color(0xFF27913A) else Color(0xFF1E7A2E)
+        drawPath(path = bandPath, color = grassColor)
+
+        // Micro-mowing striation lines across turf bands for authentic pitch texture
+        val midY = (bl.groundY + tl.groundY) * 0.5f
+        val midLeftX = (bl.screenX + tl.screenX) * 0.5f
+        val midRightX = (br.screenX + tr.screenX) * 0.5f
+        drawLine(
+            color = Color.White.copy(alpha = 0.045f),
+            start = Offset(midLeftX, midY),
+            end = Offset(midRightX, midY),
+            strokeWidth = 1.0f
         )
     }
 
-    // 3. Perspective Pitch Boundary Lines, Halfway Line, Center Circle & Penalty Box
-    val lineColor = Color.White.copy(alpha = 0.82f)
-    val lineStroke = Stroke(width = 2.4f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+    // ============================================================================================
+    // 3. PERSPECTIVE PITCH BOUNDARY LINES & MARKINGS IN CRISP WHITE
+    // ============================================================================================
+    val lineColor = Color.White.copy(alpha = 0.88f)
 
-    fun drawPitchSegment(x1: Float, y1: Float, x2: Float, y2: Float, strokeW: Float = 2.4f, color: Color = lineColor) {
+    fun drawPitchSegment(x1: Float, y1: Float, x2: Float, y2: Float, strokeW: Float = 2.6f, color: Color = lineColor) {
         val p1 = projectPitchToScreen(x1, y1, 0f, w, h, attackingRight, true)
         val p2 = projectPitchToScreen(x2, y2, 0f, w, h, attackingRight, true)
-        drawLine(color = color, start = Offset(p1.screenX, p1.groundY), end = Offset(p2.screenX, p2.groundY), strokeWidth = strokeW)
+        drawLine(color = color, start = Offset(p1.screenX, p1.groundY), end = Offset(p2.screenX, p2.groundY), strokeWidth = strokeW, cap = StrokeCap.Round)
     }
 
     // Outer touchlines & goal lines
@@ -1680,10 +1849,10 @@ private fun DrawScope.drawPerspectiveStadiumAndPitch(
     drawPitchSegment(0f, 0f, 0f, 100f)
     drawPitchSegment(100f, 0f, 100f, 100f)
 
-    // Halfway line & perspective center oval
-    drawPitchSegment(50f, 0f, 50f, 100f, strokeW = 2f)
+    // Halfway line & perspective center circle
+    drawPitchSegment(50f, 0f, 50f, 100f, strokeW = 2.2f)
     val centerCirclePath = Path()
-    for (deg in 0..360 step 12) {
+    for (deg in 0..360 step 10) {
         val rad = deg * (PI / 180.0)
         val cx = 50f + cos(rad).toFloat() * 10f
         val cy = 50f + sin(rad).toFloat() * 14f
@@ -1691,9 +1860,9 @@ private fun DrawScope.drawPerspectiveStadiumAndPitch(
         if (deg == 0) centerCirclePath.moveTo(p.screenX, p.groundY)
         else centerCirclePath.lineTo(p.screenX, p.groundY)
     }
-    drawPath(centerCirclePath, color = lineColor, style = Stroke(width = 2f))
+    drawPath(centerCirclePath, color = lineColor, style = Stroke(width = 2.2f))
 
-    // Attacking Penalty Box (at top of perspective pitch)
+    // Attacking Penalty Box & Goalmouth (at top of perspective pitch)
     val attGoalX = if (attackingRight) 100f else 0f
     val attBoxEdgeX = if (attackingRight) 83f else 17f
     val attSixEdgeX = if (attackingRight) 94f else 6f
@@ -1711,7 +1880,7 @@ private fun DrawScope.drawPerspectiveStadiumAndPitch(
 
     // Penalty Spot
     val penSpotProj = projectPitchToScreen(attPenSpotX, 50f, 0f, w, h, attackingRight, true)
-    drawCircle(color = Color.White, radius = 3.5f, center = Offset(penSpotProj.screenX, penSpotProj.groundY))
+    drawCircle(color = Color.White, radius = 3.6f, center = Offset(penSpotProj.screenX, penSpotProj.groundY))
 
     // Penalty D-Arc
     val dArcPath = Path()
@@ -1726,6 +1895,12 @@ private fun DrawScope.drawPerspectiveStadiumAndPitch(
     }
     drawPath(dArcPath, color = lineColor, style = Stroke(width = 2.2f))
 
+    // Corner Arcs at Attacking Corners
+    val corner1 = projectPitchToScreen(attGoalX, 0f, 0f, w, h, attackingRight, true)
+    drawCircle(color = lineColor, radius = 9f * corner1.depthScale, center = Offset(corner1.screenX, corner1.groundY), style = Stroke(width = 2.0f))
+    val corner2 = projectPitchToScreen(attGoalX, 100f, 0f, w, h, attackingRight, true)
+    drawCircle(color = lineColor, radius = 9f * corner2.depthScale, center = Offset(corner2.screenX, corner2.groundY), style = Stroke(width = 2.0f))
+
     // Defending Penalty Box (at bottom of perspective pitch)
     val defGoalX = if (attackingRight) 0f else 100f
     val defBoxEdgeX = if (attackingRight) 17f else 83f
@@ -1733,98 +1908,140 @@ private fun DrawScope.drawPerspectiveStadiumAndPitch(
     drawPitchSegment(defGoalX, 79f, defBoxEdgeX, 79f, strokeW = 1.8f, color = lineColor.copy(alpha = 0.55f))
     drawPitchSegment(defBoxEdgeX, 21f, defBoxEdgeX, 79f, strokeW = 1.8f, color = lineColor.copy(alpha = 0.55f))
 
-    // 4. 3D Goalposts, Crossbar & Dynamic Netting at the Top Goal Line (y in 36.8..63.2, z in 0..48)
+    // ============================================================================================
+    // 4. 3D REALISTIC WHITE GOALPOSTS, CROSSBAR & VOLUMETRIC NET (Photos 1, 2, 3)
+    // ============================================================================================
     val leftPostBase = projectPitchToScreen(attGoalX, if (attackingRight) 36.8f else 63.2f, 0f, w, h, attackingRight, true)
     val rightPostBase = projectPitchToScreen(attGoalX, if (attackingRight) 63.2f else 36.8f, 0f, w, h, attackingRight, true)
     val leftPostTop = projectPitchToScreen(attGoalX, if (attackingRight) 36.8f else 63.2f, 48f, w, h, attackingRight, true)
     val rightPostTop = projectPitchToScreen(attGoalX, if (attackingRight) 63.2f else 36.8f, 48f, w, h, attackingRight, true)
 
-    val netDepthPx = h * 0.036f
+    val netDepthPx = h * 0.046f
     val netRipple = if (matchState.phase == MatchPhase.GOAL_CELEBRATION) {
-        sin(animTimeSec * 22f) * 5.5f
+        sin(animTimeSec * 22f) * 6.5f
     } else {
         0f
     }
 
+    // Top horizontal net support poles extending back
+    val rearLeftTop = Offset(leftPostTop.screenX + 4f, leftPostTop.screenY - netDepthPx * 0.42f)
+    val rearRightTop = Offset(rightPostTop.screenX - 4f, rightPostTop.screenY - netDepthPx * 0.42f)
+    val rearLeftBase = Offset(leftPostBase.screenX + 6f, leftPostBase.groundY - netDepthPx + netRipple)
+    val rearRightBase = Offset(rightPostBase.screenX - 6f, rightPostBase.groundY - netDepthPx + netRipple)
+
+    // Shaded interior volume inside the net (gives authentic 3D spatial depth!)
+    val netVolPath = Path().apply {
+        moveTo(leftPostTop.screenX, leftPostTop.screenY)
+        lineTo(rightPostTop.screenX, rightPostTop.screenY)
+        lineTo(rearRightBase.x, rearRightBase.y)
+        lineTo(rearLeftBase.x, rearLeftBase.y)
+        close()
+    }
+    drawPath(netVolPath, color = Color(0x28000000))
+
     // Back netting fill & mesh
     val netPath = Path().apply {
         moveTo(leftPostTop.screenX, leftPostTop.screenY)
+        lineTo(rearLeftTop.x, rearLeftTop.y)
+        lineTo(rearRightTop.x, rearRightTop.y)
         lineTo(rightPostTop.screenX, rightPostTop.screenY)
-        lineTo(rightPostBase.screenX - 6f, rightPostBase.groundY - netDepthPx + netRipple)
-        lineTo(leftPostBase.screenX + 6f, leftPostBase.groundY - netDepthPx + netRipple)
+        lineTo(rearRightBase.x, rearRightBase.y)
+        lineTo(rearLeftBase.x, rearLeftBase.y)
         close()
     }
-    drawPath(netPath, color = Color.White.copy(alpha = 0.16f))
+    drawPath(netPath, color = Color.White.copy(alpha = 0.18f))
 
-    // Vertical & horizontal net mesh lines
-    val netCols = 10
+    // High-density perspective net mesh grid (Hexagonal / Diamond look)
+    val netCols = 14
     for (c in 0..netCols) {
         val ratio = c / netCols.toFloat()
         val topX = leftPostTop.screenX + (rightPostTop.screenX - leftPostTop.screenX) * ratio
         val topY = leftPostTop.screenY
-        val botX = leftPostBase.screenX + (rightPostBase.screenX - leftPostBase.screenX) * ratio
-        val botY = leftPostBase.groundY
+        val botX = rearLeftBase.x + (rearRightBase.x - rearLeftBase.x) * ratio
+        val botY = rearLeftBase.y
         drawLine(
-            color = Color.White.copy(alpha = 0.28f),
+            color = Color.White.copy(alpha = 0.30f),
             start = Offset(topX, topY),
             end = Offset(botX, botY),
-            strokeWidth = 1f
+            strokeWidth = 1.0f
         )
     }
-    for (r in 1..4) {
-        val ratio = r / 5f
-        val yRow = leftPostTop.screenY + (leftPostBase.groundY - leftPostTop.screenY) * ratio + netRipple * 0.4f
+    for (r in 1..5) {
+        val ratio = r / 6f
+        val yRow = leftPostTop.screenY + (rearLeftBase.y - leftPostTop.screenY) * ratio + netRipple * 0.35f
+        val xL = leftPostTop.screenX + (rearLeftBase.x - leftPostTop.screenX) * ratio
+        val xR = rightPostTop.screenX + (rearRightBase.x - rightPostTop.screenX) * ratio
         drawLine(
-            color = Color.White.copy(alpha = 0.26f),
-            start = Offset(leftPostTop.screenX, yRow),
-            end = Offset(rightPostTop.screenX, yRow),
-            strokeWidth = 1f
+            color = Color.White.copy(alpha = 0.28f),
+            start = Offset(xL, yRow),
+            end = Offset(xR, yRow),
+            strokeWidth = 1.0f
         )
     }
 
-    // Highlighted Top-Corner Target Zones inside the Goal Frame during Playable Moments
+    // 3D Cylindrical Goalposts & Crossbar in Brilliant White with Specular Highlight
+    // Left Post
+    drawLine(color = Color(0xFFCBD5E1), start = Offset(leftPostBase.screenX - 1f, leftPostBase.groundY), end = Offset(leftPostTop.screenX - 1f, leftPostTop.screenY), strokeWidth = 5.8f, cap = StrokeCap.Round)
+    drawLine(color = Color.White, start = Offset(leftPostBase.screenX, leftPostBase.groundY), end = Offset(leftPostTop.screenX, leftPostTop.screenY), strokeWidth = 4.8f, cap = StrokeCap.Round)
+    // Right Post
+    drawLine(color = Color(0xFFCBD5E1), start = Offset(rightPostBase.screenX + 1f, rightPostBase.groundY), end = Offset(rightPostTop.screenX + 1f, rightPostTop.screenY), strokeWidth = 5.8f, cap = StrokeCap.Round)
+    drawLine(color = Color.White, start = Offset(rightPostBase.screenX, rightPostBase.groundY), end = Offset(rightPostTop.screenX, rightPostTop.screenY), strokeWidth = 4.8f, cap = StrokeCap.Round)
+    // Crossbar
+    drawLine(color = Color(0xFFCBD5E1), start = Offset(leftPostTop.screenX, leftPostTop.screenY + 1f), end = Offset(rightPostTop.screenX, rightPostTop.screenY + 1f), strokeWidth = 5.8f, cap = StrokeCap.Round)
+    drawLine(color = Color.White, start = Offset(leftPostTop.screenX, leftPostTop.screenY), end = Offset(rightPostTop.screenX, rightPostTop.screenY), strokeWidth = 4.8f, cap = StrokeCap.Round)
+
+    // ============================================================================================
+    // 5. GLOWING GREEN TARGET RINGS ("90'A ASMA" TARGET RETICLE - Photo 2)
+    // ============================================================================================
     if (matchState.phase == MatchPhase.CRITICAL_DECISION && matchState.activeDecision?.isDefensive == false) {
-        val pulse = 0.25f + 0.15f * sin(animTimeSec * 5f)
-        val cornerW = (rightPostTop.screenX - leftPostTop.screenX) * 0.22f
-        val cornerH = (leftPostBase.groundY - leftPostTop.screenY) * 0.45f
-        // Left top corner target zone
-        drawRoundRect(
-            color = AccentBright.copy(alpha = pulse),
-            topLeft = Offset(leftPostTop.screenX + 3f, leftPostTop.screenY + 3f),
-            size = Size(cornerW, cornerH),
-            cornerRadius = CornerRadius(6f, 6f)
-        )
-        // Right top corner target zone
-        drawRoundRect(
-            color = AccentBright.copy(alpha = pulse),
-            topLeft = Offset(rightPostTop.screenX - cornerW - 3f, rightPostTop.screenY + 3f),
-            size = Size(cornerW, cornerH),
-            cornerRadius = CornerRadius(6f, 6f)
+        val goalW = rightPostTop.screenX - leftPostTop.screenX
+        val goalH = leftPostBase.groundY - leftPostTop.screenY
+        val ringR = (goalW * 0.11f).coerceIn(12f, 24f)
+        val pulse = 0.55f + 0.35f * sin(animTimeSec * 6.5f)
+        val rotDeg = animTimeSec * 60f
+
+        // Top-Left 90 Corner
+        val tlCenter = Offset(leftPostTop.screenX + ringR * 1.25f, leftPostTop.screenY + ringR * 1.15f)
+        drawSegmentedGreenTargetRing(center = tlCenter, radius = ringR, pulse = pulse, rotDeg = rotDeg)
+
+        // Top-Right 90 Corner
+        val trCenter = Offset(rightPostTop.screenX - ringR * 1.25f, rightPostTop.screenY + ringR * 1.15f)
+        drawSegmentedGreenTargetRing(center = trCenter, radius = ringR, pulse = pulse, rotDeg = -rotDeg)
+    }
+}
+
+/**
+ * Draws the signature Soccer Superstar / NSS bright green segmented target ring (Photo 2).
+ */
+private fun DrawScope.drawSegmentedGreenTargetRing(
+    center: Offset,
+    radius: Float,
+    pulse: Float,
+    rotDeg: Float
+) {
+    val greenGlow = Color(0xFF22C55E)
+    // Ambient soft glow circle
+    drawCircle(color = greenGlow.copy(alpha = pulse * 0.28f), radius = radius * 1.35f, center = center)
+
+    // 4 Rotating segmented outer arcs with gaps (identical to Photo 2!)
+    val arcLen = 65f
+    val gapLen = 25f
+    for (i in 0..3) {
+        val startAngle = rotDeg + i * (arcLen + gapLen)
+        drawArc(
+            color = greenGlow,
+            startAngle = startAngle,
+            sweepAngle = arcLen,
+            useCenter = false,
+            topLeft = Offset(center.x - radius, center.y - radius),
+            size = Size(radius * 2f, radius * 2f),
+            style = Stroke(width = 3.2f, cap = StrokeCap.Round)
         )
     }
 
-    // 3D Goalposts & Crossbar in crisp white
-    drawLine(
-        color = Color.White,
-        start = Offset(leftPostBase.screenX, leftPostBase.groundY),
-        end = Offset(leftPostTop.screenX, leftPostTop.screenY),
-        strokeWidth = 5f,
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = Color.White,
-        start = Offset(rightPostBase.screenX, rightPostBase.groundY),
-        end = Offset(rightPostTop.screenX, rightPostTop.screenY),
-        strokeWidth = 5f,
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = Color.White,
-        start = Offset(leftPostTop.screenX, leftPostTop.screenY),
-        end = Offset(rightPostTop.screenX, rightPostTop.screenY),
-        strokeWidth = 5.2f,
-        cap = StrokeCap.Round
-    )
+    // Inner glowing ring & center bullseye
+    drawCircle(color = Color.White.copy(alpha = 0.85f), radius = radius * 0.42f, center = center, style = Stroke(width = 1.6f))
+    drawCircle(color = Color.White, radius = 2.8f, center = center)
 }
 
 private fun DrawScope.drawFlat2DPitch(w: Float, h: Float) {
@@ -1865,20 +2082,38 @@ private fun DrawScope.drawPlayableMomentTacticalGuides(
 ) {
     val pulse = 0.45f + 0.35f * sin(animTimeSec * 5.5f)
 
-    // Draw glowing forward run arrows for teammates making runs (or opponent attacker run in red during defense)
+    // Draw glowing forward run arrows for teammates making runs (Photo 4)
     matchState.players.filter { it.isMakingRun }.forEach { runner ->
         val isTeammate = runner.isHome == matchState.userIsHome
-        val guideColor = if (isTeammate) AccentBright else MatchLossRed
+        val guideColor = if (isTeammate) ChampionshipGold else MatchLossRed
         val startP = projectPitchToScreen(runner.x, runner.y, 0f, w, h, attackingRight, usePerspective)
         val endP = projectPitchToScreen(runner.runTargetX, runner.runTargetY, 0f, w, h, attackingRight, usePerspective)
 
         drawLine(
-            color = guideColor.copy(alpha = 0.78f),
+            color = guideColor.copy(alpha = 0.85f),
             start = Offset(startP.screenX, startP.groundY),
             end = Offset(endP.screenX, endP.groundY),
-            strokeWidth = 3.2f,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), phase = -animTimeSec * 40f)
+            strokeWidth = 3.6f,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 8f), phase = -animTimeSec * 45f),
+            cap = StrokeCap.Round
         )
+
+        // Arrowhead at the run target
+        val dx = endP.screenX - startP.screenX
+        val dy = endP.groundY - startP.groundY
+        val angle = atan2(dy, dx)
+        val arrowLen = 14f * endP.depthScale
+        val a1x = endP.screenX - cos(angle - 0.45f) * arrowLen
+        val a1y = endP.groundY - sin(angle - 0.45f) * arrowLen
+        val a2x = endP.screenX - cos(angle + 0.45f) * arrowLen
+        val a2y = endP.groundY - sin(angle + 0.45f) * arrowLen
+        val arrowPath = Path().apply {
+            moveTo(endP.screenX, endP.groundY)
+            lineTo(a1x, a1y)
+            lineTo(a2x, a2y)
+            close()
+        }
+        drawPath(arrowPath, color = guideColor)
 
         // Pulsing pass/intercept target ring
         drawCircle(
@@ -1890,11 +2125,86 @@ private fun DrawScope.drawPlayableMomentTacticalGuides(
             color = guideColor,
             radius = 14f * endP.depthScale,
             center = Offset(endP.screenX, endP.groundY),
-            style = Stroke(width = 2.2f)
+            style = Stroke(width = 2.4f)
         )
     }
 }
 
+/**
+ * Draws the Soccer Superstar animated tutorial swipe gesture guide (Photo 2).
+ * Shows a stylish 3D hand and banana-curve trajectory demonstrating the swipe.
+ */
+private fun DrawScope.drawGestureGuideHandAndHint(
+    matchState: LiveMatchUiState,
+    w: Float,
+    h: Float,
+    attackingRight: Boolean,
+    usePerspective: Boolean,
+    animTimeSec: Float
+) {
+    val ballProj = projectPitchToScreen(matchState.ball.x, matchState.ball.y, 0f, w, h, attackingRight, usePerspective)
+    val attGoalX = if (attackingRight) 97.2f else 2.8f
+    val targetCornerY = if (matchState.ball.y < 50f) 61f else 39f
+    val cornerProj = projectPitchToScreen(attGoalX, targetCornerY, 38f, w, h, attackingRight, usePerspective)
+
+    // Control point arching around the wall
+    val midPitchX = (matchState.ball.x + attGoalX) * 0.5f
+    val curveDirY = if (matchState.ball.y < 50f) matchState.ball.y - 18f else matchState.ball.y + 18f
+    val ctrlProj = projectPitchToScreen(midPitchX, curveDirY, 26f, w, h, attackingRight, usePerspective)
+
+    // Draw dashed banana hint arc
+    val guideArc = Path().apply {
+        moveTo(ballProj.screenX, ballProj.screenY)
+        quadraticBezierTo(ctrlProj.screenX, ctrlProj.screenY, cornerProj.screenX, cornerProj.screenY)
+    }
+    drawPath(
+        path = guideArc,
+        color = Color.White.copy(alpha = 0.45f),
+        style = Stroke(width = 3.2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), phase = -animTimeSec * 35f), cap = StrokeCap.Round)
+    )
+
+    // Animated 3D white guide hand gliding from ball to corner in a loop (0..1)
+    val loopT = (animTimeSec * 0.75f) % 1.0f
+    val u = 1f - loopT
+    val handX = (1f - u) * (1f - u) * ballProj.screenX + 2f * (1f - u) * u * ctrlProj.screenX + u * u * cornerProj.screenX
+    val handY = (1f - u) * (1f - u) * ballProj.screenY + 2f * (1f - u) * u * ctrlProj.screenY + u * u * cornerProj.screenY
+    val handAlpha = when {
+        loopT < 0.15f -> loopT / 0.15f
+        loopT > 0.82f -> (1f - loopT) / 0.18f
+        else -> 1.0f
+    }
+
+    // Hand Icon: Stylized pointing index finger and palm
+    val handColor = Color.White.copy(alpha = handAlpha * 0.95f)
+    val handShadow = Color.Black.copy(alpha = handAlpha * 0.35f)
+    // Soft shadow underneath hand
+    drawCircle(color = handShadow, radius = 12f, center = Offset(handX + 3f, handY + 4f))
+    // Palm
+    drawRoundRect(
+        color = handColor,
+        topLeft = Offset(handX - 9f, handY - 6f),
+        size = Size(18f, 20f),
+        cornerRadius = CornerRadius(8f, 8f)
+    )
+    // Pointing Index Finger
+    drawRoundRect(
+        color = handColor,
+        topLeft = Offset(handX - 4f, handY - 22f),
+        size = Size(8f, 20f),
+        cornerRadius = CornerRadius(4f, 4f)
+    )
+    // Ring border
+    drawCircle(
+        color = AccentBright.copy(alpha = handAlpha * 0.75f),
+        radius = 8f,
+        center = Offset(handX, handY - 22f),
+        style = Stroke(width = 1.8f)
+    )
+}
+
+/**
+ * Draws the finger-drawn curved trajectory arc with luminous bloom and 3D turf shadow (Photos 1, 2, 3).
+ */
 private fun DrawScope.drawActiveTrajectoryPreview(
     preview: GestureTrajectoryInput,
     w: Float,
@@ -1903,13 +2213,18 @@ private fun DrawScope.drawActiveTrajectoryPreview(
     usePerspective: Boolean,
     animTimeSec: Float
 ) {
-    val primaryColor = if (preview.blockedByDefenderWarning) {
-        MatchLossRed
-    } else {
-        parseHexColor(preview.inferredKind.badgeColorHex, AccentBright)
+    val isPass = preview.inferredKind in listOf(
+        GestureActionKind.THROUGH_PASS,
+        GestureActionKind.CROSS_PASS,
+        GestureActionKind.SHORT_PASS
+    )
+    val primaryColor = when {
+        preview.blockedByDefenderWarning -> MatchLossRed
+        isPass -> ChampionshipGold // Yellow passing arrow as in Photo 4!
+        else -> Color.White // Brilliant luminous white curve as in Photos 1, 2, 3!
     }
 
-    // 1. Ground shadow curve (z = 0) so the user sees both ground path and 3D loft!
+    // 1. 3D Ground Shadow along the turf
     val groundShadowPath = Path()
     val elevatedCurvePath = Path()
 
@@ -1929,59 +2244,68 @@ private fun DrawScope.drawActiveTrajectoryPreview(
         path = groundShadowPath,
         color = Color.Black.copy(alpha = 0.45f),
         style = Stroke(
-            width = 3.5f,
+            width = 3.6f,
             cap = StrokeCap.Round,
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
         )
     )
 
-    // Outer neon glow of the 3D Bezier curve
+    // 2. Soft Outer Ambient Bloom
     drawPath(
         path = elevatedCurvePath,
-        color = primaryColor.copy(alpha = 0.35f),
-        style = Stroke(width = 14f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        color = (if (isPass) ChampionshipGold else Color.White).copy(alpha = 0.28f),
+        style = Stroke(width = 22f, cap = StrokeCap.Round, join = StrokeJoin.Round)
     )
 
-    // Main crisp trajectory arc with animated dash flow
+    // 3. Medium Vibrant Beam
+    drawPath(
+        path = elevatedCurvePath,
+        color = (if (isPass) ChampionshipGold else Color(0xFFE2E8F0)).copy(alpha = 0.70f),
+        style = Stroke(width = 11f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+    )
+
+    // 4. Solid Brilliant White / Yellow Core with Rapid Animated Light Flow
     drawPath(
         path = elevatedCurvePath,
         color = primaryColor,
         style = Stroke(
-            width = 5.2f,
+            width = 4.8f,
             cap = StrokeCap.Round,
             join = StrokeJoin.Round,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(18f, 10f), phase = -animTimeSec * 85f)
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(24f, 12f), phase = -animTimeSec * 110f)
         )
     )
 
-    // Bright white core line
-    drawPath(
-        path = elevatedCurvePath,
-        color = Color.White.copy(alpha = 0.88f),
-        style = Stroke(width = 2.0f, cap = StrokeCap.Round)
-    )
-
-    // Target Reticle at endpoint
+    // 5. Target Reticle or Passing Arrowhead at Endpoint
     val endPt = preview.pitchPoints.last()
     val endProj = projectPitchToScreen(endPt.x, endPt.y, endPt.z, w, h, attackingRight, usePerspective)
     val reticleRadius = 16f * endProj.depthScale
 
-    drawCircle(
-        color = primaryColor.copy(alpha = 0.28f),
-        radius = reticleRadius * 1.45f,
-        center = Offset(endProj.screenX, endProj.screenY)
-    )
-    drawCircle(
-        color = primaryColor,
-        radius = reticleRadius,
-        center = Offset(endProj.screenX, endProj.screenY),
-        style = Stroke(width = 3f)
-    )
-    drawCircle(
-        color = Color.White,
-        radius = 4.2f,
-        center = Offset(endProj.screenX, endProj.screenY)
-    )
+    if (isPass) {
+        // Yellow passing arrowhead (Photo 4)
+        val pPrev = preview.pitchPoints[preview.pitchPoints.size - 2]
+        val prevProj = projectPitchToScreen(pPrev.x, pPrev.y, pPrev.z, w, h, attackingRight, usePerspective)
+        val dx = endProj.screenX - prevProj.screenX
+        val dy = endProj.screenY - prevProj.screenY
+        val angle = atan2(dy, dx)
+        val arrowLen = 18f * endProj.depthScale
+        val a1x = endProj.screenX - cos(angle - 0.45f) * arrowLen
+        val a1y = endProj.screenY - sin(angle - 0.45f) * arrowLen
+        val a2x = endProj.screenX - cos(angle + 0.45f) * arrowLen
+        val a2y = endProj.screenY - sin(angle + 0.45f) * arrowLen
+        val arrowPath = Path().apply {
+            moveTo(endProj.screenX, endProj.screenY)
+            lineTo(a1x, a1y)
+            lineTo(a2x, a2y)
+            close()
+        }
+        drawPath(arrowPath, color = ChampionshipGold)
+    } else {
+        // Segmented green/white reticle for shot
+        drawCircle(color = AccentBright.copy(alpha = 0.30f), radius = reticleRadius * 1.45f, center = Offset(endProj.screenX, endProj.screenY))
+        drawCircle(color = Color.White, radius = reticleRadius, center = Offset(endProj.screenX, endProj.screenY), style = Stroke(width = 3.0f))
+        drawCircle(color = AccentBright, radius = 4.5f, center = Offset(endProj.screenX, endProj.screenY))
+    }
 }
 
 private fun DrawScope.drawBallFlightTrail(
@@ -1992,21 +2316,27 @@ private fun DrawScope.drawBallFlightTrail(
     attackingRight: Boolean,
     usePerspective: Boolean
 ) {
-    val trailColor = if (abs(curveSpin) >= 12f) AccentBright else ChampionshipGold
+    val trailColor = if (abs(curveSpin) >= 12f) AccentBright else Color.White
     for (i in 1 until trail.size) {
         val p0 = projectPitchToScreen(trail[i - 1].x, trail[i - 1].y, trail[i - 1].z, w, h, attackingRight, usePerspective)
         val p1 = projectPitchToScreen(trail[i].x, trail[i].y, trail[i].z, w, h, attackingRight, usePerspective)
         val progress = i / trail.size.toFloat()
         drawLine(
-            color = trailColor.copy(alpha = progress * 0.72f),
+            color = trailColor.copy(alpha = progress * 0.80f),
             start = Offset(p0.screenX, p0.screenY),
             end = Offset(p1.screenX, p1.screenY),
-            strokeWidth = (progress * 8f).coerceAtLeast(1.5f),
+            strokeWidth = (progress * 9f).coerceAtLeast(1.8f),
             cap = StrokeCap.Round
         )
     }
 }
 
+/**
+ * High-fidelity 2.5D Player Renderer with stylized human anatomy:
+ * Head, hair, skin tones, team jerseys with sleeves, numbers, shorts, socks, boots,
+ * dynamic poses (defensive wall, wall jump, goalkeeper dive, bicycle kick, striker strike)
+ * and realistic directional turf cast shadows (Photos 1, 2, 3, 4).
+ */
 private fun DrawScope.drawPitchPlayerMarker(
     player: PitchPlayerNode,
     proj: ProjectedPoint,
@@ -2019,92 +2349,209 @@ private fun DrawScope.drawPitchPlayerMarker(
     tagPaint: android.graphics.Paint
 ) {
     val r = (baseRadius * proj.depthScale).coerceIn(8.5f, 22f)
-    val px = proj.screenX + (if (player.isDivingOrSliding) player.diveDirectionY * r * 0.9f else 0f)
-    val py = proj.screenY
     val fill = if (player.isHome) homeColor else awayColor
+    val kitShorts = if (player.isHome) Color.White else Color(0xFF1E293B)
+    val elevPx = player.elevationZ * proj.depthScale * 1.5f
 
-    // User Highlight Halo & Pulsing Slow-Mo Ring
+    val px = proj.screenX + (if (player.isDivingOrSliding) player.diveDirectionY * r * 1.1f else 0f)
+    val py = proj.screenY - elevPx
+
+    // 1. Realistic Soft Directional Turf Cast Shadow
+    val shadowScale = (1.0f - (player.elevationZ / 45f)).coerceIn(0.40f, 1.0f)
+    drawOval(
+        color = Color.Black.copy(alpha = 0.52f * shadowScale),
+        topLeft = Offset(px - r * 1.05f * shadowScale + r * 0.35f, proj.groundY - r * 0.25f * shadowScale + r * 0.40f),
+        size = Size(r * 2.1f * shadowScale, r * 0.85f * shadowScale)
+    )
+
+    // 2. User Player Glowing Ring & Halo (Immediate tracking!)
     if (player.isUser) {
-        val pulseScale = 1.65f + 0.22f * sin(animTimeSec * 6f)
+        val haloPulse = 1.65f + 0.22f * sin(animTimeSec * 6f)
         drawCircle(
-            color = AccentBright.copy(alpha = 0.28f),
-            radius = r * pulseScale,
-            center = Offset(px, py)
+            color = AccentBright.copy(alpha = 0.30f),
+            radius = r * haloPulse,
+            center = Offset(px, proj.groundY)
         )
         drawCircle(
             color = AccentBright,
-            radius = r * 1.42f,
-            center = Offset(px, py),
+            radius = r * 1.38f,
+            center = Offset(px, proj.groundY),
             style = Stroke(width = 2.8f)
         )
     }
 
-    // Ball Carrier Ring
+    // 3. Ball Carrier Gold Ring
     if (player.hasBall) {
         drawCircle(
             color = ChampionshipGold,
-            radius = r * 1.28f,
-            center = Offset(px, py),
+            radius = r * 1.32f,
+            center = Offset(px, proj.groundY),
             style = Stroke(width = 2.4f)
         )
     }
 
-    // Ground Shadow
-    drawOval(
-        color = Color.Black.copy(alpha = 0.50f),
-        topLeft = Offset(px - r * 0.95f, proj.groundY + r * 0.45f),
-        size = Size(r * 1.9f, r * 0.75f)
-    )
+    // 4. Stylized Anatomy & Kit by Visual Pose
+    val skinTone = if (player.isUser) Color(0xFFF6D8B8) else when (player.number % 3) {
+        0 -> Color(0xFFE0AC69)
+        1 -> Color(0xFF8D5524)
+        else -> Color(0xFFF6D8B8)
+    }
+    // Hair color (Player #7 or user gets stylish pink hair as in Photos 1 & 3!)
+    val hairColor = if (player.number == 7 || (player.isUser && player.hairColorHex.isEmpty())) {
+        Color(0xFFF43F5E) // Bright Neon Pink Hair! (Photos 1 & 3)
+    } else when (player.number % 4) {
+        0 -> Color(0xFFEAB308) // Blond
+        1 -> Color(0xFF1E293B) // Dark Black
+        2 -> Color(0xFF78350F) // Brown
+        else -> Color(0xFF475569) // Charcoal Buzzcut
+    }
 
-    // Diving Goalkeeper / Sliding Defender Stretched Body Capsule
-    if (player.isDivingOrSliding) {
-        drawRoundRect(
-            color = fill,
-            topLeft = Offset(px - r * 1.55f, py - r * 0.72f),
-            size = Size(r * 3.1f, r * 1.44f),
-            cornerRadius = CornerRadius(r * 0.7f, r * 0.7f)
-        )
-        drawRoundRect(
-            color = Color.White,
-            topLeft = Offset(px - r * 1.55f, py - r * 0.72f),
-            size = Size(r * 3.1f, r * 1.44f),
-            cornerRadius = CornerRadius(r * 0.7f, r * 0.7f),
-            style = Stroke(width = 2f)
-        )
-    } else {
-        // Player Shoulders & Jersey Disc
-        drawCircle(
-            color = fill,
-            radius = r,
-            center = Offset(px, py)
-        )
-        // Specular 3D Top Highlight
-        drawCircle(
-            color = Color.White.copy(alpha = 0.24f),
-            radius = r * 0.56f,
-            center = Offset(px - r * 0.22f, py - r * 0.22f)
-        )
-        drawCircle(
-            color = if (player.isUser) AccentBright else Color.White,
-            radius = r,
-            center = Offset(px, py),
-            style = Stroke(width = 2.2f)
+    when (player.visualPose) {
+        // ----------------------------------------------------------------------------------------
+        // DEFENSIVE WALL / WALL JUMP (Photo 3: 5 Defenders standing side-by-side with arms folded)
+        // ----------------------------------------------------------------------------------------
+        PlayerVisualPose.DEFENSIVE_WALL, PlayerVisualPose.WALL_JUMP -> {
+            // Legs & Socks
+            drawRect(color = Color.White, topLeft = Offset(px - r * 0.55f, py + r * 0.45f), size = Size(r * 0.40f, r * 0.75f))
+            drawRect(color = Color.White, topLeft = Offset(px + r * 0.15f, py + r * 0.45f), size = Size(r * 0.40f, r * 0.75f))
+            // Boots
+            drawRect(color = Color(0xFF0F172A), topLeft = Offset(px - r * 0.60f, py + r * 1.15f), size = Size(r * 0.48f, r * 0.30f))
+            drawRect(color = Color(0xFF0F172A), topLeft = Offset(px + r * 0.12f, py + r * 1.15f), size = Size(r * 0.48f, r * 0.30f))
+            // Shorts
+            drawRoundRect(color = kitShorts, topLeft = Offset(px - r * 0.75f, py + r * 0.15f), size = Size(r * 1.50f, r * 0.55f), cornerRadius = CornerRadius(3f, 3f))
+            // Torso & Jersey
+            drawRoundRect(color = fill, topLeft = Offset(px - r * 0.85f, py - r * 0.75f), size = Size(r * 1.70f, r * 1.0f), cornerRadius = CornerRadius(5f, 5f))
+            // Folded Arms protecting chest/groin (Wall stance!)
+            drawRoundRect(color = skinTone, topLeft = Offset(px - r * 0.65f, py - r * 0.15f), size = Size(r * 1.30f, r * 0.40f), cornerRadius = CornerRadius(3f, 3f))
+            // Head & Hair
+            drawCircle(color = skinTone, radius = r * 0.48f, center = Offset(px, py - r * 1.15f))
+            drawArc(
+                color = hairColor,
+                startAngle = 180f,
+                sweepAngle = 180f,
+                useCenter = true,
+                topLeft = Offset(px - r * 0.50f, py - r * 1.65f),
+                size = Size(r * 1.0f, r * 0.95f)
+            )
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // GOALKEEPER READY & HORIZONTAL AIRBORNE DIVE (Photos 1, 3, 4)
+        // ----------------------------------------------------------------------------------------
+        PlayerVisualPose.GK_READY -> {
+            val gkKit = Color(0xFF22C55E) // Bright Fluorescent Lime GK Kit!
+            // Legs spread wide
+            drawRect(color = Color(0xFF166534), topLeft = Offset(px - r * 0.85f, py + r * 0.40f), size = Size(r * 0.42f, r * 0.70f))
+            drawRect(color = Color(0xFF166534), topLeft = Offset(px + r * 0.43f, py + r * 0.40f), size = Size(r * 0.42f, r * 0.70f))
+            // Shorts
+            drawRoundRect(color = Color(0xFF14532D), topLeft = Offset(px - r * 0.85f, py + r * 0.15f), size = Size(r * 1.70f, r * 0.50f), cornerRadius = CornerRadius(3f, 3f))
+            // Torso
+            drawRoundRect(color = gkKit, topLeft = Offset(px - r * 0.88f, py - r * 0.75f), size = Size(r * 1.76f, r * 0.98f), cornerRadius = CornerRadius(5f, 5f))
+            // Outstretched Arms with White Goalkeeper Gloves!
+            drawCircle(color = Color.White, radius = r * 0.32f, center = Offset(px - r * 1.15f, py - r * 0.15f))
+            drawCircle(color = Color.White, radius = r * 0.32f, center = Offset(px + r * 1.15f, py - r * 0.15f))
+            // Head
+            drawCircle(color = skinTone, radius = r * 0.48f, center = Offset(px, py - r * 1.15f))
+            drawArc(color = hairColor, startAngle = 180f, sweepAngle = 180f, useCenter = true, topLeft = Offset(px - r * 0.50f, py - r * 1.65f), size = Size(r * 1.0f, r * 0.95f))
+        }
+
+        PlayerVisualPose.GK_DIVE -> {
+            val gkKit = Color(0xFF22C55E)
+            val diveDir = player.diveDirectionY.coerceIn(-1f, 1f)
+            // Horizontally stretched diving capsule
+            drawRoundRect(
+                color = gkKit,
+                topLeft = Offset(px - r * 1.65f, py - r * 0.65f),
+                size = Size(r * 3.3f, r * 1.30f),
+                cornerRadius = CornerRadius(r * 0.65f, r * 0.65f)
+            )
+            // Stretched Arms & Gloves reaching toward goal corner!
+            drawCircle(color = Color.White, radius = r * 0.40f, center = Offset(px + diveDir * r * 1.85f, py - r * 0.20f))
+            // Head
+            drawCircle(color = skinTone, radius = r * 0.48f, center = Offset(px + diveDir * r * 1.15f, py - r * 0.55f))
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ACROBATIC BICYCLE KICK / RÖVEŞATA (Photo 1)
+        // ----------------------------------------------------------------------------------------
+        PlayerVisualPose.BICYCLE_KICK -> {
+            // Body tilted mid-air upside down!
+            val angleDeg = -55f
+            // Striking Leg raised high toward ball
+            drawRoundRect(color = Color.White, topLeft = Offset(px - r * 0.35f, py - r * 1.65f), size = Size(r * 0.45f, r * 1.10f), cornerRadius = CornerRadius(3f, 3f))
+            // Boot striking high
+            drawRect(color = Color(0xFF0F172A), topLeft = Offset(px - r * 0.45f, py - r * 1.85f), size = Size(r * 0.65f, r * 0.35f))
+            // Torso angled
+            drawRoundRect(color = fill, topLeft = Offset(px - r * 0.85f, py - r * 0.55f), size = Size(r * 1.70f, r * 1.10f), cornerRadius = CornerRadius(6f, 6f))
+            // Trailing leg
+            drawRoundRect(color = Color.White, topLeft = Offset(px + r * 0.35f, py + r * 0.15f), size = Size(r * 0.45f, r * 0.85f), cornerRadius = CornerRadius(3f, 3f))
+            // Head with Pink Hair (Photo 1)
+            drawCircle(color = skinTone, radius = r * 0.50f, center = Offset(px - r * 0.85f, py + r * 0.55f))
+            drawCircle(color = hairColor, radius = r * 0.52f, center = Offset(px - r * 0.95f, py + r * 0.50f))
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // KICK / STRIKER SHOT POSE (Photos 2 & 3: #7 Kicking stance)
+        // ----------------------------------------------------------------------------------------
+        PlayerVisualPose.KICK_STRIKE -> {
+            // Plant foot firmly down
+            drawRect(color = Color.White, topLeft = Offset(px - r * 0.65f, py + r * 0.35f), size = Size(r * 0.38f, r * 0.80f))
+            drawRect(color = Color(0xFF0F172A), topLeft = Offset(px - r * 0.70f, py + r * 1.10f), size = Size(r * 0.46f, r * 0.28f))
+            // Kicking leg swung back / in follow-through
+            drawRect(color = Color.White, topLeft = Offset(px + r * 0.35f, py + r * 0.20f), size = Size(r * 0.42f, r * 0.75f))
+            drawRect(color = Color(0xFF0F172A), topLeft = Offset(px + r * 0.45f, py + r * 0.90f), size = Size(r * 0.50f, r * 0.28f))
+            // Shorts
+            drawRoundRect(color = kitShorts, topLeft = Offset(px - r * 0.80f, py + r * 0.10f), size = Size(r * 1.60f, r * 0.52f), cornerRadius = CornerRadius(3f, 3f))
+            // Torso & Jersey
+            drawRoundRect(color = fill, topLeft = Offset(px - r * 0.88f, py - r * 0.80f), size = Size(r * 1.76f, r * 1.02f), cornerRadius = CornerRadius(6f, 6f))
+            // Balanced Arms
+            drawRoundRect(color = skinTone, topLeft = Offset(px - r * 1.15f, py - r * 0.65f), size = Size(r * 0.36f, r * 0.75f), cornerRadius = CornerRadius(3f, 3f))
+            drawRoundRect(color = skinTone, topLeft = Offset(px + r * 0.80f, py - r * 0.65f), size = Size(r * 0.36f, r * 0.75f), cornerRadius = CornerRadius(3f, 3f))
+            // Head & Hair
+            drawCircle(color = skinTone, radius = r * 0.50f, center = Offset(px, py - r * 1.20f))
+            drawArc(color = hairColor, startAngle = 180f, sweepAngle = 180f, useCenter = true, topLeft = Offset(px - r * 0.52f, py - r * 1.72f), size = Size(r * 1.04f, r * 0.98f))
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // NORMAL ATHLETIC RUNNING / STANDING POSE
+        // ----------------------------------------------------------------------------------------
+        PlayerVisualPose.NORMAL -> {
+            // Running Legs & Socks
+            val legSwing = if (player.isMakingRun) sin(animTimeSec * 12f) * r * 0.25f else 0f
+            drawRect(color = Color.White, topLeft = Offset(px - r * 0.52f, py + r * 0.38f + legSwing), size = Size(r * 0.38f, r * 0.75f))
+            drawRect(color = Color.White, topLeft = Offset(px + r * 0.14f, py + r * 0.38f - legSwing), size = Size(r * 0.38f, r * 0.75f))
+            // Boots
+            drawRect(color = Color(0xFF0F172A), topLeft = Offset(px - r * 0.56f, py + r * 1.10f + legSwing), size = Size(r * 0.44f, r * 0.28f))
+            drawRect(color = Color(0xFF0F172A), topLeft = Offset(px + r * 0.10f, py + r * 1.10f - legSwing), size = Size(r * 0.44f, r * 0.28f))
+            // Shorts
+            drawRoundRect(color = kitShorts, topLeft = Offset(px - r * 0.78f, py + r * 0.12f), size = Size(r * 1.56f, r * 0.50f), cornerRadius = CornerRadius(3f, 3f))
+            // Torso & Jersey
+            drawRoundRect(color = fill, topLeft = Offset(px - r * 0.85f, py - r * 0.78f), size = Size(r * 1.70f, r * 0.98f), cornerRadius = CornerRadius(5f, 5f))
+            // Specular Jersey Highlight
+            drawCircle(color = Color.White.copy(alpha = 0.20f), radius = r * 0.42f, center = Offset(px - r * 0.25f, py - r * 0.40f))
+            // Head & Hair
+            drawCircle(color = skinTone, radius = r * 0.48f, center = Offset(px, py - r * 1.18f))
+            drawArc(color = hairColor, startAngle = 180f, sweepAngle = 180f, useCenter = true, topLeft = Offset(px - r * 0.50f, py - r * 1.68f), size = Size(r * 1.0f, r * 0.95f))
+        }
+        else -> {}
+    }
+
+    // 5. Squad Number on Jersey Back (Crisp athletic typography!)
+    if (player.visualPose != PlayerVisualPose.GK_DIVE) {
+        numberPaint.textSize = (r * 0.92f).coerceIn(12f, 22f)
+        numberPaint.color = if (player.isUser) android.graphics.Color.WHITE else android.graphics.Color.WHITE
+        drawContext.canvas.nativeCanvas.drawText(
+            player.number.toString(),
+            px,
+            py - r * 0.08f,
+            numberPaint
         )
     }
 
-    // Jersey Number
-    numberPaint.textSize = (r * 1.05f).coerceIn(14f, 24f)
-    drawContext.canvas.nativeCanvas.drawText(
-        player.number.toString(),
-        px,
-        py + r * 0.36f,
-        numberPaint
-    )
-
-    // Floating Role / Run Tag above key players during Playable Moments
+    // 6. Floating Role / Run Tag above key players during Playable Moments
     if (isPlayableMoment && player.roleTag.isNotEmpty()) {
         val tagText = if (player.isMakingRun) "${player.name} (${player.roleTag})" else player.roleTag
-        tagPaint.textSize = (r * 0.78f).coerceIn(12f, 18f)
+        tagPaint.textSize = (r * 0.75f).coerceIn(11f, 17f)
         tagPaint.color = when {
             player.isUser -> android.graphics.Color.rgb(40, 240, 146)
             player.isMakingRun -> android.graphics.Color.rgb(255, 214, 64)
@@ -2113,12 +2560,15 @@ private fun DrawScope.drawPitchPlayerMarker(
         drawContext.canvas.nativeCanvas.drawText(
             tagText,
             px,
-            py - r * 1.45f,
+            py - r * 1.85f,
             tagPaint
         )
     }
 }
 
+/**
+ * 3D Soccer Ball with realistic pentagon pattern, loft elevation, and ground shadow (Photo 1).
+ */
 private fun DrawScope.draw3DSoccerBall(
     ballProj: ProjectedPoint,
     ballZ: Float,

@@ -34,7 +34,9 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Contacts
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Newspaper
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Public
@@ -93,6 +95,8 @@ import com.example.ui.components.FLStatBar
 import com.example.ui.components.FootballerAvatarCanvas
 import com.example.ui.components.parseSafeHexColor
 import com.example.ui.screens.phone.InstagramAppScreen
+import com.example.ui.screens.phone.PhoneNotificationShade
+import com.example.ui.screens.phone.RomanceAndDatingScreen
 import com.example.ui.screens.phone.TransfermarktAppScreen
 import com.example.ui.screens.phone.WhatsAppScreen
 import com.example.ui.screens.phone.XAppScreen
@@ -129,6 +133,7 @@ enum class PhoneAppId(
     CAMERA("Kamera", Icons.Filled.CameraAlt, "#334155", "#0F172A"),
     CONTACTS("Kişiler", Icons.Filled.Contacts, "#0EA5E9", "#0C4A6E"),
     CALLS("Aramalar", Icons.Filled.Call, "#22C55E", "#14532D"),
+    ROMANCE("Aşk & Magazin", Icons.Filled.Favorite, "#E11D48", "#881337"),
     SHOP("Alışveriş", Icons.Filled.ShoppingBag, "#F59E0B", "#78350F"),
     SETTINGS("Ayarlar", Icons.Filled.Settings, "#475569", "#1E293B")
 }
@@ -170,6 +175,7 @@ fun PhoneOsScreen(
     onOpenCoachMeeting: () -> Unit = {},
     onOpenInteractiveCall: (String) -> Unit = {}
 ) {
+    var isNotificationShadeOpen by rememberSaveable { mutableStateOf(false) }
     var currentApp by rememberSaveable { mutableStateOf<PhoneAppId?>(null) }
     var selectedChatNpcId by rememberSaveable { mutableStateOf<String?>(null) }
     var activeStoryId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -184,6 +190,7 @@ fun PhoneOsScreen(
     // Hierarchical Back Navigation: Sub-screen -> App Home -> Phone Home -> Hub
     BackHandler {
         when {
+            isNotificationShadeOpen -> isNotificationShadeOpen = false
             activeStoryId != null -> activeStoryId = null
             selectedChatNpcId != null -> selectedChatNpcId = null
             selectedNewsArticleId != null -> selectedNewsArticleId = null
@@ -221,6 +228,10 @@ fun PhoneOsScreen(
                     selectedNewsArticleId = null
                     activeCallRecordId = null
                     currentApp = null
+                    isNotificationShadeOpen = false
+                },
+                onOpenNotificationShade = {
+                    isNotificationShadeOpen = !isNotificationShadeOpen
                 },
                 isInsideApp = currentApp != null
             )
@@ -235,6 +246,9 @@ fun PhoneOsScreen(
                             onQuickCallOpen = { callId ->
                                 currentApp = PhoneAppId.CALLS
                                 activeCallRecordId = callId
+                            },
+                            onOpenNotificationShade = {
+                                isNotificationShadeOpen = true
                             }
                         )
                         PhoneAppId.MESSAGES -> WhatsAppScreen(
@@ -332,6 +346,10 @@ fun PhoneOsScreen(
                             onOpenInteractiveCall = onOpenInteractiveCall,
                             onBackHome = { currentApp = null }
                         )
+                        PhoneAppId.ROMANCE -> RomanceAndDatingScreen(
+                            state = state,
+                            onBackHome = { currentApp = null }
+                        )
                         PhoneAppId.SHOP -> ShoppingStoreApp(
                             state = state,
                             onPurchaseItem = onPurchaseItem,
@@ -378,6 +396,18 @@ fun PhoneOsScreen(
                         .background(Color.White.copy(alpha = 0.55f))
                 )
             }
+        }
+
+        // Notification Shade Overlay (Swipe-to-Dismiss)
+        if (isNotificationShadeOpen) {
+            PhoneNotificationShade(
+                state = state,
+                onCloseShade = { isNotificationShadeOpen = false },
+                onOpenNotificationTarget = { notif ->
+                    isNotificationShadeOpen = false
+                    currentApp = notif.appType
+                }
+            )
         }
     }
 }
@@ -466,6 +496,7 @@ private fun SmartphoneStatusBar(
     clockTime: String,
     dateShort: String,
     onHomeClick: () -> Unit,
+    onOpenNotificationShade: () -> Unit = {},
     isInsideApp: Boolean
 ) {
     Row(
@@ -476,7 +507,10 @@ private fun SmartphoneStatusBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.clickable { onOpenNotificationShade() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 text = clockTime,
                 fontFamily = SpaceGroteskFontFamily,
@@ -513,6 +547,7 @@ private fun SmartphoneStatusBar(
                 )
             }
         } else {
+            // Camera Notch / Dynamic Island - Tap to open Notification Shade
             Box(
                 modifier = Modifier
                     .width(74.dp)
@@ -520,10 +555,21 @@ private fun SmartphoneStatusBar(
                     .clip(CircleShape)
                     .background(Color(0xFF020604))
                     .border(0.8.dp, Color(0x28FFFFFF), CircleShape)
+                    .clickable { onOpenNotificationShade() }
             )
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.clickable { onOpenNotificationShade() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.NotificationsActive,
+                contentDescription = "Bildirimler",
+                tint = AccentBright,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = "5G",
                 fontFamily = SpaceGroteskFontFamily,
@@ -554,7 +600,8 @@ private fun SmartphoneStatusBar(
 private fun PhoneHomeScreenContent(
     state: CareerSaveState,
     onOpenApp: (PhoneAppId) -> Unit,
-    onQuickCallOpen: (String) -> Unit
+    onQuickCallOpen: (String) -> Unit,
+    onOpenNotificationShade: () -> Unit = {}
 ) {
     val nextMatch = state.nextUnplayedUserFixture
     val pendingCall = state.callRecords.firstOrNull { !it.completed }
@@ -703,9 +750,70 @@ private fun PhoneHomeScreenContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // App Icon Grid (4 columns x 3 rows = 12 Apps)
+            // Quick Notification Shade Pill (Swipe-to-Dismiss)
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceElevated.copy(alpha = 0.90f)),
+                border = BorderStroke(1.dp, StrokePremiumStrong),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenNotificationShade() }
+                    .testTag("notification_shade_quick_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(AccentPrimary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.NotificationsActive,
+                                contentDescription = null,
+                                tint = Color(0xFF04150D),
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Bildirim Merkezi",
+                                fontFamily = OutfitFontFamily,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Kaydırarak sil (Swipe-to-dismiss) & Bildirim Paneli",
+                                fontFamily = OutfitFontFamily,
+                                fontSize = 11.sp,
+                                color = AccentBright
+                            )
+                        }
+                    }
+                    Text(
+                        text = "AÇ",
+                        fontFamily = SpaceGroteskFontFamily,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentBright
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // App Icon Grid (4 columns)
             val gridApps = PhoneAppId.entries
             val rows = gridApps.chunked(4)
             rows.forEach { rowApps ->
@@ -720,6 +828,7 @@ private fun PhoneHomeScreenContent(
                             PhoneAppId.MESSAGES -> state.totalUnreadMessages
                             PhoneAppId.INSTAPITCH -> state.totalUnreadStories + state.totalUnreadInstaDms + state.totalPendingInstaRequests
                             PhoneAppId.CALLS -> state.totalPendingCalls
+                            PhoneAppId.ROMANCE -> 1
                             PhoneAppId.NEWS -> 1
                             else -> 0
                         }

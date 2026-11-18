@@ -683,3 +683,42 @@ fun FLEmptyState(
         }
     }
 }
+
+@Composable
+fun FLBadge(
+    text: String,
+    modifier: Modifier = Modifier,
+    containerColor: Color = SurfaceElevated,
+    contentColor: Color = TextPrimary
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = containerColor
+    ) {
+        Text(
+            text = text,
+            color = contentColor,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+fun FLCard(
+    modifier: Modifier = Modifier,
+    containerColor: Color = SurfacePrimary,
+    borderColor: Color = StrokePremium,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = containerColor,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        content()
+    }
+}

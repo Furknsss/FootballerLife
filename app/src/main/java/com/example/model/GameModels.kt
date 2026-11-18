@@ -147,7 +147,18 @@ data class PlayerProfile(
     val currentSeasonStats: SeasonStatsRecord = SeasonStatsRecord(),
     val careerArchive: List<SeasonStatsRecord> = emptyList(),
     val trainingCountThisWeek: Int = 0,
-    val tacticalRole: String = "Klasik 10 Numara"
+    val tacticalRole: String = "Klasik 10 Numara",
+    val unlockedTraits: List<String> = emptyList(),
+    val nationalTeamCaps: Int = 0,
+    val nationalTeamGoals: Int = 0,
+    val activeCleatBrand: String = "Standart",
+    val activeCleatModel: String = "Klasik Deri",
+    val activeCleatBonusStat: String = "",
+    val activeSponsorshipBonusEur: Long = 0L,
+    val trophyCabinet: List<String> = emptyList(),
+    val romanticPartnerName: String? = null,
+    val relationshipStage: String = "BEKAR",
+    val relationshipAffection: Int = 50
 ) {
     val fullName: String get() = "$firstName $lastName".trim()
     val overallRating: Int get() = attributes.calculateOverall(primaryPosition)
@@ -671,7 +682,11 @@ data class CareerSaveState(
     val callRecords: List<PhoneCallRecord> = emptyList(),
     val instaDmThreads: List<InstaDmThread> = emptyList(),
     val phoneWallpaperId: String = "STADIUM_NIGHT",
-    val completedDailyTaskIds: List<String> = emptyList()
+    val completedDailyTaskIds: List<String> = emptyList(),
+    val hasPendingSeasonCeremony: Boolean = false,
+    val pendingNationalCallUp: Boolean = false,
+    val activeSponsorshipOfferCount: Int = 0,
+    val activeCrisisSeverity: Int = 0
 ) {
     val currentClub: Club
         get() = clubs.find { it.id == contract.clubId } ?: clubs.first()

@@ -41,7 +41,7 @@ fun PostMatchLockerRoomScreen(
     onContinueToCareerHub: () -> Unit,
     onCompleteInterview: ((com.example.engine.interview.InterviewSessionResult) -> Unit)? = null,
     geminiApiKey: String? = null,
-    geminiModel: String = "gemini-2.5-flash",
+    geminiModel: String = "gemini-4-hydrogen",
     aiEnabled: Boolean = true
 ) {
     com.example.ui.screens.interview.PostMatchInterviewScreen(

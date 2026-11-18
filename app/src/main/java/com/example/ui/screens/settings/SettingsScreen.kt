@@ -110,7 +110,7 @@ import kotlinx.coroutines.launch
  *    - Active Key Source indicator (User Settings vs `.env` BuildConfig vs Offline Scripted Fallback)
  *    - "Anahtarı Kaydet" & "Temizle" actions
  *    - "Bağlantıyı Test Et" live test button with latency & model verification banner
- *    - Gemini Model Selector (`gemini-2.5-flash`, `gemini-3.8-flash`, `gemini-2.5-pro`, `gemini-2.5-flash-lite`)
+ *    - Gemini Model Selector (`gemini-4-hydrogen`, `gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-4-argon`, `gemini-4-carbon`)
  *    - AI Dialogue Master Switch (with automatic offline Turkish fallback explanation)
  * 2. Audio, Haptics & Stadium Ambience Settings
  * 3. 60 FPS Graphics Quality Profile
@@ -534,7 +534,7 @@ fun SettingsScreen(
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Birincil model kota (429), yoğunluk (503) veya gecikmeye (>5s) takıldığında kesintisiz olarak Gemini 3.8 Flash / Flash-Lite / Çevrimdışı Motora otomatik devreder.",
+                                text = "Birincil model kota (429), yoğunluk (503) veya gecikmeye (>5s) takıldığında kesintisiz olarak Gemini 4 Hydrogen / Gemini 3.5 Flash-Lite / Çevrimdışı Motora otomatik devreder.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary,
                                 fontSize = 11.5.sp

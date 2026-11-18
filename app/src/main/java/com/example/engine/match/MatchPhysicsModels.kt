@@ -55,7 +55,9 @@ data class GestureTrajectoryInput(
     val inferredKind: GestureActionKind,
     val targetTeammateId: String? = null,
     val targetTeammateName: String? = null,
-    val blockedByDefenderWarning: Boolean = false
+    val blockedByDefenderWarning: Boolean = false,
+    val targetCorner: String? = null, // "TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT"
+    val isAcrobaticAttempt: Boolean = false
 )
 
 object TrajectoryAnalyzer {
@@ -315,6 +317,18 @@ object TrajectoryAnalyzer {
             PitchPoint(bx, by, bz)
         }
 
+        val corner = if (isShot) {
+            when {
+                finalEndY in 34.5f..44.5f && loftHeight >= 0.42f -> "TOP_LEFT"
+                finalEndY in 55.5f..65.5f && loftHeight >= 0.42f -> "TOP_RIGHT"
+                finalEndY in 34.5f..44.5f -> "BOTTOM_LEFT"
+                finalEndY in 55.5f..65.5f -> "BOTTOM_RIGHT"
+                else -> null
+            }
+        } else {
+            null
+        }
+
         return GestureTrajectoryInput(
             pitchPoints = sampledBezier,
             startX = startX,
@@ -330,7 +344,9 @@ object TrajectoryAnalyzer {
             inferredKind = inferredKind,
             targetTeammateId = matchedTeammate?.id,
             targetTeammateName = matchedTeammate?.let { "#${it.number} ${it.name}" },
-            blockedByDefenderWarning = defenderBlocking
+            blockedByDefenderWarning = defenderBlocking,
+            targetCorner = corner,
+            isAcrobaticAttempt = isShot && velocityPxPerSec >= 1500f && loftHeight >= 0.50f
         )
     }
 }

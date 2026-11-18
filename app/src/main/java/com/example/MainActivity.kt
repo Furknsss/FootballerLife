@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -410,7 +411,76 @@ fun FootballLifeApp(
                                     )
                                 }
 
-                                HubOverlayScreen.NONE -> {
+                                HubOverlayScreen.NATIONAL_TEAM_MATCH -> {
+                                    com.example.ui.screens.tournament.NationalTeamMatchScreen(
+                                        career = career,
+                                        onApplyPerformance = { perf, callUp ->
+                                            viewModel.applyNationalTeamPerformance(perf, callUp)
+                                        },
+                                        onPlaySfx = { effect -> viewModel.playSfx(effect) },
+                                        onClose = { viewModel.closeOverlay() }
+                                    )
+                                }
+
+                                HubOverlayScreen.INTERACTIVE_TRAINING -> {
+                                    com.example.ui.screens.training.InteractiveTrainingScreen(
+                                        career = career,
+                                        onBack = { viewModel.closeOverlay() },
+                                        onSaveTrainingResult = { summary ->
+                                            viewModel.applyInteractiveTrainingResult(summary)
+                                        },
+                                        onUnlockTrait = { traitId ->
+                                            viewModel.unlockPlayerTrait(traitId)
+                                        }
+                                    )
+                                }
+
+                                HubOverlayScreen.SPONSORSHIP_AND_CRISIS -> {
+                                    val spState = remember(career.player.id, career.currentClub.id) {
+                                        com.example.engine.lifestyle.SponsorshipAndCrisisEngine.buildInitialState(career.player, career.currentClub)
+                                    }
+                                    com.example.ui.screens.lifestyle.SponsorshipStoreScreen(
+                                        player = career.player,
+                                        club = career.currentClub,
+                                        state = spState,
+                                        managerTrust = career.managerTrust,
+                                        fanSupport = career.player.fanSupport,
+                                        onBack = { viewModel.closeOverlay() },
+                                        onSignBootDeal = { viewModel.signBootDeal(it) },
+                                        onEquipBoot = { viewModel.equipBoot(it) },
+                                        onCustomizeBootColor = { viewModel.customizeBootColor(it) },
+                                        onSignCommercialDeal = { viewModel.signCommercialDeal(it) },
+                                        onResolveCrisis = { cId, chId -> viewModel.resolveClubCrisis(cId, chId) }
+                                    )
+                                }
+
+                                HubOverlayScreen.SEASON_END_CEREMONY -> {
+                                    val ceremonySummary = remember(career.currentSeasonYear, career.currentDayIndex) {
+                                        com.example.engine.progression.SeasonTransitionEngine.evaluateSeasonEnd(career)
+                                    }
+                                    com.example.ui.screens.season.SeasonCeremonyScreen(
+                                        summary = ceremonySummary,
+                                        onTransitionToNextSeason = {
+                                            viewModel.transitionToNextSeason(ceremonySummary)
+                                        },
+                                        onClose = { viewModel.closeOverlay() }
+                                    )
+                                }
+
+                                HubOverlayScreen.ROMANCE_AND_DATING -> {
+                                    com.example.ui.screens.phone.RomanceAndDatingScreen(
+                                        state = career,
+                                        onBackHome = { viewModel.closeOverlay() },
+                                        onPartnerUpdated = { partner ->
+                                            viewModel.updateRomanticPartner(partner.name, partner.stage.titleTr, partner.affectionLevel)
+                                        },
+                                        onDatingOutcome = { outcome ->
+                                            viewModel.applyRomanceOutcome(outcome)
+                                        }
+                                    )
+                                }
+
+                                else -> {
                                     when (activeHubTab) {
                                         HubTab.HAYATIM -> {
                                             PlayerHubScreen(
@@ -436,7 +506,8 @@ fun FootballLifeApp(
                                                 career = career,
                                                 onAdvanceNextDay = { viewModel.advanceDay() },
                                                 onAdvanceToMatchDay = { viewModel.advanceUntilNextMatchDay() },
-                                                onPlayMatchToday = { viewModel.prepareMatchForTodayOrNext() }
+                                                onPlayMatchToday = { viewModel.prepareMatchForTodayOrNext() },
+                                                onOpenCeremony = { viewModel.openSeasonEndCeremony() }
                                             )
                                         }
 

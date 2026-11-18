@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LocalCafe
@@ -1530,7 +1531,8 @@ fun CalendarScreen(
     onAdvanceNextDay: () -> Unit,
     onAdvanceToMatchDay: () -> Unit,
     onPlayMatchToday: () -> Unit,
-    onOpenTraining: () -> Unit = {}
+    onOpenTraining: () -> Unit = {},
+    onOpenCeremony: () -> Unit = {}
 ) {
     var viewMode by remember { mutableStateOf("AYLIK") } // Default: AYLIK (7-column FC calendar)
     var selectedMonthIdx by remember(career.currentDayIndex) {
@@ -1639,7 +1641,18 @@ fun CalendarScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        if (isMatchToday) {
+                        val isSeasonOver = remember(career.fixtures, career.currentDayIndex) {
+                            com.example.engine.progression.SeasonTransitionEngine.isSeasonFinished(career)
+                        }
+                        if (isSeasonOver) {
+                            FLPrimaryButton(
+                                text = "🏆 SEZON SONU ÖDÜL TÖRENİ & KUPA GALASI",
+                                onClick = onOpenCeremony,
+                                icon = Icons.Default.Star,
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "btn_calendar_open_ceremony"
+                            )
+                        } else if (isMatchToday) {
                             FLPrimaryButton(
                                 text = "BUGÜNKÜ MAÇA ÇIK",
                                 onClick = onPlayMatchToday,
@@ -1850,26 +1863,47 @@ fun CalendarScreen(
                                                         }
                                                     )
 
-                                                    // Event Marker Badge / Micro Tag
+                                                    // Event Marker Badge / Micro Tag (Gerçek Turnuva Logosu ile)
                                                     if (cell.isMatchDay) {
                                                         val fx = cell.fixture
                                                         val oppShort = if (fx != null) {
                                                             if (fx.homeClubId == career.contract.clubId) fx.awayClubName.take(3).uppercase()
                                                             else fx.homeClubName.take(3).uppercase()
                                                         } else "MAÇ"
-                                                        Surface(
-                                                            color = if (fx?.played == true) SurfacePrimary else AccentPrimary,
-                                                            shape = RoundedCornerShape(4.dp),
-                                                            border = if (fx?.played == true) BorderStroke(0.8.dp, AccentBright) else null
+                                                        val tournamentLogoRes = com.example.engine.tournament.getTournamentDrawableRes(
+                                                            leagueId = fx?.leagueId,
+                                                            fixtureId = fx?.id,
+                                                            dateLabel = fx?.dateLabel
+                                                        )
+
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(2.dp)
                                                         ) {
-                                                            Text(
-                                                                text = if (fx?.played == true) "${fx.homeScore}-${fx.awayScore}" else oppShort,
-                                                                fontFamily = SpaceGroteskFontFamily,
-                                                                fontSize = 8.5.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = if (fx?.played == true) AccentBright else BackgroundPrimary,
-                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                            )
+                                                            if (tournamentLogoRes != null) {
+                                                                Image(
+                                                                    painter = painterResource(id = tournamentLogoRes),
+                                                                    contentDescription = "Turnuva",
+                                                                    modifier = Modifier
+                                                                        .size(13.dp)
+                                                                        .clip(RoundedCornerShape(2.dp)),
+                                                                    contentScale = ContentScale.Fit
+                                                                )
+                                                            }
+                                                            Surface(
+                                                                color = if (fx?.played == true) SurfacePrimary else AccentPrimary,
+                                                                shape = RoundedCornerShape(4.dp),
+                                                                border = if (fx?.played == true) BorderStroke(0.8.dp, AccentBright) else null
+                                                            ) {
+                                                                Text(
+                                                                    text = if (fx?.played == true) "${fx.homeScore}-${fx.awayScore}" else oppShort,
+                                                                    fontFamily = SpaceGroteskFontFamily,
+                                                                    fontSize = 8.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = if (fx?.played == true) AccentBright else BackgroundPrimary,
+                                                                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                                                )
+                                                            }
                                                         }
                                                     } else if (cell.isTrainingDay) {
                                                         Box(
@@ -1988,15 +2022,36 @@ fun CalendarScreen(
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            text = "HAFTA ${selectedDayFixture.week} KARŞILAŞMASI",
-                                            fontFamily = SpaceGroteskFontFamily,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp,
-                                            color = AccentBright
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            val tourLogoRes = com.example.engine.tournament.getTournamentDrawableRes(
+                                                leagueId = selectedDayFixture.leagueId,
+                                                fixtureId = selectedDayFixture.id,
+                                                dateLabel = selectedDayFixture.dateLabel
+                                            )
+                                            if (tourLogoRes != null) {
+                                                Image(
+                                                    painter = painterResource(id = tourLogoRes),
+                                                    contentDescription = "Turnuva Logosu",
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .clip(RoundedCornerShape(4.dp)),
+                                                    contentScale = ContentScale.Fit
+                                                )
+                                            }
+                                            Text(
+                                                text = if (selectedDayFixture.isCupMatch) selectedDayFixture.dateLabel.uppercase() else "HAFTA ${selectedDayFixture.week} KARŞILAŞMASI",
+                                                fontFamily = SpaceGroteskFontFamily,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                color = AccentBright
+                                            )
+                                        }
                                         Text(
                                             text = "${selectedDayFixture.kickOffTime} • ${selectedDayFixture.stadiumName}",
                                             style = MaterialTheme.typography.labelSmall,
@@ -2174,13 +2229,35 @@ fun CalendarScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        Text(
-                            text = "GÜN ${ev.dayIndex} • ${ev.dateLabel} • ${ev.eventType}",
-                            fontFamily = SpaceGroteskFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            color = if (isMatch) AccentBright else TextSecondary
+                        val fxOnDay = if (isMatch) career.fixtures.find { it.dayIndex == ev.dayIndex && (it.homeClubId == career.contract.clubId || it.awayClubId == career.contract.clubId) } else null
+                        val weekTourLogo = com.example.engine.tournament.getTournamentDrawableRes(
+                            leagueId = fxOnDay?.leagueId,
+                            fixtureId = fxOnDay?.id,
+                            dateLabel = fxOnDay?.dateLabel ?: ev.title
                         )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (weekTourLogo != null) {
+                                Image(
+                                    painter = painterResource(id = weekTourLogo),
+                                    contentDescription = "Turnuva Logosu",
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
+                            Text(
+                                text = "GÜN ${ev.dayIndex} • ${ev.dateLabel} • ${ev.eventType}",
+                                fontFamily = SpaceGroteskFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                color = if (isMatch) AccentBright else TextSecondary
+                            )
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(ev.title, style = MaterialTheme.typography.titleMedium, color = TextPrimary, fontWeight = FontWeight.Bold)
                         Text(ev.description, style = MaterialTheme.typography.bodySmall, color = TextSecondary)

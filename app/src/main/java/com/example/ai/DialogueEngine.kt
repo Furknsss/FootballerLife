@@ -35,8 +35,9 @@ data class DialogueExecutionResult(
  * 3. Applies structured deltas (`affinityDelta`, `trustDelta`, `moraleDelta`, `teamChemistryDelta`,
  *    `fanSupportDelta`, `managerTrustDelta`, `startingStatusHint`, `triggerTransferOffer`,
  *    `triggerWageRaise`, `triggerPressHeadline`, `newMemoryNote`, `suggestedQuickReplies`) to `CareerSaveState`.
- * 4. Seamlessly falls back to contextual Turkish scripted dialogue (`CareerEngine`) when no API key is configured,
- *    AI dialogues are toggled off, or the device is offline.
+ * 4. Filters out empty, repetitive, looped, or nonsensical responses to guarantee high-quality Turkish dialogue.
+ * 5. Seamlessly falls back to contextual Turkish scripted dialogue (`CareerEngine` + dedicated persona fallbacks)
+ *    when no API key is configured, AI dialogues are toggled off, or the device is offline.
  */
 object DialogueEngine {
 
@@ -167,10 +168,6 @@ object DialogueEngine {
     /**
      * Step 2: Resolves an NPC reply (WhatsApp chat, Coach office meeting, or Voice Phone Call)
      * using Gemini AI when available, or offline contextual Turkish fallback otherwise.
-     *
-     * Note: Assumes [stateBeforeUserMsg] is the state BEFORE the user message was appended
-     * (or if the user message was already optimistically appended in [currentStateWithUserMsg],
-     * replaces/appends cleanly without duplicating the user message).
      */
     suspend fun generateAndApplyNpcDialogue(
         stateBeforeUserMsg: CareerSaveState,
@@ -191,18 +188,19 @@ object DialogueEngine {
             ?: baseEnriched.npcs.find { it.id == npcId }
 
         if (targetNpc == null || cleanText.isEmpty()) {
-            val fallbackMsg = ChatMessage(
+            val emptyNotice = ChatMessage(
                 id = "MSG_EMPTY_${System.currentTimeMillis()}",
-                senderName = "Sistem",
+                senderName = targetNpc?.name ?: "Sistem",
                 isFromUser = false,
-                text = "...",
+                text = "Mesajınız anlaşılamadı. Lütfen tekrar deneyin.",
                 dayIndex = currentEnriched.currentDayIndex,
-                timeLabel = currentEnriched.formattedClockTime
+                timeLabel = currentEnriched.formattedClockTime,
+                emotionTag = "Doğal"
             )
             return DialogueExecutionResult(
                 updatedState = currentEnriched,
-                replyMessage = fallbackMsg,
-                structuredResponse = GeminiDialogueStructuredResponse(replyText = "...", isFromAi = false)
+                replyMessage = emptyNotice,
+                structuredResponse = GeminiDialogueStructuredResponse(replyText = emptyNotice.text, isFromAi = false)
             )
         }
 
@@ -210,7 +208,7 @@ object DialogueEngine {
 
         if (canTryAi) {
             val persona = CharacterPersonas.getPersonaForNpc(baseEnriched, targetNpc)
-            // Build conversation history from prior messages (excluding the optimistic user message just added)
+            // Build conversation history from prior messages (excluding optimistic user message just added)
             val priorMessages = baseEnriched.npcs.find { it.id == npcId }?.messages.orEmpty()
             val historyTurns = priorMessages.takeLast(10).map { msg ->
                 ConversationTurn(
@@ -234,12 +232,14 @@ object DialogueEngine {
                 Oyuncunun (${baseEnriched.player.fullName}) yeni mesajı / sözü:
                 "$cleanText"
 
-                Lütfen ${persona.displayName} (${persona.roleTitleTr}) olarak Türkçe yanıtını ve oyun içi etkilerini belirtilen JSON formatında üret.
+                Lütfen ${persona.displayName} (${persona.roleTitleTr}) olarak Türkçe yanıtını ve oyun içi etkilerini belirtilen JSON formatında üret. Asla boş veya tekrarlayan yanıt verme.
             """.trimIndent()
+
+            val effectiveModel = GeminiModelOption.fromModelId(modelId).modelId
 
             val aiResult = GeminiClient.generateCharacterDialogue(
                 apiKeyInput = apiKeyInput,
-                preferredModelId = modelId,
+                preferredModelId = effectiveModel,
                 systemInstruction = systemPrompt,
                 conversationHistory = historyTurns,
                 userMessageWithDirective = userDirective,
@@ -257,11 +257,19 @@ object DialogueEngine {
             }
         }
 
-        // Offline / No-Key Fallback: handle Club President with authoritative Turkish president persona
+        // Offline / No-Key / AI-Fail Fallbacks:
         if (npcId == "NPC_PRESIDENT") {
             return applyOfflinePresidentDialogue(
                 stateWithUserMsg = currentEnriched,
                 presidentNpc = targetNpc,
+                userText = cleanText
+            )
+        }
+
+        if (npcId == "NPC_CAPTAIN") {
+            return applyOfflineCaptainDialogue(
+                stateWithUserMsg = currentEnriched,
+                captainNpc = targetNpc,
                 userText = cleanText
             )
         }
@@ -360,12 +368,14 @@ object DialogueEngine {
                 Oyuncunun (${stateBeforeUserMsg.player.fullName}) Instagram DM mesajı:
                 "$cleanText"
 
-                Lütfen ${thread.senderName} (${thread.senderHandle}) olarak doğal Türkçe yanıtını ve etkilerini JSON formatında döndür.
+                Lütfen ${thread.senderName} (${thread.senderHandle}) olarak doğal Türkçe yanıtını ve etkilerini JSON formatında döndür. Asla boş veya tekrarlayan yanıt üretme.
             """.trimIndent()
+
+            val effectiveModel = GeminiModelOption.fromModelId(modelId).modelId
 
             val aiResult = GeminiClient.generateCharacterDialogue(
                 apiKeyInput = apiKeyInput,
-                preferredModelId = modelId,
+                preferredModelId = effectiveModel,
                 systemInstruction = systemPrompt,
                 conversationHistory = historyTurns,
                 userMessageWithDirective = userDirective,
@@ -678,7 +688,6 @@ object DialogueEngine {
         userText: String,
         structured: GeminiDialogueStructuredResponse
     ): DialogueExecutionResult {
-        // Also run CareerEngine's sponsor/scout bonus triggers if applicable, then replace the reply text with Gemini's response
         val engineProcessed = CareerEngine.sendInstaDmMessage(stateBeforeUserMsg, threadId, userText)
         val thread = engineProcessed.instaDmThreads.find { it.id == threadId }
             ?: stateWithUserMsg.instaDmThreads.find { it.id == threadId }!!
@@ -847,6 +856,122 @@ object DialogueEngine {
                 affinityDelta = affinityDelta,
                 trustDelta = trustDelta,
                 moraleDelta = moraleDelta,
+                suggestedQuickReplies = quickReplies,
+                isFromAi = false,
+                modelUsed = "offline-scripted"
+            ),
+            toastSummary = impactSummary,
+            usedGeminiAi = false
+        )
+    }
+
+    private fun applyOfflineCaptainDialogue(
+        stateWithUserMsg: CareerSaveState,
+        captainNpc: NpcCharacter,
+        userText: String
+    ): DialogueExecutionResult {
+        val lower = userText.lowercase()
+        val club = stateWithUserMsg.currentClub
+        val player = stateWithUserMsg.player
+        val nextMatch = stateWithUserMsg.todayUserFixture ?: stateWithUserMsg.nextUnplayedUserFixture
+        val nextOpponent = nextMatch?.let {
+            if (it.homeClubId == club.id) it.awayClubName else it.homeClubName
+        } ?: "rakibimiz"
+
+        val isDisrespectful = listOf("kötü", "oynayamıyorsun", "hata", "bıktım", "saçma", "çöp").any { lower.contains(it) }
+        val isMotivation = listOf("kazanacağız", "3 puan", "kaptan", "lider", "şampiyon", "hazırım", "arma", "galibiyet", "gol").any { lower.contains(it) }
+        val isDinnerOrCoffee = listOf("yemek", "kahve", "akşam", "benden", "ısmarlayayım", "çay").any { lower.contains(it) }
+
+        val affinityDelta = when {
+            isDisrespectful -> -5
+            isMotivation || isDinnerOrCoffee -> +6
+            else -> +3
+        }
+        val trustDelta = when {
+            isDisrespectful -> -4
+            isMotivation -> +5
+            else -> +2
+        }
+        val moraleDelta = when {
+            isDisrespectful -> -3
+            isMotivation || isDinnerOrCoffee -> +5
+            else -> +2
+        }
+        val chemDelta = when {
+            isDisrespectful -> -4
+            isMotivation || isDinnerOrCoffee -> +4
+            else -> +2
+        }
+
+        val replyText = when {
+            isDisrespectful ->
+                "Kardeşim, ${club.name} soyunma odasında kimse birbirini suçlamaz! Bir hata varsa beraber düzeltir, sahada omuz omuza telafi ederiz. Şimdi kafanı kaldır ve maça odaklan!"
+            isDinnerOrCoffee ->
+                "Adamsın ${player.firstName}! 🥩☕ İdman çıkışı takımı topluyorum, hesaplar senden olsun moral depolayalım. Bu kenetlenme bizi sahada yenilmez yapar!"
+            isMotivation ->
+                "İşte duymak istediğim kaptan ruhu bu ${player.firstName}! $nextOpponent maçında sahaya çıkıp 90 dakika basacağız. Arkanda ben varım, sen önde farkını yarat!"
+            else ->
+                "Eyvallah kardeşim. ${club.name} formasını terleten herkes benim öz kardeşimdir. Tesislerde veya sahada neye ihtiyacın olursa ilk bana gel!"
+        }
+
+        val impactSummary = "Kaptanla Yakınlık ${if (affinityDelta >= 0) "+$affinityDelta" else "$affinityDelta"} • Kimya ${if (chemDelta >= 0) "+$chemDelta" else "$chemDelta"} • Moral ${if (moraleDelta >= 0) "+$moraleDelta" else "$moraleDelta"}"
+
+        val replyMsg = ChatMessage(
+            id = "MSG_CAPT_${System.currentTimeMillis() + 1}",
+            senderName = captainNpc.name,
+            isFromUser = false,
+            text = replyText,
+            dayIndex = stateWithUserMsg.currentDayIndex,
+            timeLabel = stateWithUserMsg.formattedClockTime,
+            emotionTag = if (isDisrespectful) "Ciddi" else "Kararlı",
+            impactSummary = impactSummary
+        )
+
+        val quickReplies = listOf(
+            "Kaptanım, $nextOpponent maçında 3 puan için and içtik!",
+            "İdman çıkışı yemek benden kaptan, takım kenetlensin.",
+            "Sahada her topa basacağız, bu arma için sonuna kadar!"
+        )
+
+        val updatedNpcs = stateWithUserMsg.npcs.map { npc ->
+            if (npc.id == "NPC_CAPTAIN") {
+                val hasRecentUserMsg = npc.messages.lastOrNull()?.let { it.isFromUser && it.text == userText } == true
+                val baseMessages = if (hasRecentUserMsg) npc.messages else npc.messages + ChatMessage(
+                    id = "MSG_USR_${System.currentTimeMillis()}",
+                    senderName = player.firstName,
+                    isFromUser = true,
+                    text = userText,
+                    dayIndex = stateWithUserMsg.currentDayIndex,
+                    timeLabel = stateWithUserMsg.formattedClockTime
+                )
+                npc.copy(
+                    affinity = (npc.affinity + affinityDelta).coerceIn(0, 100),
+                    trust = (npc.trust + trustDelta).coerceIn(0, 100),
+                    currentMood = if (isDisrespectful) "Ciddi" else "Kararlı",
+                    quickReplyOptions = quickReplies,
+                    messages = baseMessages + replyMsg,
+                    unreadCount = 0
+                )
+            } else npc
+        }
+
+        val updatedState = stateWithUserMsg.copy(
+            updatedAtMs = System.currentTimeMillis(),
+            player = player.copy(morale = (player.morale + moraleDelta).coerceIn(0, 100)),
+            teamChemistry = (stateWithUserMsg.teamChemistry + chemDelta).coerceIn(0, 100),
+            npcs = updatedNpcs
+        )
+
+        return DialogueExecutionResult(
+            updatedState = updatedState,
+            replyMessage = replyMsg,
+            structuredResponse = GeminiDialogueStructuredResponse(
+                replyText = replyText,
+                emotionTag = replyMsg.emotionTag,
+                affinityDelta = affinityDelta,
+                trustDelta = trustDelta,
+                moraleDelta = moraleDelta,
+                teamChemistryDelta = chemDelta,
                 suggestedQuickReplies = quickReplies,
                 isFromAi = false,
                 modelUsed = "offline-scripted"

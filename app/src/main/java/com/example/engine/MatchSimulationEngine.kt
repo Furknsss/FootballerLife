@@ -28,6 +28,16 @@ enum class MatchPhase {
     FULL_TIME
 }
 
+enum class PlayerVisualPose {
+    NORMAL,
+    DEFENSIVE_WALL,
+    WALL_JUMP,
+    GK_READY,
+    GK_DIVE,
+    KICK_STRIKE,
+    BICYCLE_KICK
+}
+
 data class PitchPlayerNode(
     val id: String,
     val number: Int,
@@ -47,7 +57,12 @@ data class PitchPlayerNode(
     val isMakingRun: Boolean = false,
     val isDivingOrSliding: Boolean = false,
     val diveDirectionY: Float = 0f,
-    val roleTag: String = ""
+    val roleTag: String = "",
+    val visualPose: PlayerVisualPose = PlayerVisualPose.NORMAL,
+    val elevationZ: Float = 0f,
+    val kitShortsColorHex: String = "",
+    val hairColorHex: String = "",
+    val skinToneHex: String = ""
 )
 
 data class PitchBallState(
@@ -401,7 +416,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                         phase = MatchPhase.GOAL_CELEBRATION,
                         homeScore = newHomeScore,
                         awayScore = newAwayScore,
-                        players = movedPlayers.map { it.copy(isDivingOrSliding = false, roleTag = "") },
+                        players = movedPlayers.map { it.copy(isDivingOrSliding = false, roleTag = "", visualPose = PlayerVisualPose.NORMAL, elevationZ = 0f) },
                         ball = movedBall.copy(z = 0f, flightProgress = 1f),
                         latestBannerText = formattedBanner,
                         goalScorerBanner = state.pendingGoalBannerText ?: "GOOOL!",
@@ -446,7 +461,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 // Otherwise return smoothly to live play
                 return state.copy(
                     phase = MatchPhase.LIVE_PLAY,
-                    players = movedPlayers.map { it.copy(isDivingOrSliding = false, isMakingRun = false, roleTag = "") },
+                    players = movedPlayers.map { it.copy(isDivingOrSliding = false, isMakingRun = false, roleTag = "", visualPose = PlayerVisualPose.NORMAL, elevationZ = 0f) },
                     ball = movedBall.copy(isShotInFlight = false, z = 0f, trailPoints = emptyList()),
                     cameraZoom = 1.0f,
                     cameraFocusX = 50f,
@@ -635,32 +650,74 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 context = criticalContext,
                 userIsHome = state.userIsHome
             )
-            return state.copy(
-                phase = MatchPhase.CRITICAL_DECISION,
-                minute = nextMinute,
-                userOnPitch = userOnPitch,
-                homePossessionPct = newPossession,
-                userPassesCompleted = userPassesComp,
-                userPassesAttempted = userPassesAtt,
-                userLiveRating = userRating,
-                userLiveEnergy = userEnergy,
-                players = focusedPlayers,
-                ball = PitchBallState(
-                    x = criticalContext.ballX,
-                    y = criticalContext.ballY,
-                    targetX = criticalContext.ballX,
-                    targetY = criticalContext.ballY,
-                    startX = criticalContext.ballX,
-                    startY = criticalContext.ballY
-                ),
-                cameraFocusX = criticalContext.ballX,
-                cameraFocusY = criticalContext.ballY,
-                cameraZoom = 1.40f,
-                activeDecision = criticalContext,
-                latestBannerText = "${nextMinute}' — TOP SENDE: ${criticalContext.title}",
-                crowdExcitementLevel = 0.85f,
-                commentaryFeed = events
-            )
+        val (camX, camY, camZoom) = when (criticalContext.scenarioType) {
+            "FREE_KICK_CURVE" -> {
+                val targetGoalX = if (state.userIsHome) 97.2f else 2.8f
+                Triple(
+                    (criticalContext.ballX * 0.65f + targetGoalX * 0.35f),
+                    (criticalContext.ballY * 0.65f + 50f * 0.35f),
+                    1.34f
+                )
+            }
+            "PENALTY_KICK" -> {
+                val targetGoalX = if (state.userIsHome) 97.2f else 2.8f
+                Triple(
+                    (criticalContext.ballX * 0.50f + targetGoalX * 0.50f),
+                    50f,
+                    1.40f
+                )
+            }
+            "CORNER_KICK" -> {
+                Triple(
+                    if (state.userIsHome) 89f else 11f,
+                    (criticalContext.ballY * 0.55f + 50f * 0.45f),
+                    1.25f
+                )
+            }
+            "ACROBATIC_VOLLEY" -> {
+                val targetGoalX = if (state.userIsHome) 97.2f else 2.8f
+                Triple(
+                    (criticalContext.ballX * 0.70f + targetGoalX * 0.30f),
+                    criticalContext.ballY,
+                    1.32f
+                )
+            }
+            else -> {
+                val targetGoalX = if (state.userIsHome) 97.2f else 2.8f
+                Triple(
+                    (criticalContext.ballX * 0.72f + targetGoalX * 0.28f),
+                    (criticalContext.ballY * 0.75f + 50f * 0.25f),
+                    1.28f
+                )
+            }
+        }
+        return state.copy(
+            phase = MatchPhase.CRITICAL_DECISION,
+            minute = nextMinute,
+            userOnPitch = userOnPitch,
+            homePossessionPct = newPossession,
+            userPassesCompleted = userPassesComp,
+            userPassesAttempted = userPassesAtt,
+            userLiveRating = userRating,
+            userLiveEnergy = userEnergy,
+            players = focusedPlayers,
+            ball = PitchBallState(
+                x = criticalContext.ballX,
+                y = criticalContext.ballY,
+                targetX = criticalContext.ballX,
+                targetY = criticalContext.ballY,
+                startX = criticalContext.ballX,
+                startY = criticalContext.ballY,
+                z = if (criticalContext.scenarioType == "ACROBATIC_VOLLEY") 18f else 0f
+            ),
+            cameraFocusX = camX,
+            cameraFocusY = camY,
+            cameraZoom = camZoom,
+            activeDecision = criticalContext,
+            latestBannerText = "${nextMinute}' — TOP SENDE: ${criticalContext.title}",
+            crowdExcitementLevel = 0.85f,
+            commentaryFeed = events
+        )
         }
 
         // Otherwise check AI team match events (shots, saves, goals, corners, cards)
@@ -980,15 +1037,24 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                     val isNearPostEdge = goalMouthY in 35.2f..37.6f || goalMouthY in 62.4f..64.8f
                     val overPoweredSky = gesture.powerPct >= 95 && rng.nextInt(100) > (attr.shooting + 15)
 
-                    // Opponent Goalkeeper reaction
-                    val gkDiveY = goalMouthY.coerceIn(39f, 61f)
+                    // Opponent Goalkeeper reaction and defensive wall jump
+                    val gkDiveY = goalMouthY.coerceIn(38.5f, 61.5f)
                     updatedPlayers = updatedPlayers.map { p ->
                         if (p.position == Position.GK && p.isHome != state.userIsHome) {
+                            val diveElev = if (distFromCenter > 6f || peakZ > 14f) 14f else 4f
                             p.copy(
                                 targetY = gkDiveY,
                                 isDivingOrSliding = true,
                                 diveDirectionY = if (goalMouthY < 50f) -1f else 1f,
+                                visualPose = PlayerVisualPose.GK_DIVE,
+                                elevationZ = diveElev,
                                 roleTag = "UÇUYOR!"
+                            )
+                        } else if (p.visualPose == PlayerVisualPose.DEFENSIVE_WALL) {
+                            p.copy(
+                                visualPose = PlayerVisualPose.WALL_JUMP,
+                                elevationZ = 16f,
+                                roleTag = "ZIPLADI!"
                             )
                         } else {
                             p
@@ -1822,7 +1888,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             )
         }
 
-        val scenarioIndex = (minute + state.userDecisionsTotal) % 5
+        val scenarioIndex = (minute + state.userDecisionsTotal) % 7
         val finesseProb = (36 + (attr.shooting * 0.50).roundToInt() + moraleMod - oppDefPenalty).coerceIn(20, 84)
         val powerProb = (32 + (attr.shooting * 0.42 + attr.strength * 0.12).roundToInt() + energyMod - oppDefPenalty).coerceIn(18, 80)
         val passProb = (48 + (attr.passing * 0.35 + attr.vision * 0.20).roundToInt() + moraleMod - oppDefPenalty).coerceIn(30, 88)
@@ -1849,11 +1915,47 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                     x = bx,
                     y = by,
                     title = "${minute}' — Tehlikeli Bölgeden Serbest Vuruş!",
-                    desc = "${oppClub.shortName} 3 kişilik baraj kurdu. Doğrudan vurursan baraja takılır, falso vererek köşeyi avla!",
-                    hint = "SERBEST VURUŞ: Parmağınla barajın etrafından kavisli (muz orta / falsolu şut) çizgi çek!"
+                    desc = "${oppClub.shortName} 5 kişilik baraj kurdu. Doğrudan vurursan baraja takılır, kavis vererek doksana as!",
+                    hint = "SERBEST VURUŞ: Parmağınla barajın etrafından kavisli beyaz muz şut çek!"
                 )
             }
             2 -> {
+                val bx = if (attackingRight) 88.5f else 11.5f
+                val by = 50f
+                ScenarioSpec(
+                    type = "PENALTY_KICK",
+                    x = bx,
+                    y = by,
+                    title = "${minute}' — Penaltı Noktasında Nefesler Tutuldu!",
+                    desc = "Hakem beyaz noktayı gösterdi! Kaleciyle baş başasın, köşeyi seç ve vuruşunu yap.",
+                    hint = "PENALTI: Parmağınla kalecinin uzanamayacağı köşeye sert veya plase bir çizgi çek!"
+                )
+            }
+            3 -> {
+                val bx = if (attackingRight) 98.2f else 1.8f
+                val by = if (rng.nextBoolean()) 4.5f else 95.5f
+                ScenarioSpec(
+                    type = "CORNER_KICK",
+                    x = bx,
+                    y = by,
+                    title = "${minute}' — Köşe Vuruşu Fırsatı!",
+                    desc = "Ceza sahası hıncahınç dolu! Arka direğe veya penaltı noktasına kavisli muz orta kes.",
+                    hint = "KORNER: Ceza sahasındaki takım arkadaşının koşu yoluna kavisli orta çiz!"
+                )
+            }
+            4 -> {
+                val bx = if (attackingRight) 84f else 16f
+                val by = (44f + rng.nextInt(12))
+                ScenarioSpec(
+                    type = "ACROBATIC_VOLLEY",
+                    x = bx,
+                    y = by,
+                    title = "${minute}' — Havada Röveşata / Vole Fırsatı!",
+                    desc = "Gelen yüksek ortada havada yükseldin! Kaleye muhteşem bir vole veya röveşata indir.",
+                    hint = "RÖVEŞATA: Havada süzülen toptan kalenin üst köşesine doğru hızlıca parmağınla çiz!"
+                )
+            }
+            5 -> {
                 val bx = if (attackingRight) 76f else 24f
                 val by = if (rng.nextBoolean()) 19f else 81f
                 ScenarioSpec(
@@ -1861,20 +1963,8 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                     x = bx,
                     y = by,
                     title = "${minute}' — Kanattan Tehlikeli Bindirme!",
-                    desc = "Kanatta boşluk buldun! Ceza sahasına hareketlenen iki arkadaşına orta kesebilir veya içeri çalım atabilirsin.",
+                    desc = "Kanatta boşluk buldun! Ceza sahasına hareketlenen arkadaşlarına orta kes veya içeri çalımla gir.",
                     hint = "Ceza sahasındaki arkadaşının koşu yoluna kavisli orta çiz veya içeri çalımla gir!"
-                )
-            }
-            3 -> {
-                val bx = if (attackingRight) 65f else 35f
-                val by = (34f + rng.nextInt(32))
-                ScenarioSpec(
-                    type = "THROUGH_BALL_COUNTER",
-                    x = bx,
-                    y = by,
-                    title = "${minute}' — Hızlı Kontra Atak Fırsatı!",
-                    desc = "Rakip savunma önde yakalandı! Forvetlerin savunma arkasına koşu gösteriyor.",
-                    hint = "Stoperlerin arasından koşu yoluna falsolu ara pas çiz veya topu sürerek ilerle!"
                 )
             }
             else -> {
@@ -1992,7 +2082,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         val runner1Id = attackers.getOrNull(0)?.id
         val runner2Id = attackers.getOrNull(1)?.id
 
-        // Pick up to 3 opponent defenders near the play (for walls or marking)
+        // Pick up to 5 opponent defenders near the play (for 5-man walls or marking)
         val defenders = opponents.sortedBy {
             when (it.position) {
                 Position.CB -> 1
@@ -2004,10 +2094,18 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         val def1Id = defenders.getOrNull(0)?.id
         val def2Id = defenders.getOrNull(1)?.id
         val def3Id = defenders.getOrNull(2)?.id
+        val def4Id = defenders.getOrNull(3)?.id
+        val def5Id = defenders.getOrNull(4)?.id
 
         return players.map { node ->
             when {
                 node.isUser -> {
+                    val pose = when (context.scenarioType) {
+                        "ACROBATIC_VOLLEY" -> PlayerVisualPose.BICYCLE_KICK
+                        "FREE_KICK_CURVE", "PENALTY_KICK" -> PlayerVisualPose.KICK_STRIKE
+                        else -> PlayerVisualPose.NORMAL
+                    }
+                    val elevZ = if (context.scenarioType == "ACROBATIC_VOLLEY") 18f else 0f
                     node.copy(
                         x = bx,
                         y = by,
@@ -2018,7 +2116,9 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                         hasBall = !context.isDefensive,
                         isMakingRun = false,
                         isDivingOrSliding = false,
-                        roleTag = "SEN"
+                        visualPose = pose,
+                        elevationZ = elevZ,
+                        roleTag = "SEN (#${node.number})"
                     )
                 }
 
@@ -2026,7 +2126,8 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 node.position == Position.GK && node.isHome != userIsHome -> {
                     val gkX = if (attackingRight) 94.8f else 5.2f
                     val gkY = when (context.scenarioType) {
-                        "FREE_KICK_CURVE" -> if (by < 50f) 54f else 46f // guards far post behind wall
+                        "FREE_KICK_CURVE" -> if (by < 50f) 54.5f else 45.5f // guards far post behind wall
+                        "PENALTY_KICK" -> 50f
                         else -> (50f + (by - 50f) * 0.22f).coerceIn(43f, 57f)
                     }
                     node.copy(
@@ -2036,6 +2137,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                         targetY = gkY,
                         hasBall = false,
                         isDivingOrSliding = false,
+                        visualPose = PlayerVisualPose.GK_READY,
                         roleTag = "KL"
                     )
                 }
@@ -2054,6 +2156,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                         runTargetY = ry,
                         hasBall = false,
                         isMakingRun = true,
+                        visualPose = PlayerVisualPose.NORMAL,
                         roleTag = "KOŞU YAPIYOR"
                     )
                 }
@@ -2072,21 +2175,24 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                         runTargetY = ry,
                         hasBall = false,
                         isMakingRun = true,
+                        visualPose = PlayerVisualPose.NORMAL,
                         roleTag = "BOŞTA!"
                     )
                 }
 
-                // Free-kick 3-man wall or active defenders
-                (node.id == def1Id || node.id == def2Id || node.id == def3Id) && !context.isDefensive -> {
+                // Free-kick 5-man wall or active defenders
+                (node.id in listOf(def1Id, def2Id, def3Id, def4Id, def5Id)) && !context.isDefensive -> {
                     if (context.scenarioType == "FREE_KICK_CURVE") {
                         val wallIdx = when (node.id) {
-                            def1Id -> -1
-                            def2Id -> 0
-                            else -> 1
+                            def1Id -> -2
+                            def2Id -> -1
+                            def3Id -> 0
+                            def4Id -> 1
+                            else -> 2
                         }
-                        val wallX = (bx + dir * 8.5f).coerceIn(15f, 88f)
-                        val nearPostBias = if (by < 50f) -2.5f else 2.5f
-                        val wallY = (by + nearPostBias + wallIdx * 3.2f).coerceIn(22f, 78f)
+                        val wallX = (bx + dir * 8.8f).coerceIn(15f, 88f)
+                        val nearPostBias = if (by < 50f) -2.0f else 2.0f
+                        val wallY = (by + nearPostBias + wallIdx * 2.8f).coerceIn(22f, 78f)
                         node.copy(
                             x = wallX,
                             y = wallY,
@@ -2094,7 +2200,8 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                             targetY = wallY,
                             hasBall = false,
                             isMakingRun = false,
-                            roleTag = if (wallIdx == 0) "BARAJ" else ""
+                            visualPose = PlayerVisualPose.DEFENSIVE_WALL,
+                            roleTag = if (wallIdx == 0) "5'Lİ BARAJ" else "BARAJ"
                         )
                     } else {
                         val (dx, dy, tag) = when (node.id) {
@@ -2121,6 +2228,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                             targetY = dy,
                             hasBall = false,
                             isMakingRun = false,
+                            visualPose = PlayerVisualPose.NORMAL,
                             roleTag = tag
                         )
                     }
@@ -2140,11 +2248,27 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                         runTargetY = 50f,
                         hasBall = true,
                         isMakingRun = true,
+                        visualPose = PlayerVisualPose.NORMAL,
                         roleTag = "ATAKTA!"
                     )
                 }
 
-                else -> node.copy(hasBall = false, isMakingRun = false, isDivingOrSliding = false, roleTag = "")
+                else -> {
+                    val pushX = if (context.scenarioType == "PENALTY_KICK") {
+                        if (attackingRight) (node.baseX * 0.7f).coerceAtMost(77f) else (node.baseX * 0.7f + 30f).coerceAtLeast(23f)
+                    } else {
+                        node.baseX
+                    }
+                    node.copy(
+                        x = pushX,
+                        targetX = pushX,
+                        hasBall = false,
+                        isMakingRun = false,
+                        isDivingOrSliding = false,
+                        visualPose = PlayerVisualPose.NORMAL,
+                        roleTag = ""
+                    )
+                }
             }
         }
     }

@@ -68,7 +68,12 @@ enum class HubOverlayScreen {
     PLAYER_PROFILE_ARCHIVE,
     POST_MATCH_LOCKER_ROOM,
     COACH_MEETING,
-    ACTIVE_PHONE_CALL
+    ACTIVE_PHONE_CALL,
+    SEASON_END_CEREMONY,
+    NATIONAL_TEAM_MATCH,
+    INTERACTIVE_TRAINING,
+    SPONSORSHIP_AND_CRISIS,
+    ROMANCE_AND_DATING
 }
 
 data class CustomPlayerDraft(
@@ -197,6 +202,22 @@ class FootballLifeViewModel(
     fun openOverlay(overlay: HubOverlayScreen) {
         playSfx(GameSoundEffect.MENU_TAP)
         _overlayScreen.value = overlay
+    }
+
+    fun openSeasonEndCeremony() {
+        playSfx(GameSoundEffect.MENU_TAP)
+        _overlayScreen.value = HubOverlayScreen.SEASON_END_CEREMONY
+    }
+
+    fun transitionToNextSeason(summary: com.example.engine.progression.SeasonEndSummary? = null) {
+        val current = _activeCareer.value ?: return
+        val evalSummary = summary ?: com.example.engine.progression.SeasonTransitionEngine.evaluateSeasonEnd(current)
+        val (nextState, message) = com.example.engine.progression.SeasonTransitionEngine.finalizeSeasonAndTransition(current, evalSummary)
+        playSfx(GameSoundEffect.MATCH_WIN)
+        _activeCareer.value = nextState
+        _overlayScreen.value = HubOverlayScreen.NONE
+        persistCareerState(nextState)
+        showToast(message)
     }
 
     fun closeOverlay() {
@@ -423,7 +444,7 @@ class FootballLifeViewModel(
     fun advanceUntilNextMatchDay() {
         var current = _activeCareer.value ?: return
         var safetySteps = 0
-        while (current.todayUserFixture == null && safetySteps < 6) {
+        while (current.todayUserFixture == null && safetySteps < 14) {
             val (next, _) = CareerEngine.advanceToNextDay(current)
             if (next == current) break
             current = next
@@ -797,6 +818,145 @@ class FootballLifeViewModel(
             _activePhoneCallId.value = callId
         }
         _overlayScreen.value = HubOverlayScreen.ACTIVE_PHONE_CALL
+    }
+
+    fun openNationalTeamMatch() {
+        playSfx(GameSoundEffect.MENU_TAP)
+        _overlayScreen.value = HubOverlayScreen.NATIONAL_TEAM_MATCH
+    }
+
+    fun openInteractiveTraining() {
+        playSfx(GameSoundEffect.MENU_TAP)
+        _overlayScreen.value = HubOverlayScreen.INTERACTIVE_TRAINING
+    }
+
+    fun applyInteractiveTrainingResult(summary: com.example.engine.training.DrillSessionSummary) {
+        val current = _activeCareer.value ?: return
+        val currentAttrs = current.player.attributes
+        val updatedAttrs = when (summary.gameType) {
+            com.example.engine.training.TrainingMiniGameType.FREE_KICK_TARGET ->
+                currentAttrs.copy(shooting = (currentAttrs.shooting + 1).coerceAtMost(99))
+            com.example.engine.training.TrainingMiniGameType.PRECISION_PASSING ->
+                currentAttrs.copy(passing = (currentAttrs.passing + 1).coerceAtMost(99))
+            com.example.engine.training.TrainingMiniGameType.AGILITY_DRIBBLE_SLALOM ->
+                currentAttrs.copy(dribbling = (currentAttrs.dribbling + 1).coerceAtMost(99))
+        }
+        val updatedPlayer = current.player.copy(attributes = updatedAttrs)
+        val updatedCareer = current.copy(
+            player = updatedPlayer,
+            trainedToday = true,
+            currentHour = (current.currentHour + 3).coerceAtMost(21)
+        )
+        playSfx(GameSoundEffect.TRAINING_LEVEL_UP)
+        _activeCareer.value = updatedCareer
+        persistCareerState(updatedCareer)
+        showToast("Antrenman tamamlandı! Skor: ${summary.totalScore} Puan (${summary.medalTier.titleTr})")
+    }
+
+    fun unlockPlayerTrait(traitId: String) {
+        val current = _activeCareer.value ?: return
+        val (eligible, reason) = com.example.engine.training.PlayerTraitsCatalog.checkUnlockEligibility(current.player, traitId)
+        if (!eligible) {
+            showToast("Kilit açılamadı: $reason")
+            return
+        }
+        if (current.player.unlockedTraits.contains(traitId)) {
+            showToast("Bu yetenek zaten açık.")
+            return
+        }
+        val updatedPlayer = current.player.copy(
+            unlockedTraits = current.player.unlockedTraits + traitId
+        )
+        val updatedCareer = current.copy(player = updatedPlayer)
+        playSfx(GameSoundEffect.TRAINING_LEVEL_UP)
+        _activeCareer.value = updatedCareer
+        persistCareerState(updatedCareer)
+        showToast("Yeni Vasıf Açıldı: $traitId!")
+    }
+
+    fun openSponsorshipAndCrisis() {
+        playSfx(GameSoundEffect.MENU_TAP)
+        _overlayScreen.value = HubOverlayScreen.SPONSORSHIP_AND_CRISIS
+    }
+
+    fun signBootDeal(offerId: String) {
+        showToast("Krampon sponsorluğu imzalandı!")
+        playSfx(GameSoundEffect.TRAINING_LEVEL_UP)
+    }
+
+    fun equipBoot(boot: com.example.engine.lifestyle.BootModel) {
+        val current = _activeCareer.value ?: return
+        val updatedPlayer = current.player.copy(
+            activeCleatBrand = boot.brand.name,
+            activeCleatModel = boot.name,
+            activeCleatBonusStat = boot.bonusDescription
+        )
+        val updated = current.copy(player = updatedPlayer)
+        _activeCareer.value = updated
+        persistCareerState(updated)
+        showToast("${boot.name} kramponları giyildi!")
+    }
+
+    fun customizeBootColor(colorHex: String) {
+        val current = _activeCareer.value ?: return
+        val updatedPlayer = current.player.copy(
+            activeCleatColorHex = colorHex
+        )
+        val updated = current.copy(player = updatedPlayer)
+        _activeCareer.value = updated
+        persistCareerState(updated)
+        showToast("Krampon rengi güncellendi!")
+    }
+
+    fun signCommercialDeal(dealId: String) {
+        showToast("Global reklam sözleşmesi imzalandı!")
+        playSfx(GameSoundEffect.TRAINING_LEVEL_UP)
+    }
+
+    fun resolveClubCrisis(crisisId: String, choiceId: String) {
+        showToast("Kulüp krizi kararı uygulandı.")
+    }
+
+    fun openRomanceAndDating() {
+        playSfx(GameSoundEffect.MENU_TAP)
+        _overlayScreen.value = HubOverlayScreen.ROMANCE_AND_DATING
+    }
+
+    fun updateRomanticPartner(partnerName: String, stage: String, affection: Int) {
+        val current = _activeCareer.value ?: return
+        val updatedPlayer = current.player.copy(
+            romanticPartnerName = partnerName,
+            relationshipStage = stage,
+            relationshipAffection = affection
+        )
+        val updated = current.copy(player = updatedPlayer)
+        _activeCareer.value = updated
+        persistCareerState(updated)
+    }
+
+    fun applyRomanceOutcome(outcome: com.example.engine.social.RomanceInteractionOutcome) {
+        val current = _activeCareer.value ?: return
+        val currentBal = (current.balanceEur - outcome.costEur).coerceAtLeast(0L)
+        val updatedMorale = (current.player.morale + outcome.moraleChange).coerceIn(0, 100)
+        val updatedPlayer = current.player.copy(
+            morale = updatedMorale,
+            relationshipAffection = (current.player.relationshipAffection + outcome.affectionChange).coerceIn(0, 100)
+        )
+        val updated = current.copy(player = updatedPlayer, balanceEur = currentBal)
+        _activeCareer.value = updated
+        persistCareerState(updated)
+        showToast(outcome.narrativeMessage)
+    }
+
+    fun applyNationalTeamPerformance(
+        performance: com.example.engine.tournament.NationalMatchPerformance,
+        callUp: com.example.engine.tournament.NationalTeamCallUp
+    ) {
+        val current = _activeCareer.value ?: return
+        val (updated, msg) = com.example.engine.tournament.CupAndNationalTeamEngine.applyNationalMatchToCareer(current, performance, callUp)
+        _activeCareer.value = updated
+        persistCareerState(updated)
+        showToast(msg)
     }
 
     fun endActivePhoneCall(callId: String?) {

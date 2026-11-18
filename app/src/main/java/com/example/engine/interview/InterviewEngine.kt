@@ -190,7 +190,7 @@ object InterviewEngine {
         career: CareerSaveState,
         report: CompletedMatchReport,
         userApiKey: String? = null,
-        preferredModelId: String = "gemini-2.5-flash"
+        preferredModelId: String = "gemini-4-hydrogen"
     ): Pair<List<InterviewQuestion>, Boolean> {
         val baseOffline = buildOfflineQuestions(career, report)
         val provider = dynamicQuestionProvider

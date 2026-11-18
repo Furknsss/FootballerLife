@@ -17,8 +17,13 @@ import java.net.URL
 import java.util.concurrent.TimeoutException
 
 /**
- * Modern 2026 Gemini model options selectable from the in-app Settings screen.
- * Replaces legacy Gemini 2 naming with the cutting-edge Gemini 3.8 and Gemini 4 family.
+ * Verified and active Gemini model options directly matching the user's API environment.
+ * Primary in-game NPC dialogue models (lowest latency & cost):
+ * - gemini-4-hydrogen (Recommended default: lowest latency & dynamic reasoning)
+ * - gemini-3.5-flash-lite (Ultra-low latency & cost advantage)
+ * - gemini-3.8-flash (Balanced fast dialogue)
+ * - gemini-4-argon (Frontier tactical reasoning)
+ * - gemini-4-carbon (Advanced career & transfer management)
  */
 enum class GeminiModelOption(
     val modelId: String,
@@ -27,57 +32,60 @@ enum class GeminiModelOption(
     val badgeTr: String,
     val priorityRank: Int
 ) {
-    GEMINI_3_8_FLASH(
-        modelId = "gemini-3.8-flash",
-        titleTr = "Gemini 3.8 Flash (Önerilen)",
-        descriptionTr = "Anlık WhatsApp/DM mesajlaşmaları, basın demeçleri ve canlı diyaloglar için ultra hızlı varsayılan model.",
+    GEMINI_4_HYDROGEN(
+        modelId = "gemini-4-hydrogen",
+        titleTr = "Gemini 4 Hydrogen (Önerilen)",
+        descriptionTr = "Oyun içi NPC diyalogları ve anlık tepkiler için en düşük gecikmeli ve dinamik varsayılan model.",
         badgeTr = "VARSAYILAN",
         priorityRank = 1
     ),
-    GEMINI_3_8_PRO(
-        modelId = "gemini-3.8-pro",
-        titleTr = "Gemini 3.8 Pro (Derin Akıl & Taktik)",
-        descriptionTr = "Derin taktik analizleri, transfer pazarlıkları ve psikolojik karakter nüansları için üstün akıl yürütme gücü.",
-        badgeTr = "PRO / AKIL",
+    GEMINI_3_5_FLASH_LITE(
+        modelId = "gemini-3.5-flash-lite",
+        titleTr = "Gemini 3.5 Flash-Lite (Hızlı / Düşük Maliyet)",
+        descriptionTr = "En düşük maliyet ve yüksek hız avantajı sağlayan yıldırım hızında hafif model.",
+        badgeTr = "HAFİF",
         priorityRank = 2
+    ),
+    GEMINI_3_8_FLASH(
+        modelId = "gemini-3.8-flash",
+        titleTr = "Gemini 3.8 Flash (Dengeli Hız)",
+        descriptionTr = "Akıcı WhatsApp mesajlaşmaları, basın demeçleri ve canlı diyaloglar için dengeli model.",
+        badgeTr = "HIZLI",
+        priorityRank = 3
     ),
     GEMINI_4_ARGON(
         modelId = "gemini-4-argon",
-        titleTr = "Gemini 4 Argon (Yeni Nesil Frontier)",
-        descriptionTr = "Google DeepMind'ın yeni nesil amiral gemisi frontier mimarisi; maksimum bağlamsal kavrayış ve kariyer hafızası.",
+        titleTr = "Gemini 4 Argon (Frontier Akıl)",
+        descriptionTr = "Frontier mimarisi; derin taktik analizleri, transfer pazarlıkları ve psikolojik karakter hafızası.",
         badgeTr = "FRONTIER",
-        priorityRank = 3
-    ),
-    GEMINI_4_HYDROGEN(
-        modelId = "gemini-4-hydrogen",
-        titleTr = "Gemini 4 Hydrogen (Dinamik Çoklu Görev)",
-        descriptionTr = "Dinamik akıl yürütme, maç anı yorumları ve karmaşık kulüp dinamiklerini anında çözümleyen deneysel frontier motor.",
-        badgeTr = "DENEKSEL",
         priorityRank = 4
     ),
-    GEMINI_3_8_FLASH_LITE(
-        modelId = "gemini-3.8-flash-lite",
-        titleTr = "Gemini 3.8 Flash-Lite (Hızlı / Düşük Kota)",
-        descriptionTr = "Yüksek hacimli mesajlaşmalar, anlık pingler ve minimum kota tüketimi için optimize edilmiş yıldırım hızında model.",
-        badgeTr = "HAFİF",
+    GEMINI_4_CARBON(
+        modelId = "gemini-4-carbon",
+        titleTr = "Gemini 4 Carbon (Gelişmiş Taktik)",
+        descriptionTr = "Karmaşık kulüp dinamikleri ve derin transfer müzakereleri için optimize edilmiş güçlü model.",
+        badgeTr = "KARBON",
         priorityRank = 5
     );
 
     companion object {
-        val DEFAULT = GEMINI_3_8_FLASH
+        val DEFAULT = GEMINI_4_HYDROGEN
 
         fun fromModelId(id: String): GeminiModelOption {
             val trimmed = id.trim()
             // Direct exact match
             entries.find { it.modelId.equals(trimmed, ignoreCase = true) }?.let { return it }
 
-            // Graceful migration from older Gemini 2 ids or partial matching
+            // Intelligent mapping to the active working models
             return when {
-                trimmed.contains("argon", ignoreCase = true) -> GEMINI_4_ARGON
                 trimmed.contains("hydrogen", ignoreCase = true) -> GEMINI_4_HYDROGEN
-                trimmed.contains("pro", ignoreCase = true) -> GEMINI_3_8_PRO
-                trimmed.contains("lite", ignoreCase = true) -> GEMINI_3_8_FLASH_LITE
-                else -> GEMINI_3_8_FLASH
+                trimmed.contains("argon", ignoreCase = true) -> GEMINI_4_ARGON
+                trimmed.contains("carbon", ignoreCase = true) -> GEMINI_4_CARBON
+                trimmed.contains("3.5", ignoreCase = true) -> GEMINI_3_5_FLASH_LITE
+                trimmed.contains("3.8", ignoreCase = true) -> GEMINI_3_8_FLASH
+                trimmed.contains("lite", ignoreCase = true) -> GEMINI_3_5_FLASH_LITE
+                trimmed.contains("pro", ignoreCase = true) -> GEMINI_4_ARGON
+                else -> GEMINI_4_HYDROGEN
             }
         }
     }
@@ -136,16 +144,22 @@ data class ConversationTurn(
 
 /**
  * Pure Kotlin + Android SDK (`HttpURLConnection` + `org.json`) client for the official
- * Google Gemini REST `generateContent` API with Smart Auto-Failover & Agent Relay Engine.
+ * Google Gemini REST `generateContent` API v1beta with Smart Auto-Failover & Anti-Looping Engine.
  *
  * Security & Reliability Guarantees:
  * - Never logs the API key in logcat, exceptions, or UI messages.
  * - Resolves API key from user-entered Settings first, falling back to `BuildConfig.GEMINI_API_KEY`.
+ * - Full Google Generative Language v1beta REST API compliance:
+ *   - Strictly ensures contents array starts with role 'user'.
+ *   - Strictly maintains alternating user/model turns without consecutive identical roles.
+ *   - Properly formats systemInstruction with parts array.
+ *   - Sets generationConfig (temperature, maxOutputTokens, responseMimeType="application/json").
  * - Automatic multi-agent failover:
  *   If the primary model hits 429 (quota exhausted), 503 (overloaded/busy), or latency timeout (>5s),
  *   automatically and invisibly falls back to the next fastest model:
- *   Primary -> Gemini 3.8 Flash -> Gemini 3.8 Flash-Lite -> Offline Intelligent Engine.
- * - Exposes fallback / relay status for monitoring and UI banners.
+ *   Primary -> Gemini 4 Hydrogen -> Gemini 3.5 Flash-Lite -> Gemini 3.8 Flash -> Offline Intelligent Engine.
+ * - Anti-looping & Quality Filter:
+ *   Detects and eliminates repeating tokens, loop sentences, echoing user prompts, or blank/nonsense text.
  */
 object GeminiClient {
 
@@ -241,7 +255,7 @@ object GeminiClient {
 
     /**
      * Builds the ordered failover model chain based on the user's preferred model and auto-failover setting.
-     * Hierarchy: Primary -> Gemini 3.8 Flash -> Gemini 3.8 Flash-Lite
+     * Hierarchy: Primary -> Gemini 4 Hydrogen -> Gemini 3.5 Flash-Lite -> Gemini 3.8 Flash -> Gemini 4 Argon
      */
     fun buildFailoverChain(preferredModelId: String, autoFailoverEnabled: Boolean = true): List<String> {
         val primary = GeminiModelOption.fromModelId(preferredModelId).modelId
@@ -252,14 +266,24 @@ object GeminiClient {
         val chain = mutableListOf<String>()
         chain.add(primary)
 
-        // Tier 2: Gemini 3.8 Flash (ultra-fast standard)
+        // Tier 2: Gemini 4 Hydrogen (lowest latency & dynamic reasoning)
+        if (primary != GeminiModelOption.GEMINI_4_HYDROGEN.modelId) {
+            chain.add(GeminiModelOption.GEMINI_4_HYDROGEN.modelId)
+        }
+
+        // Tier 3: Gemini 3.5 Flash-Lite (lowest cost & high speed)
+        if (primary != GeminiModelOption.GEMINI_3_5_FLASH_LITE.modelId) {
+            chain.add(GeminiModelOption.GEMINI_3_5_FLASH_LITE.modelId)
+        }
+
+        // Tier 4: Gemini 3.8 Flash (balanced fallback)
         if (primary != GeminiModelOption.GEMINI_3_8_FLASH.modelId) {
             chain.add(GeminiModelOption.GEMINI_3_8_FLASH.modelId)
         }
 
-        // Tier 3: Gemini 3.8 Flash-Lite (low latency & high throughput)
-        if (primary != GeminiModelOption.GEMINI_3_8_FLASH_LITE.modelId) {
-            chain.add(GeminiModelOption.GEMINI_3_8_FLASH_LITE.modelId)
+        // Tier 5: Gemini 4 Argon (deep frontier fallback)
+        if (primary != GeminiModelOption.GEMINI_4_ARGON.modelId) {
+            chain.add(GeminiModelOption.GEMINI_4_ARGON.modelId)
         }
 
         return chain.distinct()
@@ -271,15 +295,15 @@ object GeminiClient {
      */
     suspend fun testConnection(
         apiKeyInput: String?,
-        modelId: String = GeminiModelOption.GEMINI_3_8_FLASH.modelId,
+        modelId: String = GeminiModelOption.GEMINI_4_HYDROGEN.modelId,
         fallbackModelId: String? = null
     ): GeminiConnectionTestResult = withContext(Dispatchers.IO) {
         val apiKey = resolveApiKey(apiKeyInput)
-        val primaryModel = modelId.ifBlank { GeminiModelOption.GEMINI_3_8_FLASH.modelId }
-        val effectiveFallback = fallbackModelId ?: if (primaryModel == GeminiModelOption.GEMINI_3_8_FLASH_LITE.modelId) {
-            GeminiModelOption.GEMINI_3_8_FLASH.modelId
+        val primaryModel = modelId.ifBlank { GeminiModelOption.GEMINI_4_HYDROGEN.modelId }
+        val effectiveFallback = fallbackModelId ?: if (primaryModel == GeminiModelOption.GEMINI_3_5_FLASH_LITE.modelId) {
+            GeminiModelOption.GEMINI_4_HYDROGEN.modelId
         } else {
-            GeminiModelOption.GEMINI_3_8_FLASH_LITE.modelId
+            GeminiModelOption.GEMINI_3_5_FLASH_LITE.modelId
         }
 
         if (apiKey.isEmpty()) {
@@ -293,7 +317,7 @@ object GeminiClient {
             )
         }
 
-        val systemPrompt = "Sen Football Life futbol kariyer oyununun Türkçe yapay zeka motorusun. Sadece JSON formatında yanıt ver."
+        val systemPrompt = "Sen Football Life futbol kariyer oyununun Türkçe yapay zeka motorusun. Sadece geçerli JSON formatında yanıt ver."
         val testUserPrompt = """
             Bağlantı ve yedekleme testi. Aşağıdaki JSON şemasıyla tek cümlelik Türkçe selam döndür:
             {"replyText": "Tesislerde bağlantı ve yedekleme hazır!", "emotionTag": "Kararlı"}
@@ -387,7 +411,8 @@ object GeminiClient {
      * Generates an in-character Turkish dialogue reply with structured JSON side-channel outcomes.
      * Features Automatic Multi-Agent Failover:
      * - If primary model hits 429, 503, or >5s latency timeout, automatically and invisibly falls back to
-     *   the next fastest model in the chain (Primary -> Flash -> Flash-Lite -> Offline Engine).
+     *   the next fastest model in the chain (Primary -> 4 Hydrogen -> 3.5 Flash-Lite -> 3.8 Flash -> Offline Engine).
+     * - Validates output through anti-looping and quality filter to block blank or repetitive responses.
      */
     suspend fun generateCharacterDialogue(
         apiKeyInput: String?,
@@ -395,7 +420,7 @@ object GeminiClient {
         systemInstruction: String,
         conversationHistory: List<ConversationTurn>,
         userMessageWithDirective: String,
-        temperature: Double = 0.78,
+        temperature: Double = 0.72,
         autoFailoverEnabled: Boolean = true
     ): Result<GeminiDialogueStructuredResponse> = withContext(Dispatchers.IO) {
         val apiKey = resolveApiKey(apiKeyInput)
@@ -403,7 +428,7 @@ object GeminiClient {
             return@withContext Result.failure(IllegalStateException("NO_API_KEY"))
         }
 
-        val primaryModel = preferredModelId.trim().ifEmpty { GeminiModelOption.GEMINI_3_8_FLASH.modelId }
+        val primaryModel = preferredModelId.trim().ifEmpty { GeminiModelOption.GEMINI_4_HYDROGEN.modelId }
         val candidateModels = buildFailoverChain(primaryModel, autoFailoverEnabled)
 
         var lastError: Throwable? = null
@@ -419,12 +444,12 @@ object GeminiClient {
 
             if (callResult.isSuccess) {
                 val rawText = callResult.getOrNull().orEmpty()
-                val structured = parseStructuredDialogueJson(rawText, model)
+                val structured = parseStructuredDialogueJson(rawText, model, userMessageWithDirective)
                 if (structured != null && structured.replyText.isNotBlank()) {
                     val isFallback = !model.equals(primaryModel, ignoreCase = true)
                     val fallbackNote = if (isFallback) {
                         val friendlyName = GeminiModelOption.fromModelId(model).titleTr
-                        "Model otomatik olarak $friendlyName'a devredildi"
+                        "Model otomatik olarak $friendlyName modeline devredildi"
                     } else null
 
                     if (isFallback) {
@@ -443,6 +468,8 @@ object GeminiClient {
                             fallbackNoteTr = fallbackNote
                         )
                     )
+                } else {
+                    lastError = IllegalStateException("Model ($model) boş, döngüsel veya geçersiz JSON üretti.")
                 }
             } else {
                 lastError = callResult.exceptionOrNull()
@@ -551,7 +578,14 @@ object GeminiClient {
         }
     }
 
-    private fun buildRequestPayload(
+    /**
+     * Builds a REST request body fully conforming to Google Generative Language v1beta REST API specs:
+     * - systemInstruction formatted as { parts: [ { text: "..." } ] }
+     * - contents array strictly starting with role 'user', strictly alternating between 'user' and 'model'
+     * - Ends with role 'user' containing the latest user message
+     * - generationConfig specifying temperature, maxOutputTokens, and responseMimeType="application/json"
+     */
+    internal fun buildRequestPayload(
         systemInstruction: String,
         history: List<ConversationTurn>,
         userPrompt: String,
@@ -559,48 +593,65 @@ object GeminiClient {
     ): JSONObject {
         val root = JSONObject()
 
-        // System instruction
-        val sysParts = JSONArray().put(JSONObject().put("text", systemInstruction))
-        root.put("systemInstruction", JSONObject().put("parts", sysParts))
+        // 1. System instruction
+        if (systemInstruction.isNotBlank()) {
+            val sysParts = JSONArray().put(JSONObject().put("text", systemInstruction.trim()))
+            root.put("systemInstruction", JSONObject().put("parts", sysParts))
+        }
 
-        // Multi-turn contents
+        // 2. Multi-turn contents complying strictly with v1beta constraints
+        val cleanTurns = history.mapNotNull { turn ->
+            val clean = turn.text.trim()
+            if (clean.isNotEmpty()) turn.copy(text = clean) else null
+        }.takeLast(10)
+
+        // Drop leading model turns so the contents list always begins with a user turn
+        val firstUserIdx = cleanTurns.indexOfFirst { it.isUser }
+        val validHistory = if (firstUserIdx >= 0) cleanTurns.drop(firstUserIdx) else emptyList()
+
         val contentsArray = JSONArray()
-        val recentTurns = history.takeLast(10)
-        var lastRole: String? = null
+        var currentRole: String? = null
+        var currentParts = JSONArray()
 
-        for (turn in recentTurns) {
-            val role = if (turn.isUser) "user" else "model"
-            val formattedText = turn.text
-            if (role == lastRole && contentsArray.length() > 0) {
-                val prevObj = contentsArray.getJSONObject(contentsArray.length() - 1)
-                val prevParts = prevObj.getJSONArray("parts")
-                prevParts.put(JSONObject().put("text", formattedText))
-            } else {
-                val partObj = JSONObject().put("text", formattedText)
+        fun flushCurrent() {
+            if (currentRole != null && currentParts.length() > 0) {
                 val contentObj = JSONObject()
-                    .put("role", role)
-                    .put("parts", JSONArray().put(partObj))
+                    .put("role", currentRole)
+                    .put("parts", currentParts)
                 contentsArray.put(contentObj)
-                lastRole = role
+                currentParts = JSONArray()
             }
         }
 
-        // Append current user message
-        if (lastRole == "user" && contentsArray.length() > 0) {
-            val prevObj = contentsArray.getJSONObject(contentsArray.length() - 1)
-            prevObj.getJSONArray("parts").put(JSONObject().put("text", userPrompt))
+        for (turn in validHistory) {
+            val role = if (turn.isUser) "user" else "model"
+            if (role == currentRole) {
+                currentParts.put(JSONObject().put("text", turn.text))
+            } else {
+                flushCurrent()
+                currentRole = role
+                currentParts = JSONArray().put(JSONObject().put("text", turn.text))
+            }
+        }
+
+        // Append active userPrompt
+        val cleanPrompt = userPrompt.trim().ifEmpty { "Merhaba" }
+        if (currentRole == "user") {
+            currentParts.put(JSONObject().put("text", cleanPrompt))
+            flushCurrent()
         } else {
+            flushCurrent()
             val userContent = JSONObject()
                 .put("role", "user")
-                .put("parts", JSONArray().put(JSONObject().put("text", userPrompt)))
+                .put("parts", JSONArray().put(JSONObject().put("text", cleanPrompt)))
             contentsArray.put(userContent)
         }
 
         root.put("contents", contentsArray)
 
-        // Generation config requesting JSON output
+        // 3. Generation configuration
         val genConfig = JSONObject()
-            .put("temperature", temperature)
+            .put("temperature", temperature.coerceIn(0.1, 1.0))
             .put("maxOutputTokens", 2048)
             .put("responseMimeType", "application/json")
         root.put("generationConfig", genConfig)
@@ -631,9 +682,68 @@ object GeminiClient {
         }
     }
 
+    /**
+     * Filters out empty, nonsense, looped, or repetitive replies.
+     * Returns sanitized non-repeating text or null if the reply is fatally corrupted.
+     */
+    internal fun sanitizeAndValidateDialogueReply(rawReply: String, userDirectivePrompt: String? = null): String? {
+        var text = rawReply.trim()
+        if (text.length < 3) return null
+
+        // Strip surrounding quotes if present
+        if (text.startsWith("\"") && text.endsWith("\"") && text.length > 2) {
+            text = text.substring(1, text.length - 1).trim()
+        }
+
+        // Reject placeholder/empty responses
+        val invalidTokens = listOf(
+            "...", "null", "undefined", "{}", "[]", "boş", "empty", "no response",
+            "karakterin türkçe cevabı", "replytext", "cevap yok"
+        )
+        if (invalidTokens.any { text.equals(it, ignoreCase = true) }) {
+            return null
+        }
+
+        // Reject if it purely echoed the user prompt or directive
+        if (!userDirectivePrompt.isNullOrBlank()) {
+            val cleanDirective = userDirectivePrompt.trim()
+            if (text.equals(cleanDirective, ignoreCase = true)) {
+                return null
+            }
+        }
+
+        // Anti-looping 1: Check for consecutive repeated words (e.g. "hocam hocam hocam hocam")
+        val consecutiveWordRegex = Regex("(?i)\\b(\\w{3,})(\\s+\\1){3,}\\b")
+        if (consecutiveWordRegex.containsMatchIn(text)) {
+            text = text.replace(consecutiveWordRegex, "$1")
+        }
+
+        // Anti-looping 2: Check for repeating identical sentences (>= 3 times)
+        val sentences = text.split(Regex("[.!?\n]+")).map { it.trim() }.filter { it.length > 5 }
+        if (sentences.isNotEmpty()) {
+            val counts = sentences.groupingBy { it.lowercase() }.eachCount()
+            if (counts.values.any { it >= 3 }) {
+                val seen = mutableSetOf<String>()
+                val uniqueSentences = mutableListOf<String>()
+                for (s in sentences) {
+                    val lower = s.lowercase()
+                    if (lower !in seen) {
+                        seen.add(lower)
+                        uniqueSentences.add(s)
+                    }
+                }
+                text = uniqueSentences.joinToString(". ") + "."
+            }
+        }
+
+        val cleaned = text.trim()
+        return if (cleaned.length >= 4) cleaned else null
+    }
+
     internal fun parseStructuredDialogueJson(
         rawText: String,
-        modelUsed: String
+        modelUsed: String,
+        userPromptForValidation: String? = null
     ): GeminiDialogueStructuredResponse? {
         val cleaned = rawText
             .trim()
@@ -649,13 +759,14 @@ object GeminiClient {
             if (jsonStart >= 0 && jsonEnd > jsonStart) {
                 val jsonSubstring = cleaned.substring(jsonStart, jsonEnd + 1)
                 val obj = JSONObject(jsonSubstring)
-                val reply = obj.optString("replyText", "")
+                val rawReply = obj.optString("replyText", "")
                     .ifBlank { obj.optString("reply", "") }
                     .ifBlank { obj.optString("response", "") }
                     .ifBlank { obj.optString("text", "") }
                     .trim()
 
-                if (reply.isBlank()) return null
+                val validatedReply = sanitizeAndValidateDialogueReply(rawReply, userPromptForValidation)
+                    ?: return null
 
                 val quickRepliesArr = obj.optJSONArray("suggestedQuickReplies")
                     ?: obj.optJSONArray("quickReplies")
@@ -663,7 +774,9 @@ object GeminiClient {
                 if (quickRepliesArr != null) {
                     for (i in 0 until minOf(quickRepliesArr.length(), 3)) {
                         val item = quickRepliesArr.optString(i, "").trim()
-                        if (item.isNotBlank()) quickReplies.add(item)
+                        if (item.length in 3..100 && item !in quickReplies) {
+                            quickReplies.add(item)
+                        }
                     }
                 }
 
@@ -674,7 +787,7 @@ object GeminiClient {
                 val rawHeadline = obj.optString("triggerPressHeadline", "").trim().ifBlank { null }
 
                 GeminiDialogueStructuredResponse(
-                    replyText = reply,
+                    replyText = validatedReply,
                     emotionTag = obj.optString("emotionTag", "Doğal").trim().ifBlank { "Doğal" },
                     affinityDelta = obj.optInt("affinityDelta", 0).coerceIn(-15, 15),
                     trustDelta = obj.optInt("trustDelta", 0).coerceIn(-15, 15),
@@ -691,10 +804,12 @@ object GeminiClient {
                     isFromAi = true,
                     modelUsed = modelUsed
                 )
-            } else if (cleaned.isNotBlank()) {
+            } else if (cleaned.isNotBlank() && !cleaned.startsWith("{")) {
                 // Fallback if model returned plain text despite responseMimeType
+                val validated = sanitizeAndValidateDialogueReply(cleaned, userPromptForValidation)
+                    ?: return null
                 GeminiDialogueStructuredResponse(
-                    replyText = cleaned.take(500),
+                    replyText = validated.take(500),
                     emotionTag = "Doğal",
                     affinityDelta = 2,
                     trustDelta = 1,
@@ -706,14 +821,17 @@ object GeminiClient {
             }
         } catch (_: Throwable) {
             if (cleaned.isNotBlank() && !cleaned.startsWith("{")) {
-                GeminiDialogueStructuredResponse(
-                    replyText = cleaned.take(500),
-                    emotionTag = "Doğal",
-                    affinityDelta = 1,
-                    trustDelta = 1,
-                    isFromAi = true,
-                    modelUsed = modelUsed
-                )
+                val validated = sanitizeAndValidateDialogueReply(cleaned, userPromptForValidation)
+                if (validated != null) {
+                    GeminiDialogueStructuredResponse(
+                        replyText = validated.take(500),
+                        emotionTag = "Doğal",
+                        affinityDelta = 1,
+                        trustDelta = 1,
+                        isFromAi = true,
+                        modelUsed = modelUsed
+                    )
+                } else null
             } else {
                 null
             }
