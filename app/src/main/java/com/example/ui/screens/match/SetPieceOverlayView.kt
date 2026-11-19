@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.audio.GameSoundEffect
 import com.example.engine.match.BoxDuelist
+import com.example.engine.match.CornerKickConfiguration
 import com.example.engine.match.FreeKickWallConfiguration
 import com.example.engine.match.MedicalInjuryEvent
 import com.example.engine.match.MedicalTreatmentPhase
@@ -770,6 +771,7 @@ fun PenaltyDuelCinematicOverlay(
  */
 @Composable
 fun CornerScrambleCinematicOverlay(
+    config: CornerKickConfiguration? = null,
     onDuelResolved: (isGoal: Boolean, comm: String) -> Unit = { _, _ -> },
     onPlaySfx: (GameSoundEffect) -> Unit = {},
     modifier: Modifier = Modifier
@@ -782,7 +784,10 @@ fun CornerScrambleCinematicOverlay(
             onPlaySfx(GameSoundEffect.BALL_KICK)
             kotlinx.coroutines.delay(650L)
             onPlaySfx(GameSoundEffect.CORNER_AERIAL_DUEL)
-            val (isGoal, comm) = SetPiecePhysicsSimulator.resolveCornerScramble(emptyList(), userAerialPower = 88)
+            val (isGoal, comm) = SetPiecePhysicsSimulator.resolveCornerScramble(
+                config?.boxDuelists ?: emptyList(),
+                userAerialPower = 88
+            )
             duelResult = comm
             if (isGoal) {
                 onPlaySfx(GameSoundEffect.CROWD_ROAR_EXPLOSION)
@@ -1243,43 +1248,11 @@ enum class SetPieceOverlayMode {
 @Composable
 fun SetPieceDramaHostOverlay(
     mode: SetPieceOverlayMode,
-    freeKickConfig: FreeKickWallConfiguration = FreeKickWallConfiguration(
-        wallCount = 5,
-        defenders = (0..4).map { idx ->
-            WallDefender(
-                id = "DEF_$idx",
-                index = idx,
-                name = "Savunmacı ${idx + 1}",
-                jerseyNumber = idx + 2,
-                basePitchX = 90.0f,
-                basePitchY = 46.5f + idx * 1.75f
-            )
-        },
-        sprayLineDistanceM = 9.15f,
-        sprayLineStartX = 90.0f,
-        sprayLineStartY = 45.0f,
-        sprayLineEndX = 90.0f,
-        sprayLineEndY = 55.0f,
-        shooterJerseyNumber = 7,
-        ballPosition = PitchPoint(78f, 50f, 0f)
-    ),
-    penaltyConfig: PenaltyDuelConfiguration = PenaltyDuelConfiguration(),
-    refereeDrama: RefereeDramaEvent = RefereeDramaEvent(
-        type = RefereeDramaType.YELLOW_CARD,
-        refereeName = "Halil Umut Meler",
-        targetPlayerName = "Oyuncu",
-        targetPlayerNumber = 7,
-        foulDescriptionTr = "Taktik Faul / Formadan Çekme",
-        minute = 54
-    ),
-    medicalInjury: MedicalInjuryEvent = MedicalInjuryEvent(
-        injuredPlayerName = "Yıldız Oyuncu",
-        injuredJerseyNumber = 7,
-        injuredClubName = "Kulüp",
-        bodyPartTr = "Sağ Ayak Bileği",
-        requiresStretcher = true,
-        canReturnToMatch = true
-    ),
+    freeKickConfig: FreeKickWallConfiguration? = null,
+    penaltyConfig: PenaltyDuelConfiguration? = null,
+    cornerConfig: CornerKickConfiguration? = null,
+    refereeDrama: RefereeDramaEvent? = null,
+    medicalInjury: MedicalInjuryEvent? = null,
     onDismiss: () -> Unit = {},
     onPlaySfx: (GameSoundEffect) -> Unit = {}
 ) {
@@ -1287,34 +1260,62 @@ fun SetPieceDramaHostOverlay(
         SetPieceOverlayMode.NONE -> Unit
         SetPieceOverlayMode.FREE_KICK_WALL -> {
             FreeKickWallCinematicOverlay(
-                wallConfig = freeKickConfig,
+                wallConfig = freeKickConfig ?: FreeKickWallConfiguration(
+                    defenders = (0..4).map { idx ->
+                        WallDefender(
+                            id = "DEF_$idx",
+                            index = idx,
+                            name = "Savunmacı ${idx + 1}",
+                            jerseyNumber = idx + 2,
+                            basePitchX = 90f,
+                            basePitchY = 46.5f + idx * 1.75f
+                        )
+                    },
+                    sprayLineStartX = 90f,
+                    sprayLineStartY = 45f,
+                    sprayLineEndX = 90f,
+                    sprayLineEndY = 55f,
+                    ballPosition = PitchPoint(78f, 50f, 0f)
+                ),
                 onShotExecuted = { _, _, _ -> },
                 onPlaySfx = onPlaySfx
             )
         }
         SetPieceOverlayMode.PENALTY_DUEL -> {
             PenaltyDuelCinematicOverlay(
-                penaltyConfig = penaltyConfig,
+                penaltyConfig = penaltyConfig ?: PenaltyDuelConfiguration(),
                 onPenaltyResolved = { _, _, _ -> },
                 onPlaySfx = onPlaySfx
             )
         }
         SetPieceOverlayMode.CORNER_SCRAMBLE -> {
             CornerScrambleCinematicOverlay(
+                config = cornerConfig,
                 onDuelResolved = { _, _ -> },
                 onPlaySfx = onPlaySfx
             )
         }
         SetPieceOverlayMode.REFEREE_CARD -> {
             RefereeCardCinematicOverlay(
-                dramaEvent = refereeDrama,
+                dramaEvent = refereeDrama ?: RefereeDramaEvent(
+                    type = RefereeDramaType.YELLOW_CARD,
+                    targetPlayerName = "Oyuncu",
+                    targetPlayerNumber = 7,
+                    foulDescriptionTr = "Sert Müdahale",
+                    minute = 0
+                ),
                 onDismiss = onDismiss,
                 onPlaySfx = onPlaySfx
             )
         }
         SetPieceOverlayMode.MEDICAL_STRETCHER -> {
             MedicalStretcherCinematicOverlay(
-                injuryEvent = medicalInjury,
+                injuryEvent = medicalInjury ?: MedicalInjuryEvent(
+                    injuredPlayerName = "Oyuncu",
+                    injuredJerseyNumber = 7,
+                    injuredClubName = "Kulüp",
+                    bodyPartTr = "Sağ Ayak Bileği"
+                ),
                 onTreatmentCompleted = { _ -> onDismiss() },
                 onPlaySfx = onPlaySfx
             )

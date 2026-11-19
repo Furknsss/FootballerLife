@@ -1,6 +1,7 @@
 package com.example.engine.match
 
 import com.example.engine.PitchPlayerNode
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -8,6 +9,63 @@ import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
+
+/** Ortak kale ağzı sınırları - motor, çizim ve jest sınıflandırıcısı aynı değeri kullanır. */
+const val GOAL_MOUTH_MIN_Y = 36.8f
+const val GOAL_MOUTH_MAX_Y = 63.2f
+
+/** Topun sahadaki 0..60 Yükseklik birimi ile gerçek metre karşılığı (2.44m üst direk). */
+const val PITCH_Z_TO_METERS = 24f
+
+/**
+ * Rüzgâr sapmasını TEK noktadan hesaplar.
+ * Hem parmak çizimi önizlemesi hem de gerçek uçuş bu fonksiyonu kullandığı için
+ * "çizdiğin ile giden" artık birebir aynıdır.
+ */
+object WindModel {
+    data class AdjustedTrajectory(
+        val controlX: Float,
+        val controlY: Float,
+        val endX: Float,
+        val endY: Float
+    )
+
+    fun applyWindDrift(
+        controlX: Float,
+        controlY: Float,
+        endX: Float,
+        endY: Float,
+        windSpeedKmh: Int,
+        windDirectionDeg: Float,
+        loftHeight: Float,
+        isShot: Boolean,
+        goalX: Float
+    ): AdjustedTrajectory {
+        if (windSpeedKmh <= 0) {
+            return AdjustedTrajectory(controlX, controlY, endX, endY)
+        }
+        val windRad = windDirectionDeg * (PI / 180.0)
+        val windStrength = (windSpeedKmh / 14f) * (0.30f + loftHeight * 0.90f)
+        val driftX = (cos(windRad).toFloat() * windStrength * 2.4f)
+        val driftY = (sin(windRad).toFloat() * windStrength * 4.2f)
+
+        val adjustedControlX = (controlX + driftX * 0.55f).coerceIn(1f, 99f)
+        val adjustedControlY = (controlY + driftY * 0.55f).coerceIn(2f, 98f)
+        val adjustedEndY = (endY + driftY).coerceIn(10f, 90f)
+
+        // Şutlarda uç nokta kale çizgisine sabitlenir; rüzgâr sadece yatay yerleşimi kaydırır.
+        val adjustedEndX: Float
+        val finalEndY: Float
+        if (isShot) {
+            adjustedEndX = goalX
+            finalEndY = adjustedEndY.coerceIn(18f, 82f)
+        } else {
+            adjustedEndX = (endX + driftX).coerceIn(2f, 98f)
+            finalEndY = adjustedEndY
+        }
+        return AdjustedTrajectory(adjustedControlX, adjustedControlY, adjustedEndX, finalEndY)
+    }
+}
 
 /**
  * 3D pitch coordinate where:
@@ -115,7 +173,9 @@ object TrajectoryAnalyzer {
         attackingRight: Boolean,
         isDefensiveMoment: Boolean,
         players: List<PitchPlayerNode>,
-        userIsHome: Boolean
+        userIsHome: Boolean,
+        windSpeedKmh: Int = 0,
+        windDirectionDeg: Float = 0f
     ): GestureTrajectoryInput? {
         if (rawPoints.size < 2) return null
 
@@ -253,10 +313,10 @@ object TrajectoryAnalyzer {
             GestureActionKind.DRIVEN_POWER_SHOT,
             GestureActionKind.CHIP_SHOT
         )
-        val finalEndX: Float
-        val finalEndY: Float
-        val finalControlX: Float
-        val finalControlY: Float
+        var finalEndX: Float
+        var finalEndY: Float
+        var finalControlX: Float
+        var finalControlY: Float
         if (isShot) {
             val targetGoalLineX = if (attackingRight) 97.2f else 2.8f
             val dx = endX - startX
@@ -288,6 +348,29 @@ object TrajectoryAnalyzer {
             GestureActionKind.THROUGH_PASS -> if (chordLen > 28f) 0.45f else 0.14f
             GestureActionKind.SHORT_PASS -> 0.08f
             GestureActionKind.DRIBBLE_RUN, GestureActionKind.SLIDE_TACKLE -> 0.03f
+        }
+
+        // Rüzgâr sapması önizlemeye de uygulanır -> ekranda görünen eğri ile gerçek uçuş aynı olur.
+        if (windSpeedKmh > 0 && inferredKind !in listOf(
+                GestureActionKind.DRIBBLE_RUN,
+                GestureActionKind.SLIDE_TACKLE
+            )
+        ) {
+            val windAdjusted = WindModel.applyWindDrift(
+                controlX = finalControlX,
+                controlY = finalControlY,
+                endX = finalEndX,
+                endY = finalEndY,
+                windSpeedKmh = windSpeedKmh,
+                windDirectionDeg = windDirectionDeg,
+                loftHeight = loftHeight,
+                isShot = isShot,
+                goalX = if (attackingRight) 97.2f else 2.8f
+            )
+            finalControlX = windAdjusted.controlX
+            finalControlY = windAdjusted.controlY
+            finalEndX = windAdjusted.endX
+            finalEndY = windAdjusted.endY
         }
 
         // Check if any opponent outfield defender is standing directly on the low trajectory path

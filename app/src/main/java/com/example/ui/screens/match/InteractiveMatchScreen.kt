@@ -11,6 +11,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -77,6 +79,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.engine.LiveMatchUiState
+import com.example.engine.MatchCinematicKind
 import com.example.engine.MatchPhase
 import com.example.engine.PitchPlayerNode
 import com.example.engine.PlayerVisualPose
@@ -153,6 +156,8 @@ fun InteractiveMatchScreen(
 
     // Camera mode: true = Soccer Superstar 2.5D Perspective (default), false = Full Pitch TV Radar
     var preferPerspectiveCamera by remember { mutableStateOf(true) }
+    // GERÇEK 3D (OpenGL ES) modu - varsayılan kapalı (cihaz uyumsuzluğuna karşı 2.5D güvenli).
+    var useReal3D by remember { mutableStateOf(false) }
     val isPlayableOrResolution = liveMatch.phase in listOf(
         MatchPhase.CRITICAL_DECISION,
         MatchPhase.ACTION_RESOLUTION,
@@ -241,7 +246,9 @@ fun InteractiveMatchScreen(
             homeColor = homeColor,
             awayColor = awayColor,
             usePerspectiveView = usePerspectiveView,
+            useReal3D = useReal3D,
             onToggleCamera = { preferPerspectiveCamera = !preferPerspectiveCamera },
+            onToggleReal3D = { useReal3D = !useReal3D },
             onChangeSpeed = onChangeSpeed,
             onSkipToNextMoment = onSkipToNextMoment
         )
@@ -329,7 +336,9 @@ fun InteractiveMatchScreen(
                                     attackingRight = ms.userIsHome,
                                     isDefensiveMoment = ms.activeDecision?.isDefensive == true,
                                     players = ms.players,
-                                    userIsHome = ms.userIsHome
+                                    userIsHome = ms.userIsHome,
+                                    windSpeedKmh = ms.activeDecision?.windSpeedKmh ?: 0,
+                                    windDirectionDeg = ms.activeDecision?.windDirectionDeg ?: 0f
                                 )
                             },
                             onDragEnd = {
@@ -344,7 +353,9 @@ fun InteractiveMatchScreen(
                                     attackingRight = ms.userIsHome,
                                     isDefensiveMoment = ms.activeDecision?.isDefensive == true,
                                     players = ms.players,
-                                    userIsHome = ms.userIsHome
+                                    userIsHome = ms.userIsHome,
+                                    windSpeedKmh = ms.activeDecision?.windSpeedKmh ?: 0,
+                                    windDirectionDeg = ms.activeDecision?.windDirectionDeg ?: 0f
                                 ) ?: activeGesturePreview
 
                                 if (finalGesture != null) {
@@ -367,17 +378,42 @@ fun InteractiveMatchScreen(
                     }
                     .testTag("pitch_2d_canvas")
             ) {
-                SoccerSuperstarPitchCanvas(
-                    matchState = liveMatch,
-                    graphicsQuality = graphicsQuality,
-                    usePerspective = usePerspectiveView,
-                    cameraZoom = perspectiveZoom,
-                    animTimeSec = animTimeSec,
-                    ballSpinDeg = ballSpinRotationDeg,
-                    activeGesturePreview = activeGesturePreview,
-                    rawDrawnPoints = drawnPitchPoints,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (useReal3D) {
+                    // GERÇEK 3D: OpenGL ES sahnesi (Compose AndroidView ile gömülür)
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { ctx ->
+                            Match3DSurfaceView(ctx).apply {
+                                updateScene(
+                                    state = liveMatch,
+                                    timeSec = animTimeSec,
+                                    homeColor = floatArrayOf(homeColor.red, homeColor.green, homeColor.blue, 1f),
+                                    awayColor = floatArrayOf(awayColor.red, awayColor.green, awayColor.blue, 1f)
+                                )
+                            }
+                        },
+                        update = { view ->
+                            view.updateScene(
+                                state = liveMatch,
+                                timeSec = animTimeSec,
+                                homeColor = floatArrayOf(homeColor.red, homeColor.green, homeColor.blue, 1f),
+                                awayColor = floatArrayOf(awayColor.red, awayColor.green, awayColor.blue, 1f)
+                            )
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    SoccerSuperstarPitchCanvas(
+                        matchState = liveMatch,
+                        graphicsQuality = graphicsQuality,
+                        usePerspective = usePerspectiveView,
+                        cameraZoom = perspectiveZoom,
+                        animTimeSec = animTimeSec,
+                        ballSpinDeg = ballSpinRotationDeg,
+                        activeGesturePreview = activeGesturePreview,
+                        rawDrawnPoints = drawnPitchPoints,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
 
                 // Top-of-Pitch Slow-Mo & Scenario HUD Overlay during Playable Moment
                 if (liveMatch.phase == MatchPhase.CRITICAL_DECISION && liveMatch.activeDecision != null) {
@@ -442,6 +478,30 @@ fun InteractiveMatchScreen(
                             )
                         }
                     }
+
+                    // Duran top / kart / sakatlık sinematikleri sadece çözüm anında gösterilir;
+                    // CRITICAL_DECISION sırasında parmak çizimini engellemez.
+                    val cinematic = liveMatch.activeCinematic
+                    if (cinematic != null &&
+                        liveMatch.phase in listOf(MatchPhase.ACTION_RESOLUTION, MatchPhase.GOAL_CELEBRATION)
+                    ) {
+                        val overlayMode = when (cinematic.kind) {
+                            MatchCinematicKind.FREE_KICK_WALL -> SetPieceOverlayMode.FREE_KICK_WALL
+                            MatchCinematicKind.PENALTY_DUEL -> SetPieceOverlayMode.PENALTY_DUEL
+                            MatchCinematicKind.CORNER_SCRAMBLE -> SetPieceOverlayMode.CORNER_SCRAMBLE
+                            MatchCinematicKind.REFEREE_CARD -> SetPieceOverlayMode.REFEREE_CARD
+                            MatchCinematicKind.MEDICAL_STRETCHER -> SetPieceOverlayMode.MEDICAL_STRETCHER
+                        }
+                        SetPieceDramaHostOverlay(
+                            mode = overlayMode,
+                            freeKickConfig = cinematic.freeKick,
+                            penaltyConfig = cinematic.penalty,
+                            cornerConfig = cinematic.corner,
+                            refereeDrama = cinematic.referee,
+                            medicalInjury = cinematic.injury,
+                            onDismiss = {}
+                        )
+                    }
                 }
             }
         }
@@ -452,7 +512,8 @@ fun InteractiveMatchScreen(
             onStartKickOff = onStartKickOff,
             onResumeSecondHalf = onResumeSecondHalf,
             onFinishMatch = onFinishMatch,
-            onSkipToNextMoment = onSkipToNextMoment
+            onSkipToNextMoment = onSkipToNextMoment,
+            onChooseDecisionOption = onChooseDecisionOption
         )
     }
 }
@@ -567,7 +628,9 @@ private fun BroadcastScorebugHeader(
     homeColor: Color,
     awayColor: Color,
     usePerspectiveView: Boolean,
+    useReal3D: Boolean,
     onToggleCamera: () -> Unit,
+    onToggleReal3D: () -> Unit,
     onChangeSpeed: (Int) -> Unit,
     onSkipToNextMoment: () -> Unit
 ) {
@@ -654,7 +717,13 @@ private fun BroadcastScorebugHeader(
                                 )
                             ) {
                                 Text(
-                                    text = "${liveMatch.minute}'",
+                                    text = if (liveMatch.minute > 90) {
+                                        "90+${liveMatch.minute - 90}'"
+                                    } else if (liveMatch.minute == 45 && liveMatch.phase == MatchPhase.HALF_TIME) {
+                                        "45+${liveMatch.firstHalfStoppage}'"
+                                    } else {
+                                        "${liveMatch.minute}'"
+                                    },
                                     fontFamily = SpaceGroteskFontFamily,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
@@ -773,7 +842,35 @@ private fun BroadcastScorebugHeader(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Camera Perspective Toggle
+                    // GERÇEK 3D (OpenGL) modu aç/kapat
+                    Surface(
+                        color = if (useReal3D) AccentBright.copy(alpha = 0.22f) else SurfaceElevated,
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, if (useReal3D) AccentBright else StrokePremium),
+                        modifier = Modifier.clickable { onToggleReal3D() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Videocam,
+                                contentDescription = "3D Mod",
+                                tint = AccentBright,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (useReal3D) "3D AÇIK" else "3D KAPALI",
+                                fontFamily = SpaceGroteskFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                color = if (useReal3D) AccentBright else TextPrimary
+                            )
+                        }
+                    }
+
+                    // Camera Perspective Toggle (2.5D açı / 2D TV)
                     Surface(
                         color = if (usePerspectiveView) SurfaceElevated else BackgroundPrimary,
                         shape = RoundedCornerShape(6.dp),
@@ -792,7 +889,7 @@ private fun BroadcastScorebugHeader(
                             )
                             Spacer(modifier = Modifier.width(3.dp))
                             Text(
-                                text = if (usePerspectiveView) "3D AÇI" else "2D TV",
+                                text = if (usePerspectiveView) "2.5D" else "2D TV",
                                 fontFamily = SpaceGroteskFontFamily,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 9.sp,
@@ -1067,7 +1164,8 @@ private fun BottomMatchControlDeck(
     onStartKickOff: () -> Unit,
     onResumeSecondHalf: () -> Unit,
     onFinishMatch: () -> Unit,
-    onSkipToNextMoment: () -> Unit
+    onSkipToNextMoment: () -> Unit,
+    onChooseDecisionOption: (TacticalDecisionOption) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // Live Commentary & Match Stats Strip
@@ -1110,6 +1208,116 @@ private fun BottomMatchControlDeck(
                     fontSize = 10.sp,
                     color = TextSecondary
                 )
+            }
+        }
+
+        // Taktik seçenekleri: parmak çizimine alternatif; başarı olasılığı ve risk artık görünür.
+        val decision = liveMatch.activeDecision
+        if (liveMatch.phase == MatchPhase.CRITICAL_DECISION && decision != null) {
+            Surface(
+                color = SurfacePrimary,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, ChampionshipGold),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                    Text(
+                        text = "⚡ HIZLI TAKTİK SEÇİMİ  •  veya sahaya parmağınla kavisli rota çiz",
+                        fontFamily = OutfitFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp,
+                        color = ChampionshipGold
+                    )
+                    Spacer(modifier = Modifier.height(5.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                    ) {
+                        decision.options.forEach { option ->
+                            Surface(
+                                color = SurfaceElevated,
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.65f)),
+                                modifier = Modifier
+                                    .width(132.dp)
+                                    .clickable { onChooseDecisionOption(option) }
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                                    Text(
+                                        text = option.title,
+                                        fontFamily = OutfitFontFamily,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        color = TextPrimary,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = "${option.keyAttributeLabel}: ${option.keyAttributeValue}  •  %${option.successProbabilityPct}",
+                                        fontFamily = SpaceGroteskFontFamily,
+                                        fontSize = 9.sp,
+                                        color = AccentBright
+                                    )
+                                    Text(
+                                        text = option.riskLevel,
+                                        fontFamily = SpaceGroteskFontFamily,
+                                        fontSize = 8.sp,
+                                        color = if (option.riskLevel.startsWith("Yüksek")) MatchLossRed else TextMuted,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Canlı maç akışı - olaylar artık sadece rapora değil, ekrana da yazılıyor.
+        if (liveMatch.commentaryFeed.isNotEmpty()) {
+            Surface(
+                color = SurfacePrimary.copy(alpha = 0.85f),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, StrokePremium),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    liveMatch.commentaryFeed.take(3).forEach { event ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                color = when (event.type) {
+                                    "GOL" -> ChampionshipGold
+                                    "SARI_KART" -> MatchDrawAmber
+                                    else -> AccentPrimary.copy(alpha = 0.25f)
+                                },
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = event.type,
+                                    fontFamily = SpaceGroteskFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 8.sp,
+                                    color = if (event.type == "GOL") Color(0xFF0B140E) else TextPrimary,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = event.description,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextSecondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -1526,7 +1734,7 @@ private fun SoccerSuperstarPitchCanvas(
                 p to proj
             }.sortedBy { it.second.groundY }
 
-            val baseRadius = (h * 0.028f).coerceIn(10f, 18f)
+            val baseRadius = (h * 0.033f).coerceIn(12f, 21f)
             sortedPlayers.forEach { (p, proj) ->
                 drawPitchPlayerMarker(
                     player = p,
@@ -1560,7 +1768,21 @@ private fun SoccerSuperstarPitchCanvas(
                 animTimeSec = animTimeSec
             )
 
-            // 7. Goal Celebration Confetti & Net Ripple Particles
+            // 7. Broadcast lens vignette - sinematik derinlik ve TV yayını hissi
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Color(0xFF000000).copy(alpha = 0.30f)
+                    ),
+                    center = Offset(w * 0.5f, h * 0.46f),
+                    radius = maxOf(w, h) * 0.72f
+                ),
+                topLeft = Offset.Zero,
+                size = Size(w, h)
+            )
+
+            // 8. Goal Celebration Confetti & Net Ripple Particles
             if (matchState.phase == MatchPhase.GOAL_CELEBRATION) {
                 val count = graphicsQuality.particleCount
                 for (i in 0 until count) {

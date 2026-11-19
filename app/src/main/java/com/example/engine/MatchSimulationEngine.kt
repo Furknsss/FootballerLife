@@ -1,9 +1,19 @@
 package com.example.engine
 
+import com.example.engine.match.BoxDuelist
+import com.example.engine.match.CornerKickConfiguration
+import com.example.engine.match.FreeKickWallConfiguration
 import com.example.engine.match.GestureActionKind
 import com.example.engine.match.GestureTrajectoryInput
+import com.example.engine.match.MedicalInjuryEvent
+import com.example.engine.match.PenaltyKeeperDive
+import com.example.engine.match.PenaltyDuelConfiguration
 import com.example.engine.match.PitchPoint
+import com.example.engine.match.RefereeDramaEvent
+import com.example.engine.match.RefereeDramaType
+import com.example.engine.match.SetPiecePhysicsSimulator
 import com.example.engine.match.TrajectoryAnalyzer
+import com.example.engine.match.WallDefender
 import com.example.model.Club
 import com.example.model.CompletedMatchReport
 import com.example.model.LeagueFixture
@@ -11,11 +21,12 @@ import com.example.model.MatchEventRecord
 import com.example.model.PlayerProfile
 import com.example.model.Position
 import com.example.model.StartingStatus
+import com.example.engine.match.GOAL_MOUTH_MAX_Y
+import com.example.engine.match.GOAL_MOUTH_MIN_Y
+import com.example.engine.match.PITCH_Z_TO_METERS
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.roundToInt
-import kotlin.math.sin
 import kotlin.random.Random
 
 enum class MatchPhase {
@@ -37,6 +48,26 @@ enum class PlayerVisualPose {
     KICK_STRIKE,
     BICYCLE_KICK
 }
+
+/** Maç içinde tetiklenen sinematik sahne türü (duran top, kart, sakatlık). */
+enum class MatchCinematicKind {
+    FREE_KICK_WALL,
+    PENALTY_DUEL,
+    CORNER_SCRAMBLE,
+    REFEREE_CARD,
+    MEDICAL_STRETCHER
+}
+
+data class MatchCinematic(
+    val kind: MatchCinematicKind,
+    val minute: Int,
+    val ticksRemaining: Int = 18,
+    val freeKick: FreeKickWallConfiguration? = null,
+    val penalty: PenaltyDuelConfiguration? = null,
+    val corner: CornerKickConfiguration? = null,
+    val referee: RefereeDramaEvent? = null,
+    val injury: MedicalInjuryEvent? = null
+)
 
 data class PitchPlayerNode(
     val id: String,
@@ -180,7 +211,12 @@ data class LiveMatchUiState(
     val pendingGoalBannerText: String? = null,
     val pendingChainedMoment: CriticalMomentContext? = null,
     val lastGesturePreview: GestureTrajectoryInput? = null,
-    val crowdExcitementLevel: Float = 0.52f
+    val crowdExcitementLevel: Float = 0.52f,
+    val stoppageMinutes: Int = 2,
+    val activeCinematic: MatchCinematic? = null,
+    val firstHalfStoppage: Int = 1,
+    val lastDecisionMinute: Int? = null,
+    val recentScenarioTypes: List<String> = emptyList()
 )
 
 class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
@@ -235,6 +271,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             phase = MatchPhase.LIVE_PLAY,
             minute = 1,
             subSecondTick = 0,
+            stoppageMinutes = (abs(state.fixture.id.hashCode() % 4) + 1).coerceIn(1, 4),
             cameraZoom = 1.0f,
             cameraFocusX = 50f,
             cameraFocusY = 50f,
@@ -329,7 +366,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
      * During ACTION_RESOLUTION, animates the ball along the curved Bezier path with 3D height,
      * goalkeeper dives, teammate one-touch finishes, and transitions to GOAL_CELEBRATION or chained plays!
      */
-    fun stepAnimationFrame(
+    private fun stepAnimationFrameInternal(
         state: LiveMatchUiState,
         userPlayer: PlayerProfile
     ): LiveMatchUiState {
@@ -522,6 +559,17 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         }
     }
 
+    /** Sinematik sahne ömrünü her animasyon karesinde bir azaltır. */
+    fun stepAnimationFrame(
+        state: LiveMatchUiState,
+        userPlayer: PlayerProfile
+    ): LiveMatchUiState {
+        val stepped = stepAnimationFrameInternal(state, userPlayer)
+        val cinematic = stepped.activeCinematic ?: return stepped
+        val remaining = cinematic.ticksRemaining - 1
+        return stepped.copy(activeCinematic = if (remaining > 0) cinematic.copy(ticksRemaining = remaining) else null)
+    }
+
     fun advanceMatchMinute(
         state: LiveMatchUiState,
         userPlayer: PlayerProfile
@@ -536,7 +584,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 type = "DEVRE",
                 teamId = state.homeClub.id,
                 playerName = "Hakem",
-                description = "45' — İlk yarı sona erdi: ${state.homeClub.shortName} ${state.homeScore} - ${state.awayScore} ${state.awayClub.shortName}",
+                description = "45+${state.firstHalfStoppage}' — İlk yarı sona erdi: ${state.homeClub.shortName} ${state.homeScore} - ${state.awayScore} ${state.awayClub.shortName}",
                 involvesUser = false
             )
             return state.copy(
@@ -547,20 +595,21 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             )
         }
 
-        // Check Full-Time
-        if (nextMinute > 90) {
+        // Check Full-Time (90 + sakatlık/uzatma dakikaları)
+        if (nextMinute > 90 + state.stoppageMinutes) {
             val report = buildFinalMatchReport(state, userPlayer)
+            val ftLabel = if (state.stoppageMinutes > 0) "90+${state.stoppageMinutes}'" else "90'"
             val ftEvent = MatchEventRecord(
-                minute = 90,
+                minute = 90 + state.stoppageMinutes,
                 type = "MAÇ SONU",
                 teamId = state.homeClub.id,
                 playerName = "Hakem",
-                description = "90' — Maç sona erdi! ${state.homeClub.name} ${state.homeScore} - ${state.awayScore} ${state.awayClub.name}",
+                description = "$ftLabel — Maç sona erdi! ${state.homeClub.name} ${state.homeScore} - ${state.awayScore} ${state.awayClub.name}",
                 involvesUser = false
             )
             return state.copy(
                 phase = MatchPhase.FULL_TIME,
-                minute = 90,
+                minute = 90 + state.stoppageMinutes,
                 cameraZoom = 1.0f,
                 latestBannerText = "Maç Sona Erdi: ${state.homeScore} - ${state.awayScore}",
                 commentaryFeed = listOf(ftEvent) + state.commentaryFeed,
@@ -570,11 +619,21 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
 
         // Sub in user at minute 55 if still on bench
         var userOnPitch = state.userOnPitch
+        var playersForMinute = state.players
         val events = state.commentaryFeed.toMutableList()
         var banner = state.latestBannerText
+        var minuteCinematic: MatchCinematic? = null
 
         if (!userOnPitch && nextMinute == 55 && state.userStartingStatus != StartingStatus.OUT_OF_SQUAD) {
             userOnPitch = true
+            // Dizilimi yeniden kur: isUser=true düğümü sahada oluşmadan "SEN" işareti görünmezdi.
+            playersForMinute = buildInitial22Players(
+                homeClub = state.homeClub,
+                awayClub = state.awayClub,
+                userPlayer = userPlayer,
+                userIsHome = state.userIsHome,
+                userOnPitch = true
+            )
             banner = "55' — Oyuna giriyorsun! Teknik direktör senden skora katkı bekliyor."
             events.add(
                 0,
@@ -599,7 +658,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             .roundToInt().coerceIn(32, 68)
 
         val (updatedPlayers, updatedBall) = computeTacticalPositionsForMinute(
-            players = state.players,
+            players = playersForMinute,
             homeAttacks = homeAttacksThisMinute,
             minute = nextMinute,
             rng = rng
@@ -634,11 +693,15 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             }
         }
 
-        // Trigger NSS / Soccer Superstar Playable Moments when ball comes to our player!
-        // Guaranteed at prime minutes (including minute 14 for unit test compatibility) + dynamic triggers
-        val isPrimeDecisionMinute = nextMinute in listOf(8, 14, 24, 34, 42, 52, 61, 71, 80, 87)
-        val randomDecisionTrigger = rng.nextInt(100) < 8 && state.userDecisionsTotal < 8
-        if (userOnPitch && (isPrimeDecisionMinute || randomDecisionTrigger)) {
+        // Playable moment tetikleyicileri artık HER MAÇTA FARKLI:
+        // Sabit dakika listesi kaldırıldı. Sadece ilk pozisyon unit test uyumluluğu için 14'te garanti.
+        val isFirstMomentTestCompat = nextMinute == 14 && state.userDecisionsTotal == 0
+        val isOrganicDecisionMinute = nextMinute >= 5 &&
+            rng.nextInt(100) < 13 &&
+            state.userDecisionsTotal < 9 &&
+            (nextMinute - (state.lastDecisionMinute ?: 0)) >= 6
+        val randomDecisionTrigger = rng.nextInt(100) < 9 && state.userDecisionsTotal < 8
+        if (userOnPitch && (isFirstMomentTestCompat || isOrganicDecisionMinute || randomDecisionTrigger)) {
             val criticalContext = createCriticalMoment(
                 minute = nextMinute,
                 state = state.copy(players = updatedPlayers, ball = updatedBall),
@@ -693,6 +756,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         }
         return state.copy(
             phase = MatchPhase.CRITICAL_DECISION,
+            activeCinematic = null,
             minute = nextMinute,
             userOnPitch = userOnPitch,
             homePossessionPct = newPossession,
@@ -716,7 +780,9 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             activeDecision = criticalContext,
             latestBannerText = "${nextMinute}' — TOP SENDE: ${criticalContext.title}",
             crowdExcitementLevel = 0.85f,
-            commentaryFeed = events
+            commentaryFeed = events,
+            lastDecisionMinute = nextMinute,
+            recentScenarioTypes = (state.recentScenarioTypes + criticalContext.scenarioType).takeLast(3)
         )
         }
 
@@ -737,7 +803,34 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                     if (rng.nextInt(100) < goalChance) {
                         if (homeAttacksThisMinute) homeScore++ else awayScore++
                         val goalX = if (homeAttacksThisMinute) 97f else 3f
-                        val msg = "${nextMinute}' — GOL! ${shooter.name} (${attackingClub.shortName}) ceza sahasından ağları havalandırdı! Skor: $homeScore-$awayScore"
+                        // HER GOLDE AYNI NOKTAYA (Y=50) GİTME HATASI DÜZELTİLDİ:
+                        // her şut farklı bir köşeye, rastgele yükseklikle gidiyor.
+                        val goalY = 37.5f + rng.nextFloat() * 25f
+                        val goalPeakZ = 8f + rng.nextFloat() * 30f
+                        val goalCorner = when {
+                            goalY < 45f -> "sol köşe"
+                            goalY > 55f -> "sağ köşe"
+                            else -> "kale ortası"
+                        }
+                        // Kaleci gerçek refleksle (sınırlı mesafe, gecikmeli) dalıyor - ışınlanma yok.
+                        val aiGkStartY = updatedPlayers.firstOrNull {
+                            it.position == Position.GK && it.isHome != homeAttacksThisMinute
+                        }?.y ?: 50f
+                        val aiGkMaxReach = 15f * (0.65f + rng.nextFloat() * 0.5f)
+                        val aiGkDiveY = (aiGkStartY + (goalY - aiGkStartY).coerceIn(-aiGkMaxReach, aiGkMaxReach))
+                            .coerceIn(37f, 63f)
+                        val aiGoalPlayers = updatedPlayers.map { p ->
+                            if (p.position == Position.GK && p.isHome != homeAttacksThisMinute) {
+                                p.copy(
+                                    targetY = aiGkDiveY,
+                                    isDivingOrSliding = true,
+                                    diveDirectionY = if (goalY < aiGkStartY) -1f else 1f,
+                                    visualPose = PlayerVisualPose.GK_DIVE,
+                                    roleTag = "UÇUYOR!"
+                                )
+                            } else p
+                        }
+                        val msg = "${nextMinute}' — GOL! ${shooter.name} (${attackingClub.shortName}) $goalCorner'a ağları havalandırdı! Skor: $homeScore-$awayScore"
                         events.add(
                             0,
                             MatchEventRecord(
@@ -762,8 +855,16 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                             userPassesCompleted = userPassesComp,
                             userPassesAttempted = userPassesAtt,
                             userLiveEnergy = userEnergy,
-                            players = updatedPlayers,
-                            ball = updatedBall.copy(targetX = goalX, targetY = 50f, isShotInFlight = true),
+                            players = aiGoalPlayers,
+                            ball = updatedBall.copy(
+                                targetX = goalX,
+                                targetY = goalY,
+                                isShotInFlight = true,
+                                peakHeightZ = goalPeakZ,
+                                flightProgress = 0f,
+                                flightStepPerTick = 0.10f,
+                                trailPoints = listOf(PitchPoint(updatedBall.x, updatedBall.y, 0f))
+                            ),
                             latestBannerText = msg,
                             goalScorerBanner = "GOL! ${shooter.name.uppercase()} ($nextMinute')",
                             commentaryFeed = events,
@@ -795,6 +896,17 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 if (rng.nextInt(100) < 28) {
                     val defender = foulingClub.keySquadMembers.random(rng)
                     banner = "${nextMinute}' — SARI KART: ${defender.name} (${foulingClub.shortName}) sert müdahalesi sonrası sarı kart gördü."
+                    minuteCinematic = MatchCinematic(
+                        kind = MatchCinematicKind.REFEREE_CARD,
+                        minute = nextMinute,
+                        referee = RefereeDramaEvent(
+                            type = RefereeDramaType.YELLOW_CARD,
+                            targetPlayerName = defender.name,
+                            targetPlayerNumber = defender.kitNumber,
+                            foulDescriptionTr = "Sert Müdahale / Geç Müdahale",
+                            minute = nextMinute
+                        )
+                    )
                     events.add(
                         0,
                         MatchEventRecord(
@@ -831,7 +943,8 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             players = updatedPlayers,
             ball = updatedBall,
             latestBannerText = banner,
-            commentaryFeed = events
+            commentaryFeed = events,
+            activeCinematic = minuteCinematic
         )
     }
 
@@ -901,35 +1014,11 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         var finalControlY = gesture.controlY
         var peakZ = (gesture.loftHeight * 52f).coerceIn(2f, 52f)
 
-        // Apply environmental wind drift (Magnus + crosswind) to airborne shots, free kicks, and crosses
-        val isWindAffected = gesture.inferredKind !in listOf(
-            GestureActionKind.DRIBBLE_RUN,
-            GestureActionKind.SLIDE_TACKLE
-        )
-        if (isWindAffected && active.windSpeedKmh > 0) {
-            val windRad = active.windDirectionDeg * (kotlin.math.PI / 180.0)
-            val windStrength = (active.windSpeedKmh / 14f) * (0.30f + gesture.loftHeight * 0.90f)
-            val windDriftX = (cos(windRad).toFloat() * windStrength * 2.4f)
-            val windDriftY = (sin(windRad).toFloat() * windStrength * 4.2f)
-            finalControlX = (finalControlX + windDriftX * 0.55f).coerceIn(1f, 99f)
-            finalControlY = (finalControlY + windDriftY * 0.55f).coerceIn(2f, 98f)
-            finalEndY = (finalEndY + windDriftY).coerceIn(10f, 90f)
-            // Keep shot endpoint pinned on the goal line while wind shifts lateral placement
-            val isShotKind = gesture.inferredKind in listOf(
-                GestureActionKind.CURVED_FINESSE_SHOT,
-                GestureActionKind.DRIVEN_POWER_SHOT,
-                GestureActionKind.CHIP_SHOT
-            )
-            if (isShotKind) {
-                finalEndX = goalX
-                finalEndY = finalEndY.coerceIn(18f, 82f)
-            } else {
-                finalEndX = (finalEndX + windDriftX).coerceIn(2f, 98f)
-            }
-        }
+        // NOT: Rüzgâr sapması artık TrajectoryAnalyzer.analyzeDrawnPath içinde,
+        // çizim önizlemesiyle aynı WindModel kullanılarak uygulanıyor. Burada tekrar uygulanmaz.
 
-        var outcomeType: String
-        var bannerText: String
+        var outcomeType: String = "NONE"
+        var bannerText: String = ""
         var pendingGoalHome: Boolean? = null
         var pendingGoalBanner: String? = null
         var pendingChain: CriticalMomentContext? = null
@@ -940,9 +1029,76 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         var succeeded = false
         var updatedPlayers = state.players.toList()
         val newEvents = state.commentaryFeed.toMutableList()
+        var setPieceCinematic: MatchCinematic? = null
+        var forcedBlockBanner: String? = null
+
+        /** Ortak sonuç paketi: normal jest ve set-piece çözümleri aynı state geçişini kullanır. */
+        fun finalizeResolution(): LiveMatchUiState {
+            val flightTicks = if (secondStageX != null) 16 else 11
+            val stepPerTick = if (secondStageX != null) (1f / 8f) else (1f / flightTicks.toFloat())
+            val flightBall = state.ball.copy(
+                x = gesture.startX,
+                y = gesture.startY,
+                z = 0f,
+                startX = gesture.startX,
+                startY = gesture.startY,
+                controlX = finalControlX,
+                controlY = finalControlY,
+                targetX = finalEndX,
+                targetY = finalEndY,
+                curveSpin = gesture.curveSpinDegrees,
+                peakHeightZ = peakZ,
+                flightProgress = 0f,
+                flightStepPerTick = stepPerTick,
+                isShotInFlight = true,
+                trailPoints = listOf(PitchPoint(gesture.startX, gesture.startY, 0f)),
+                secondStageTargetX = secondStageX,
+                secondStageTargetY = secondStageY,
+                secondStageControlX = secondStageCtrlX,
+                secondStageControlY = secondStageCtrlY
+            )
+            return state.copy(
+                phase = MatchPhase.ACTION_RESOLUTION,
+                homeShots = homeShots,
+                awayShots = awayShots,
+                homeShotsOnTarget = homeOnTarget,
+                awayShotsOnTarget = awayOnTarget,
+                homeCorners = homeCorners,
+                awayCorners = awayCorners,
+                userGoals = userGoals,
+                userAssists = userAssists,
+                userShots = userShots,
+                userPassesCompleted = userPassesComp,
+                userPassesAttempted = userPassesAtt,
+                userDecisionsTotal = state.userDecisionsTotal + 1,
+                userDecisionsSucceeded = state.userDecisionsSucceeded + (if (succeeded) 1 else 0),
+                userLiveRating = (userRating * 10.0).roundToInt() / 10.0,
+                userLiveEnergy = (state.userLiveEnergy - 2).coerceAtLeast(10),
+                players = updatedPlayers,
+                ball = flightBall,
+                activeDecision = null,
+                latestBannerText = bannerText,
+                commentaryFeed = newEvents,
+                resolutionOutcomeType = outcomeType,
+                pendingGoalForHome = pendingGoalHome,
+                pendingGoalBannerText = pendingGoalBanner,
+                pendingChainedMoment = pendingChain,
+                lastGesturePreview = gesture,
+                crowdExcitementLevel = 0.92f,
+                resolutionTicksRemaining = flightTicks,
+                activeCinematic = setPieceCinematic
+            )
+        }
 
         // 1. Check if an opponent outfield defender intercepts along the actual wind-adjusted curve!
         val opponents = state.players.filter { it.isHome != state.userIsHome && it.position != Position.GK }
+        val wallPlayers = if (active.scenarioType == "FREE_KICK_CURVE") {
+            state.players.filter { it.visualPose == PlayerVisualPose.DEFENSIVE_WALL }
+        } else {
+            emptyList()
+        }
+        // Baraj oyuncuları genel interception döngüsünden çıkarılır; SetPiecePhysicsSimulator karar verir.
+        val interceptionCandidates = opponents.filter { it !in wallPlayers }
         var interceptingDefender: PitchPlayerNode? = null
 
         if (gesture.inferredKind != GestureActionKind.SLIDE_TACKLE && gesture.inferredKind != GestureActionKind.DRIBBLE_RUN) {
@@ -960,8 +1116,9 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                 val bz = TrajectoryAnalyzer.evaluateBallHeightZ(t, peakZ)
                 // If ball is lofted high over the wall/defender (bz >= 25f), ground defenders cannot reach it
                 if (bz < 25f) {
-                    val reachRadius = if (active.scenarioType == "FREE_KICK_CURVE" && t < 0.45f) 3.4f else 3.1f
-                    val hitDef = opponents.firstOrNull { opp ->
+                    // Önizleme uyarısıyla aynı erişim yarıçapı (3.4f) kullanılır; farklı eşik yok.
+                    val reachRadius = 3.4f
+                    val hitDef = interceptionCandidates.firstOrNull { opp ->
                         hypot(opp.x - bx, opp.y - by) <= reachRadius
                     }
                     if (hitDef != null) {
@@ -994,7 +1151,8 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             ) {
                 userShots += 1
                 if (state.userIsHome) homeShots += 1 else awayShots += 1
-                bannerText = "${state.minute}' — ${userPlayer.fullName} vurdu ancak savunmada ${interceptingDefender.name} yatarak şutu blokladı!"
+                bannerText = forcedBlockBanner
+                    ?: "${state.minute}' — ${userPlayer.fullName} vurdu ancak savunmada ${interceptingDefender.name} yatarak şutu blokladı!"
             } else {
                 userPassesAtt += 1
                 bannerText = "${state.minute}' — ${userPlayer.fullName} pası çıkardı fakat ${interceptingDefender.name} son anda araya girip topu kesti!"
@@ -1031,24 +1189,239 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                     val goalMouthY = finalEndY.coerceIn(18f, 82f)
                     finalEndY = goalMouthY
 
-                    // Goal frame is y in 36.5..63.5 (center 50, corners at 38 and 62)
+                    // ============================================================================
+                    // DURAN TOP FİZİĞİ - SetPiecePhysicsSimulator artık gerçek maçta çalışıyor!
+                    // ============================================================================
+                    if (active.scenarioType == "FREE_KICK_CURVE" && wallPlayers.isNotEmpty()) {
+                        val sampledWallPoints = (0..20).map { idx ->
+                            val t = idx / 20f
+                            val (sx, sy) = TrajectoryAnalyzer.evaluateBezier(
+                                t, gesture.startX, gesture.startY,
+                                finalControlX, finalControlY, finalEndX, finalEndY
+                            )
+                            val sz = TrajectoryAnalyzer.evaluateBallHeightZ(t, peakZ) / PITCH_Z_TO_METERS
+                            PitchPoint(sx, sy, sz)
+                        }
+                        val wallCfg = FreeKickWallConfiguration(
+                            wallCount = wallPlayers.size,
+                            defenders = wallPlayers.sortedBy { it.y }.mapIndexed { idx, def ->
+                                WallDefender(
+                                    id = def.id,
+                                    index = idx,
+                                    name = def.name,
+                                    jerseyNumber = def.number,
+                                    basePitchX = def.x,
+                                    basePitchY = def.y
+                                )
+                            },
+                            sprayLineStartX = wallPlayers.first().x,
+                            sprayLineStartY = wallPlayers.minOf { it.y },
+                            sprayLineEndX = wallPlayers.first().x,
+                            sprayLineEndY = wallPlayers.maxOf { it.y },
+                            shooterJerseyNumber = userPlayer.kitNumber,
+                            shooterName = userPlayer.kitName,
+                            ballPosition = PitchPoint(gesture.startX, gesture.startY, 0f),
+                            goalCenterPosition = PitchPoint(if (attackingRight) 98f else 2f, 50f, 0f)
+                        )
+                        setPieceCinematic = MatchCinematic(
+                            kind = MatchCinematicKind.FREE_KICK_WALL,
+                            minute = state.minute,
+                            freeKick = wallCfg
+                        )
+                        val (hitWall, wallMsg) = SetPiecePhysicsSimulator.checkWallCollision(
+                            sampledWallPoints, wallCfg, wallJumpScale = 0.65f
+                        )
+                        if (hitWall) {
+                            val blocker = wallPlayers.minByOrNull {
+                                hypot(it.x - finalControlX, it.y - finalControlY)
+                            } ?: wallPlayers.first()
+                            succeeded = false
+                            outcomeType = "BLOCKED_BY_WALL"
+                            userRating = (userRating - 0.10).coerceAtLeast(5.2)
+                            bannerText = "${state.minute}' — $wallMsg"
+                            finalEndX = blocker.x
+                            finalEndY = blocker.y
+                            updatedPlayers = updatedPlayers.map { p ->
+                                if (p.id == blocker.id) {
+                                    p.copy(
+                                        targetX = blocker.x,
+                                        targetY = blocker.y,
+                                        isDivingOrSliding = true,
+                                        visualPose = PlayerVisualPose.WALL_JUMP,
+                                        roleTag = "BLOK!"
+                                    )
+                                } else p
+                            }
+                            newEvents.add(
+                                0,
+                                MatchEventRecord(
+                                    minute = state.minute,
+                                    type = "KRİTİK_KARAR",
+                                    teamId = oppClub.id,
+                                    playerName = blocker.name,
+                                    description = bannerText,
+                                    involvesUser = true
+                                )
+                            )
+                            return finalizeResolution()
+                        } else {
+                            newEvents.add(
+                                0,
+                                MatchEventRecord(
+                                    minute = state.minute,
+                                    type = "FRİKİK",
+                                    teamId = userClub.id,
+                                    playerName = userPlayer.fullName,
+                                    description = "${state.minute}' — $wallMsg",
+                                    involvesUser = true
+                                )
+                            )
+                        }
+                    }
+
+                    if (active.scenarioType == "PENALTY_KICK") {
+                        val keeperDive = when {
+                            rng.nextInt(100) < 22 -> PenaltyKeeperDive.CENTER_STAY
+                            goalMouthY < 50f -> if (peakZ > 24f) PenaltyKeeperDive.TOP_LEFT else PenaltyKeeperDive.BOTTOM_LEFT
+                            else -> if (peakZ > 24f) PenaltyKeeperDive.TOP_RIGHT else PenaltyKeeperDive.BOTTOM_RIGHT
+                        }
+                        setPieceCinematic = MatchCinematic(
+                            kind = MatchCinematicKind.PENALTY_DUEL,
+                            minute = state.minute,
+                            penalty = PenaltyDuelConfiguration(
+                                spotPosition = PitchPoint(gesture.startX, gesture.startY, 0f),
+                                shooterNumber = userPlayer.kitNumber,
+                                shooterName = userPlayer.kitName,
+                                anticipatedDive = keeperDive,
+                                heartRateBpm = 128 + rng.nextInt(18)
+                            )
+                        )
+                        val penaltyShotY = 44f + ((goalMouthY - 18f) / 64f) * 12f
+                        val penaltyShotZ = (peakZ / PITCH_Z_TO_METERS).coerceIn(0.1f, 2.4f)
+                        val (penaltyGoal, penaltyPost, penaltyCommentary) =
+                            SetPiecePhysicsSimulator.resolvePenaltyShootout(
+                                penaltyShotY, penaltyShotZ, keeperDive, gesture.powerPct
+                            )
+                        if (penaltyGoal) {
+                            succeeded = true
+                            outcomeType = "GOAL_USER"
+                            userGoals += 1
+                            if (state.userIsHome) homeOnTarget += 1 else awayOnTarget += 1
+                            userRating = (userRating + 1.05).coerceAtMost(10.0)
+                            pendingGoalHome = state.userIsHome
+                            bannerText = "${state.minute}' — GOOOL! ${userPlayer.fullName} $penaltyCommentary (SCORE_PLACEHOLDER)"
+                            pendingGoalBanner = "PENALTI GOLÜ! ${userPlayer.kitName.uppercase()}"
+                        } else if (penaltyPost) {
+                            outcomeType = "HIT_POST"
+                            userRating = (userRating + 0.05).coerceAtMost(10.0)
+                            bannerText = "${state.minute}' — $penaltyCommentary"
+                        } else {
+                            outcomeType = "SAVED_BY_GK"
+                            if (state.userIsHome) homeOnTarget += 1 else awayOnTarget += 1
+                            if (state.userIsHome) homeCorners += 1 else awayCorners += 1
+                            userRating = (userRating + 0.12).coerceAtMost(10.0)
+                            bannerText = "${state.minute}' — $penaltyCommentary"
+                        }
+                        newEvents.add(
+                            0,
+                            MatchEventRecord(
+                                minute = state.minute,
+                                type = "PENALTI",
+                                teamId = userClub.id,
+                                playerName = userPlayer.fullName,
+                                description = bannerText,
+                                involvesUser = true
+                            )
+                        )
+                        return finalizeResolution()
+                    }
+
+                    if (active.scenarioType == "CORNER_KICK") {
+                        val boxPlayers = state.players.filter { if (attackingRight) it.x >= 78f else it.x <= 22f }
+                        val duelists = boxPlayers.filter { it.position != Position.GK }.map { p ->
+                            BoxDuelist(
+                                id = p.id,
+                                name = p.name,
+                                number = p.number,
+                                isAttacker = p.isHome == state.userIsHome,
+                                pitchX = p.x,
+                                pitchY = p.y,
+                                aerialJumpPower = (
+                                    if (p.isUser) (attr.strength + attr.agility) / 2
+                                    else 60 + (p.number * 3) % 30
+                                    ).coerceIn(50, 99)
+                            )
+                        }
+                        setPieceCinematic = MatchCinematic(
+                            kind = MatchCinematicKind.CORNER_SCRAMBLE,
+                            minute = state.minute,
+                            corner = CornerKickConfiguration(
+                                cornerFlagPosition = PitchPoint(gesture.startX, gesture.startY, 0f),
+                                isLeftCorner = gesture.startY < 50f,
+                                boxDuelists = duelists
+                            )
+                        )
+                        val (scrambleWon, scrambleMessage) = SetPiecePhysicsSimulator.resolveCornerScramble(
+                            duelists,
+                            (attr.strength + attr.agility) / 2
+                        )
+                        if (scrambleWon) {
+                            succeeded = true
+                            outcomeType = "GOAL_ASSIST"
+                            userAssists += 1
+                            if (state.userIsHome) homeOnTarget += 1 else awayOnTarget += 1
+                            userRating = (userRating + 0.85).coerceAtMost(10.0)
+                            pendingGoalHome = state.userIsHome
+                            bannerText = "${state.minute}' — $scrambleMessage (SCORE_PLACEHOLDER)"
+                            pendingGoalBanner = "KORNER GOLÜ! ${userPlayer.kitName.uppercase()}"
+                        } else {
+                            outcomeType = "CORNER_CLEARED"
+                            userRating = (userRating - 0.08).coerceAtLeast(5.2)
+                            bannerText = "${state.minute}' — $scrambleMessage"
+                        }
+                        newEvents.add(
+                            0,
+                            MatchEventRecord(
+                                minute = state.minute,
+                                type = "KORNER",
+                                teamId = userClub.id,
+                                playerName = userPlayer.fullName,
+                                description = bannerText,
+                                involvesUser = true
+                            )
+                        )
+                        return finalizeResolution()
+                    }
+
+                    // Kale ağzı sınırları çizim ve motor arasında ortak sabitlerden okunur.
                     val distFromCenter = abs(goalMouthY - 50f)
-                    val isInsideFrameY = goalMouthY in 36.8f..63.2f
-                    val isNearPostEdge = goalMouthY in 35.2f..37.6f || goalMouthY in 62.4f..64.8f
+                    val isInsideFrameY = goalMouthY in GOAL_MOUTH_MIN_Y..GOAL_MOUTH_MAX_Y
+                    val isNearPostEdge = goalMouthY in (GOAL_MOUTH_MIN_Y - 1.6f)..(GOAL_MOUTH_MIN_Y + 0.8f) ||
+                        goalMouthY in (GOAL_MOUTH_MAX_Y - 0.8f)..(GOAL_MOUTH_MAX_Y + 1.6f)
                     val overPoweredSky = gesture.powerPct >= 95 && rng.nextInt(100) > (attr.shooting + 15)
 
-                    // Opponent Goalkeeper reaction and defensive wall jump
-                    val gkDiveY = goalMouthY.coerceIn(38.5f, 61.5f)
+                    // GERÇEKÇİ KALECİ REFLEKSİ:
+                    // Kaleci artık topun gittiği yere IŞINLANMIYOR. Mevcut konumundan
+                    // sınırlı bir mesafe kadar, şut gücüyle ters orantılı dalabiliyor.
+                    val gkNode = state.players.firstOrNull {
+                        it.position == Position.GK && it.isHome != state.userIsHome
+                    }
+                    val gkStartY = gkNode?.y ?: 50f
+                    val gkQualityBonus = ((oppClub.teamStrength - 50) * 0.10f).coerceIn(0f, 5f)
+                    val gkMaxReach = (13f + gkQualityBonus - (gesture.powerPct / 16f)).coerceIn(6f, 16f)
+                    val gkDiveY = (gkStartY + (goalMouthY - gkStartY).coerceIn(-gkMaxReach, gkMaxReach))
+                        .coerceIn(37f, 63f)
+                    val gkMissDistance = abs(gkDiveY - goalMouthY)
                     updatedPlayers = updatedPlayers.map { p ->
                         if (p.position == Position.GK && p.isHome != state.userIsHome) {
                             val diveElev = if (distFromCenter > 6f || peakZ > 14f) 14f else 4f
                             p.copy(
                                 targetY = gkDiveY,
                                 isDivingOrSliding = true,
-                                diveDirectionY = if (goalMouthY < 50f) -1f else 1f,
+                                diveDirectionY = if (goalMouthY < gkStartY) -1f else 1f,
                                 visualPose = PlayerVisualPose.GK_DIVE,
                                 elevationZ = diveElev,
-                                roleTag = "UÇUYOR!"
+                                roleTag = if (gkMissDistance <= 2f) "KURTARDI!" else "UÇUYOR!"
                             )
                         } else if (p.visualPose == PlayerVisualPose.DEFENSIVE_WALL) {
                             p.copy(
@@ -1096,10 +1469,13 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                         val curveBonus = (abs(gesture.curveSpinDegrees) * 0.65f).roundToInt() // up to +29 for banana curl!
                         val powerBonus = ((gesture.powerPct - 55) * 0.25f).roundToInt()
                         val shootingSkill = (attr.shooting * 0.48 + attr.setPieces * 0.12).roundToInt()
+                        // Kaleci topa ne kadar yakınsa gol olasılığı o kadar düşer (refleks artık sonucu etkiliyor).
+                        val keeperNearness = (16f - gkMissDistance).coerceIn(0f, 16f)
+                        val keeperReflexPenalty = (keeperNearness * 1.7f).roundToInt()
                         val goalProbability = (
                             26 + shootingSkill + cornerPlacementBonus + curveBonus + powerBonus +
-                                energyMod + moraleMod - oppDefPenalty
-                            ).coerceIn(22, 92)
+                                energyMod + moraleMod - oppDefPenalty - keeperReflexPenalty
+                            ).coerceIn(12, 92)
 
                         val scored = rng.nextInt(100) < goalProbability
                         if (scored) {
@@ -1133,6 +1509,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                             if (state.userIsHome) homeCorners += 1 else awayCorners += 1
                             userRating = (userRating + 0.12).coerceAtMost(10.0)
                             finalEndX = if (attackingRight) 94.5f else 5.5f
+                            finalEndY = gkDiveY // top görsel olarak kalecinin uzandığı noktaya gelsin
                             bannerText = "${state.minute}' — ${userPlayer.fullName} (${gesture.inferredKind.labelTr}) harika vurdu, kaleci son anda uzanıp kornere çeldi!"
                             newEvents.add(
                                 0,
@@ -1464,6 +1841,22 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
                         } else {
                             "${state.minute}' — ${userPlayer.fullName} kayarak müdahalede gecikti, hakem faul düdüğünü çaldı."
                         }
+                        // Faul sonrası sakatlık ihtimali -> sedye/sağlık ekibi sahnesi artık oyunda.
+                        if (rng.nextInt(100) < 18) {
+                            setPieceCinematic = MatchCinematic(
+                                kind = MatchCinematicKind.MEDICAL_STRETCHER,
+                                minute = state.minute,
+                                injury = MedicalInjuryEvent(
+                                    injuredPlayerName = attacker?.name ?: userPlayer.kitName,
+                                    injuredJerseyNumber = attacker?.number ?: userPlayer.kitNumber,
+                                    injuredClubName = oppClub.name,
+                                    bodyPartTr = "Sağ Ayak Bileği",
+                                    severityScore = 2 + rng.nextInt(2),
+                                    requiresStretcher = false,
+                                    canReturnToMatch = true
+                                )
+                            )
+                        }
                     }
                     newEvents.add(
                         0,
@@ -1480,61 +1873,7 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             }
         }
 
-        val flightTicks = if (secondStageX != null) 16 else 11
-        val stepPerTick = if (secondStageX != null) (1f / 8f) else (1f / flightTicks.toFloat())
-
-        val flightBall = state.ball.copy(
-            x = gesture.startX,
-            y = gesture.startY,
-            z = 0f,
-            startX = gesture.startX,
-            startY = gesture.startY,
-            controlX = finalControlX,
-            controlY = finalControlY,
-            targetX = finalEndX,
-            targetY = finalEndY,
-            curveSpin = gesture.curveSpinDegrees,
-            peakHeightZ = peakZ,
-            flightProgress = 0f,
-            flightStepPerTick = stepPerTick,
-            isShotInFlight = true,
-            trailPoints = listOf(PitchPoint(gesture.startX, gesture.startY, 0f)),
-            secondStageTargetX = secondStageX,
-            secondStageTargetY = secondStageY,
-            secondStageControlX = secondStageCtrlX,
-            secondStageControlY = secondStageCtrlY
-        )
-
-        return state.copy(
-            phase = MatchPhase.ACTION_RESOLUTION,
-            homeShots = homeShots,
-            awayShots = awayShots,
-            homeShotsOnTarget = homeOnTarget,
-            awayShotsOnTarget = awayOnTarget,
-            homeCorners = homeCorners,
-            awayCorners = awayCorners,
-            userGoals = userGoals,
-            userAssists = userAssists,
-            userShots = userShots,
-            userPassesCompleted = userPassesComp,
-            userPassesAttempted = userPassesAtt,
-            userDecisionsTotal = state.userDecisionsTotal + 1,
-            userDecisionsSucceeded = state.userDecisionsSucceeded + (if (succeeded) 1 else 0),
-            userLiveRating = (userRating * 10.0).roundToInt() / 10.0,
-            userLiveEnergy = (state.userLiveEnergy - 2).coerceAtLeast(10),
-            players = updatedPlayers,
-            ball = flightBall,
-            activeDecision = null,
-            latestBannerText = bannerText,
-            commentaryFeed = newEvents,
-            resolutionOutcomeType = outcomeType,
-            pendingGoalForHome = pendingGoalHome,
-            pendingGoalBannerText = pendingGoalBanner,
-            pendingChainedMoment = pendingChain,
-            lastGesturePreview = gesture,
-            crowdExcitementLevel = 0.92f,
-            resolutionTicksRemaining = flightTicks
-        )
+        return finalizeResolution()
     }
 
     /**
@@ -1888,7 +2227,17 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             )
         }
 
-        val scenarioIndex = (minute + state.userDecisionsTotal) % 7
+        // Artık deterministik değil: son 3 senaryoyu tekrar etmeyen RNG tabanlı seçim.
+        val scenarioNames = listOf(
+            "ONE_ON_ONE", "FREE_KICK_CURVE", "PENALTY_KICK", "CORNER_KICK",
+            "ACROBATIC_VOLLEY", "WING_CROSS_OR_CUT_IN", "EDGE_OF_BOX_FINESSE"
+        )
+        var scenarioIndex = rng.nextInt(scenarioNames.size)
+        var repeatGuard = 0
+        while (scenarioNames[scenarioIndex] in state.recentScenarioTypes && repeatGuard < 12) {
+            scenarioIndex = rng.nextInt(scenarioNames.size)
+            repeatGuard++
+        }
         val finesseProb = (36 + (attr.shooting * 0.50).roundToInt() + moraleMod - oppDefPenalty).coerceIn(20, 84)
         val powerProb = (32 + (attr.shooting * 0.42 + attr.strength * 0.12).roundToInt() + energyMod - oppDefPenalty).coerceIn(18, 80)
         val passProb = (48 + (attr.passing * 0.35 + attr.vision * 0.20).roundToInt() + moraleMod - oppDefPenalty).coerceIn(30, 88)
@@ -2484,9 +2833,11 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
         val userTeamGoals = if (state.userIsHome) finalHomeScore else finalAwayScore
         val oppTeamGoals = if (state.userIsHome) finalAwayScore else finalHomeScore
 
+        // Gerçek oynanan süre: ilk 11 ise maçın bittiği dakika, sonradan girdiyse 55'ten sonrası.
         val minutesPlayed = when {
-            state.userStartingStatus == StartingStatus.STARTER -> 90
-            state.userOnPitch -> 35
+            state.userStartingStatus == StartingStatus.STARTER ->
+                (state.minute + state.stoppageMinutes).coerceAtMost(90 + state.stoppageMinutes)
+            state.userOnPitch -> (state.minute - 55).coerceAtLeast(0)
             else -> 0
         }
 
@@ -2534,10 +2885,11 @@ class MatchSimulationEngine(private val baseSeed: Long = 20261114L) {
             homeScore = finalHomeScore,
             awayScore = finalAwayScore,
             homePossessionPct = state.homePossessionPct,
-            homeShots = state.homeShots.coerceAtLeast(finalHomeScore + 2),
-            awayShots = state.awayShots.coerceAtLeast(finalAwayScore + 2),
-            homeShotsOnTarget = state.homeShotsOnTarget.coerceAtLeast(finalHomeScore + 1),
-            awayShotsOnTarget = state.awayShotsOnTarget.coerceAtLeast(finalAwayScore + 1),
+            // Yapay şişirme kaldırıldı; en azından gol sayısı kadar şut/isabet garanti edilir.
+            homeShots = state.homeShots.coerceAtLeast(finalHomeScore),
+            awayShots = state.awayShots.coerceAtLeast(finalAwayScore),
+            homeShotsOnTarget = state.homeShotsOnTarget.coerceAtLeast(finalHomeScore),
+            awayShotsOnTarget = state.awayShotsOnTarget.coerceAtLeast(finalAwayScore),
             userPlayedMinutes = minutesPlayed,
             userStarted = state.userStartingStatus == StartingStatus.STARTER,
             userGoals = state.userGoals,

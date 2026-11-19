@@ -676,6 +676,17 @@ fun ClubCrestBadge(
     showEmblem: Boolean = true,
     showStars: Boolean = true
 ) {
+    // Gerçek kulüp logosu varsa vektör çizim yerine doğrudan gerçek PNG gösterilir.
+    val realCrestRes = RealClubCrestRegistry.resolve(club.id, club.shortName, club.name)
+    if (realCrestRes != null) {
+        Image(
+            painter = painterResource(id = realCrestRes),
+            contentDescription = club.name,
+            modifier = modifier.size(size),
+            contentScale = ContentScale.Fit
+        )
+        return
+    }
     ClubCrestBadge(
         shortName = club.shortName,
         primaryHex = club.primaryColorHex,

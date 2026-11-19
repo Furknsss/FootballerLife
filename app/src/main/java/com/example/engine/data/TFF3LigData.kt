@@ -4,231 +4,212 @@ import com.example.model.Club
 import com.example.model.Position
 import com.example.model.SquadMemberInfo
 
+/** 2026-27 Nesine 3. Lig - Transfermarkt 2026/27 kadroları. */
 object TFF3LigData {
 
     const val LEAGUE_ID_ALL = "TR_3_LIG"
     const val LEAGUE_NAME_ALL = "Nesine 3. Lig"
 
-    const val LEAGUE_ID_G1 = "TR_3_LIG_G1"
     const val LEAGUE_NAME_G1 = "Nesine 3. Lig - 1. Grup"
-
-    const val LEAGUE_ID_G2 = "TR_3_LIG_G2"
+    const val LEAGUE_ID_G1 = "TR_3_LIG_G1"
     const val LEAGUE_NAME_G2 = "Nesine 3. Lig - 2. Grup"
-
-    const val LEAGUE_ID_G3 = "TR_3_LIG_G3"
+    const val LEAGUE_ID_G2 = "TR_3_LIG_G2"
     const val LEAGUE_NAME_G3 = "Nesine 3. Lig - 3. Grup"
-
-    const val LEAGUE_ID_G4 = "TR_3_LIG_G4"
+    const val LEAGUE_ID_G3 = "TR_3_LIG_G3"
     const val LEAGUE_NAME_G4 = "Nesine 3. Lig - 4. Grup"
+    const val LEAGUE_ID_G4 = "TR_3_LIG_G4"
 
-    fun getGroup1Clubs(): List<Club> = listOf(
-        Club(
-            id = "T3_BURSASPOR",
-            name = "Bursaspor",
-            shortName = "BRS",
-            country = "Türkiye",
-            city = "Bursa",
-            leagueId = LEAGUE_ID_G1,
-            leagueName = LEAGUE_NAME_G1,
-            tier = 4,
-            primaryColorHex = "#1E8449",
-            secondaryColorHex = "#F7FAF8",
-            budgetEur = 850_000L,
-            facilityQuality = 4,
-            teamStrength = 59,
-            managerName = "Pablo Martin Batalla",
-            managerTacticalStyle = "4-2-3-1 Dominant Pres & Şampiyon Ruhu",
-            stadiumName = "Yüzüncü Yıl Atatürk Stadyumu",
-            stadiumCapacity = 43361,
-            isDemoClub = false,
-            keySquadMembers = listOf(
-                SquadMemberInfo("BRS_AHMETILHAN", "Ahmet İlhan Özek", Position.WG, 7, 59, 37, isCaptain = true),
-                SquadMemberInfo("BRS_MUHAMMET", "Muhammet Demir", Position.ST, 9, 60, 33),
-                SquadMemberInfo("BRS_ILHAN", "İlhan Depe", Position.WG, 11, 58, 33),
-                SquadMemberInfo("BRS_ANIL", "Anıl Atağ", Position.GK, 1, 57, 34),
-                SquadMemberInfo("BRS_MEHMET", "Mehmet Yiğit", Position.CB, 4, 58, 33),
-                SquadMemberInfo("BRS_TAHA", "Taha Can Velioğlu", Position.CB, 5, 57, 31),
-                SquadMemberInfo("BRS_ABDULLAH", "Abdullah Tazgel", Position.FB, 3, 56, 25),
-                SquadMemberInfo("BRS_MUSA", "Musa Çağıran", Position.DM, 6, 58, 33),
-                SquadMemberInfo("BRS_YIGITALI", "Yiğitali Bayrak", Position.CM, 8, 57, 29),
-                SquadMemberInfo("BRS_SEDAT", "Sedat Cengiz", Position.AM, 10, 58, 32),
-                SquadMemberInfo("BRS_HAMZA", "Hamza Gür", Position.FB, 2, 56, 31)
-            )
-        ),
-        Club(
-            id = "T3_KARSIYAKA",
-            name = "Karşıyaka",
-            shortName = "KSK",
-            country = "Türkiye",
-            city = "İzmir",
-            leagueId = LEAGUE_ID_G1,
-            leagueName = LEAGUE_NAME_G1,
-            tier = 4,
-            primaryColorHex = "#1E8449",
-            secondaryColorHex = "#922B21",
-            budgetEur = 750_000L,
-            facilityQuality = 3,
-            teamStrength = 58,
-            managerName = "Mustafa Reşit Akçay",
-            managerTacticalStyle = "4-3-3 Hızlı Kanat & Hücum Presi",
-            stadiumName = "Alsancak Mustafa Denizli Stadyumu",
-            stadiumCapacity = 15000,
-            isDemoClub = false,
-            keySquadMembers = listOf(
-                SquadMemberInfo("KSK_ENESTAYFUN", "Enes Nalbantoğlu", Position.WG, 7, 58, 30),
-                SquadMemberInfo("KSK_ISHAK", "İshak Kurt", Position.ST, 9, 58, 32),
-                SquadMemberInfo("KSK_HAKAN", "Hakan Barış", Position.CM, 8, 57, 31, isCaptain = true),
-                SquadMemberInfo("KSK_HAYDAR", "Haydar Yılmaz", Position.GK, 1, 56, 41),
-                SquadMemberInfo("KSK_ISMAIL", "İsmail Güner", Position.CB, 4, 56, 27),
-                SquadMemberInfo("KSK_ABDULKADIR", "Abdülkadir Öksüz", Position.CB, 5, 56, 26),
-                SquadMemberInfo("KSK_FERDI", "Ferdi Burgaz", Position.FB, 3, 55, 22),
-                SquadMemberInfo("KSK_SADAN", "Sefa Küpeli", Position.DM, 6, 56, 31),
-                SquadMemberInfo("KSK_ALI", "Ali Sinan Gayla", Position.WG, 11, 56, 28),
-                SquadMemberInfo("KSK_CAGATAY", "Çağatay Yılmaz", Position.AM, 10, 57, 25),
-                SquadMemberInfo("KSK_BEDIRHAN", "Bedirhan Altunbaş", Position.FB, 2, 55, 25)
-            )
-        ),
-        createClub("T3_DUZCESPOR", "Düzce Cam Düzcespor", "DÜZ", "Düzce", LEAGUE_ID_G1, LEAGUE_NAME_G1, "#922B21", "#1B4F72", 520_000L, 2, 55, "Kadir Kar", "4-4-2 Sert Savunma & Kontra", "Düzce Şehir Stadyumu", 7500, "Berkay Ekici", 55, Position.ST, 9),
-        createClub("T3_TOKAT", "Tokat Belediye Plevnespor", "TKT", "Tokat", LEAGUE_ID_G1, LEAGUE_NAME_G1, "#78281F", "#F7FAF8", 480_000L, 2, 54, "Cüneyt Biçer", "4-3-3 Dengeli", "Gaziosmanpaşa Stadyumu", 6000, "Muhammed Emir Özbilen", 54, Position.ST, 9),
-        createClub("T3_MUGLASPOR", "Muğlaspor", "MĞL", "Muğla", LEAGUE_ID_G1, LEAGUE_NAME_G1, "#1E8449", "#F7FAF8", 500_000L, 2, 55, "Besim Durmuş", "4-2-3-1 Pas Oyunu", "Muğla Atatürk Stadyumu", 6500, "Furkan Demir", 55, Position.WG, 7),
-        createClub("T3_SILIFKE", "Silifke Belediye Spor", "SLF", "Mersin", LEAGUE_ID_G1, LEAGUE_NAME_G1, "#1F618D", "#922B21", 460_000L, 2, 54, "İlker Avcıbay", "4-4-2 Mücadeleci", "Silifke Şehir Stadyumu", 5000, "Burak Bilgen", 54, Position.CM, 8),
-        createClub("T3_HOPASPOR", "Artvin Hopaspor", "HOP", "Artvin", LEAGUE_ID_G1, LEAGUE_NAME_G1, "#6C3483", "#F7FAF8", 440_000L, 2, 53, "Osman Özdemir", "4-5-1 Dar Alan", "Hopa İlçe Stadyumu", 4000, "Gökhan Günel", 53, Position.CB, 4),
-        createClub("T3_KUSADASI", "Kuşadasıspor", "KŞD", "Aydın", LEAGUE_ID_G1, LEAGUE_NAME_G1, "#17202A", "#F7FAF8", 420_000L, 2, 52, "Bayram Sevindik", "4-3-3 Kontra", "Özer Türk Stadyumu", 4000, "Batuhan Önal", 52, Position.ST, 11)
-    )
-
-    fun getGroup2Clubs(): List<Club> = listOf(
-        createClub("T3_BALIKESIR", "Balıkesirspor", "BAL", "Balıkesir", LEAGUE_ID_G2, LEAGUE_NAME_G2, "#922B21", "#F7FAF8", 580_000L, 3, 56, "Levent Eriş", "4-2-3-1 Tecrübeli Kadro & Pres", "Balıkesir Atatürk Stadyumu", 15000, "Sedat Yiğit Kurnaz", 56, Position.ST, 9),
-        createClub("T3_USAKSPOR", "Uşakspor", "UŞK", "Uşak", LEAGUE_ID_G2, LEAGUE_NAME_G2, "#922B21", "#17202A", 540_000L, 2, 55, "Efrahim Alkın", "4-3-3 Kanat Akınları", "Uşak 1 Eylül Stadyumu", 8000, "Murat Torun", 55, Position.ST, 11),
-        createClub("T3_FATSA", "Fatsa Belediyespor", "FAT", "Ordu", LEAGUE_ID_G2, LEAGUE_NAME_G2, "#1E8449", "#1B4F72", 480_000L, 2, 54, "Bekir Ozan Has", "4-4-2 Sert Savunma", "Fatsa İlçe Stadyumu", 4000, "Hasan Çavdar", 54, Position.AM, 10),
-        createClub("T3_CAYELI", "Çayelispor", "ÇAY", "Rize", LEAGUE_ID_G2, LEAGUE_NAME_G2, "#1E8449", "#F7FAF8", 450_000L, 2, 53, "Şevki Tonyalı", "4-2-3-1 Tempolu", "Çayeli İlçe Stadyumu", 3000, "Sinan Kalaycı", 53, Position.CM, 8),
-        createClub("T3_AMASYA", "Amasyaspor FK", "AMS", "Amasya", LEAGUE_ID_G2, LEAGUE_NAME_G2, "#1E8449", "#F7FAF8", 460_000L, 2, 53, "Zafer Uysal", "4-3-3 Geçiş", "12 Haziran Stadyumu", 7000, "Ahmet Buğrahan Tuncay", 53, Position.WG, 7),
-        createClub("T3_ETIMESGUT", "Etimesgut Belediyespor", "ETM", "Ankara", LEAGUE_ID_G2, LEAGUE_NAME_G2, "#17202A", "#F7FAF8", 500_000L, 3, 54, "Murat Şenvardar", "4-4-2 Kompakt", "Etimesgut Atatürk", 3500, "Turan Yılmaz", 54, Position.ST, 9),
-        createClub("T3_SILIVRI", "Silivrispor", "SLV", "İstanbul", LEAGUE_ID_G2, LEAGUE_NAME_G2, "#1B4F72", "#922B21", 490_000L, 2, 54, "Özgür Ergün", "4-2-3-1 Disiplinli", "Silivri Müjdat Gürsu", 4000, "Mert Aktaş", 54, Position.WG, 11),
-        createClub("T3_TIRE", "Tire 2021 FK", "TİR", "İzmir", LEAGUE_ID_G2, LEAGUE_NAME_G2, "#F4D03F", "#922B21", 450_000L, 2, 53, "Galip Gündoğdu", "4-3-3 Pas", "Tire Gazi Mustafa Kemal", 15000, "Murat Elkatmış", 53, Position.AM, 10)
-    )
-
-    fun getGroup3Clubs(): List<Club> = listOf(
-        createClub("T3_KUCUKCEKMECE", "Küçükçekmece Sinopspor", "KÇS", "İstanbul", LEAGUE_ID_G3, LEAGUE_NAME_G3, "#F4D03F", "#1B4F72", 520_000L, 2, 55, "Galip Aslıyüksek", "4-2-3-1 Agresif Pres", "Küçükçekmece Metin Oktay", 3500, "Enes İslam İlkin", 55, Position.WG, 7),
-        createClub("T3_AYVALIK", "Ayvalıkgücü Belediyespor", "AYV", "Balıkesir", LEAGUE_ID_G3, LEAGUE_NAME_G3, "#922B21", "#F7FAF8", 500_000L, 2, 54, "Mesut Toros", "4-3-3 Hızlı Kanat", "Hüsnü Uğural Stadyumu", 3500, "Tugay Yıldırım", 54, Position.CM, 8),
-        createClub("T3_52ORDU", "52 Orduspor FK", "52O", "Ordu", LEAGUE_ID_G3, LEAGUE_NAME_G3, "#6C3483", "#F7FAF8", 550_000L, 3, 55, "Cahit Erçevik", "4-2-3-1 Hücum Ağırlıklı", "Yeni Ordu Stadyumu", 16000, "Nevzat Bilen", 55, Position.WG, 11),
-        createClub("T3_CORLU", "Çorluspor 1947", "ÇRL", "Tekirdağ", LEAGUE_ID_G3, LEAGUE_NAME_G3, "#922B21", "#17202A", 510_000L, 2, 54, "Ersin Aka", "4-4-2 Fizik Mücadelesi", "General Basri Saran", 5000, "Yasin Abdioğlu", 54, Position.ST, 9),
-        createClub("T3_KARABUK", "Karabük İdman Yurdu", "KBK", "Karabük", LEAGUE_ID_G3, LEAGUE_NAME_G3, "#1B4F72", "#922B21", 470_000L, 2, 53, "Metin İlhan", "4-3-3 Kontra", "Dr. Necmettin Şeyhoğlu", 5000, "Yusuf Akbulut", 53, Position.ST, 9),
-        createClub("T3_PAZARSPOR", "Pazarspor", "PAZ", "Rize", LEAGUE_ID_G3, LEAGUE_NAME_G3, "#1F618D", "#F7FAF8", 460_000L, 2, 53, "Ramazan Öztürk", "4-5-1 Savunma", "Pazar İlçe Stadyumu", 3500, "Emre Turan", 53, Position.CB, 4),
-        createClub("T3_OSMANIYE", "Osmaniyespor FK", "OSM", "Osmaniye", LEAGUE_ID_G3, LEAGUE_NAME_G3, "#F4D03F", "#1E8449", 450_000L, 2, 53, "Gürkan Çavdar", "4-4-2 Mücadele", "7 Ocak Stadyumu", 6000, "Taylan Özgün", 53, Position.ST, 9),
-        createClub("T3_YOZGAT", "Yozgat Bld Bozokspor", "YOZ", "Yozgat", LEAGUE_ID_G3, LEAGUE_NAME_G3, "#922B21", "#17202A", 440_000L, 2, 52, "İlhan Özbay", "4-2-3-1 Kapalı", "Bozok Şehir Stadyumu", 5000, "Murat Kara", 52, Position.ST, 10)
-    )
-
-    fun getGroup4Clubs(): List<Club> = listOf(
-        createClub("T3_ORDU1967", "Orduspor 1967 SK", "ORD", "Ordu", LEAGUE_ID_G4, LEAGUE_NAME_G4, "#6C3483", "#F7FAF8", 560_000L, 3, 56, "Ramazan Çelik", "4-2-3-1 Yüksek Tempo Hücum", "Yeni Ordu Stadyumu", 16000, "Cevatcan Ekinci", 56, Position.WG, 7),
-        createClub("T3_SEBAT", "Sebat Gençlik Spor", "SBT", "Trabzon", LEAGUE_ID_G4, LEAGUE_NAME_G4, "#922B21", "#1B4F72", 550_000L, 3, 55, "Adem Çak", "4-3-3 Dinamik Karadeniz Presi", "Ortahisar Yavuz Selim", 5000, "Veysel Sönmezsoy", 55, Position.AM, 10),
-        createClub("T3_ZONGULDAK", "Zonguldak Kömürspor", "ZNG", "Zonguldak", LEAGUE_ID_G4, LEAGUE_NAME_G4, "#922B21", "#1B4F72", 530_000L, 2, 55, "Can Güven", "4-4-2 Madenci Ruhu & Mücadele", "Karaelmas Kemal Köksal", 13795, "Mehmet Gürkan Öztürk", 55, Position.ST, 9),
-        createClub("T3_MARASISTIKLAL", "K.Maraş İstiklalspor", "İST", "Kahramanmaraş", LEAGUE_ID_G4, LEAGUE_NAME_G4, "#922B21", "#F7FAF8", 540_000L, 2, 55, "Ahmet Taşyürek", "4-2-3-1 Deprem Sonrası Kenetlenme", "Batıpark Sahası", 5000, "Ali Han Tunçer", 55, Position.WG, 11),
-        createClub("T3_MARDIN", "Mardin 1969 Spor", "MAR", "Mardin", LEAGUE_ID_G4, LEAGUE_NAME_G4, "#922B21", "#17202A", 500_000L, 2, 54, "Ulaş Şengel", "4-3-3 Sert Pres", "21 Kasım Stadyumu", 6000, "Serdar Yiğit", 54, Position.ST, 9),
-        createClub("T3_KIRIKKALE", "Kırıkkale FK", "KRK", "Kırıkkale", LEAGUE_ID_G4, LEAGUE_NAME_G4, "#1B4F72", "#922B21", 470_000L, 2, 53, "Ercümend Coşkundere", "4-4-2 Alan Daraltma", "Başpınar Stadyumu", 5000, "Canberk Özçakır", 53, Position.CM, 8),
-        createClub("T3_BORNOVA1877", "Bornova 1877", "BRN", "İzmir", LEAGUE_ID_G4, LEAGUE_NAME_G4, "#1E8449", "#17202A", 480_000L, 2, 54, "Sercan Yıldırım", "4-3-3 Genç Dinamizm", "Bornova Aziz Kocaoğlu", 4000, "Yasin Uzunoğlu", 54, Position.ST, 9),
-        createClub("T3_EDIRNE", "Edirnespor", "EDR", "Edirne", LEAGUE_ID_G4, LEAGUE_NAME_G4, "#F4D03F", "#922B21", 440_000L, 2, 52, "Kadir Kar", "4-5-1 Savunma", "25 Kasım Stadyumu", 4000, "Uğur Erk", 52, Position.FB, 3)
-    )
+    fun getGroup1Clubs(): List<Club> = getClubsForGroup("T3A", LEAGUE_ID_G1, LEAGUE_NAME_G1)
+    fun getGroup2Clubs(): List<Club> = getClubsForGroup("T3B", LEAGUE_ID_G2, LEAGUE_NAME_G2)
+    fun getGroup3Clubs(): List<Club> = getClubsForGroup("T3C", LEAGUE_ID_G3, LEAGUE_NAME_G3)
+    fun getGroup4Clubs(): List<Club> = getClubsForGroup("T3D", LEAGUE_ID_G4, LEAGUE_NAME_G4)
 
     fun getAllClubs(): List<Club> = getGroup1Clubs() + getGroup2Clubs() + getGroup3Clubs() + getGroup4Clubs()
 
-    private fun createClub(
-        id: String,
-        name: String,
-        shortName: String,
-        city: String,
-        leagueId: String,
-        leagueName: String,
-        primaryHex: String,
-        secondaryHex: String,
-        budget: Long,
-        facility: Int,
-        strength: Int,
-        manager: String,
-        style: String,
-        stadium: String,
-        capacity: Int,
-        starName: String,
-        starOvr: Int,
-        starPos: Position,
-        starNum: Int
-    ): Club {
-        val squad = buildSquad(id, strength, starName, starOvr, starPos, starNum)
-        return Club(
-            id = id,
-            name = name,
-            shortName = shortName,
-            country = "Türkiye",
-            city = city,
-            leagueId = leagueId,
-            leagueName = leagueName,
-            tier = 4,
-            primaryColorHex = primaryHex,
-            secondaryColorHex = secondaryHex,
-            budgetEur = budget,
-            facilityQuality = facility,
-            teamStrength = strength,
-            managerName = manager,
-            managerTacticalStyle = style,
-            stadiumName = stadium,
-            stadiumCapacity = capacity,
-            isDemoClub = false,
-            keySquadMembers = squad
-        )
-    }
-
-    private fun buildSquad(
-        clubId: String,
-        strength: Int,
-        starName: String,
-        starOvr: Int,
-        starPos: Position,
-        starNum: Int
-    ): List<SquadMemberInfo> {
-        val baseNames = listOf(
-            Pair("Serkan", "Acar"), Pair("Onur", "Yıldız"), Pair("Batuhan", "Tekin"),
-            Pair("Oğuz", "Erdoğan"), Pair("Kaan", "Güneş"), Pair("Barış", "Çetin"),
-            Pair("Umut", "Korkmaz"), Pair("Eren", "Yalçın"), Pair("Tolgahan", "Avcı"),
-            Pair("Semih", "Polat"), Pair("Samet", "Gökçe")
-        )
-        val positions = listOf(
-            Position.GK, Position.FB, Position.CB, Position.CB, Position.FB,
-            Position.DM, Position.CM, Position.WG, Position.AM, Position.WG, Position.ST
-        )
-        val numbers = listOf(1, 2, 4, 5, 3, 6, 8, 7, 10, 11, 9)
-        val hash = clubId.hashCode().let { if (it < 0) -it else it }
-
-        val list = mutableListOf<SquadMemberInfo>()
-        list.add(
-            SquadMemberInfo(
-                id = "${clubId}_STAR",
-                name = starName,
-                position = starPos,
-                kitNumber = starNum,
-                overall = starOvr,
-                age = 25 + (hash % 8),
-                isCaptain = true
-            )
-        )
-
-        positions.forEachIndexed { i, pos ->
-            if (pos != starPos || list.size < 2) {
-                val pair = baseNames[(hash + i) % baseNames.size]
-                val ovr = (strength - 2 + (i % 4)).coerceIn(44, 56)
-                val kit = numbers[i]
-                if (kit != starNum && list.none { it.kitNumber == kit }) {
-                    list.add(
-                        SquadMemberInfo(
-                            id = "${clubId}_P$i",
-                            name = "${pair.first} ${pair.second}",
-                            position = pos,
-                            kitNumber = kit,
-                            overall = ovr,
-                            age = 20 + ((hash + i) % 12)
-                        )
-                    )
+    private fun getClubsForGroup(comp: String, leagueId: String, leagueName: String): List<Club> {
+        val raw = SQUAD_DATA[comp].orEmpty()
+        return raw.mapIndexed { idx, entry ->
+            val vid = entry.first
+            val slug = entry.second
+            val players = entry.third
+            val pretty = CLUB_NAMES[slug] ?: slug.replace("-", " ").replaceFirstChar { it.uppercase() }
+            Club(
+                id = "${comp}_$vid",
+                name = pretty,
+                shortName = slug.take(3).uppercase(),
+                country = "Türkiye",
+                city = "Türkiye",
+                leagueId = leagueId,
+                leagueName = leagueName,
+                tier = 4,
+                primaryColorHex = "#922B21",
+                secondaryColorHex = "#F7FAF8",
+                budgetEur = 200_000L,
+                facilityQuality = 2,
+                teamStrength = 55 + (idx % 5),
+                managerName = "Yerel Teknik Direktör",
+                managerTacticalStyle = "4-2-3-1 Dengeli",
+                stadiumName = "İlçe Stadyumu",
+                stadiumCapacity = 3000,
+                foundationYear = 1960,
+                keySquadMembers = players.mapIndexed { i, p ->
+                    SquadMemberInfo("${comp}_${vid}_$i", p.first, Position.valueOf(p.second), p.third, 64 + (i % 5), 23 + (i % 8))
                 }
-            }
+            )
         }
-        return list.take(11)
     }
+
+    private val CLUB_NAMES = mapOf(
+        "amasyaspor-1968-fk" to "Amasyaspor 1968 Fk",
+        "tuzlaspor" to "Tuzlaspor",
+        "bagcilar-spor-kulubu" to "Bagcilar Spor Kulubu",
+        "bulvarspor" to "Bulvarspor",
+        "duzce-spor" to "Duzce Spor",
+        "fatsa-belediyespor" to "Fatsa Belediyespor",
+        "galata-spor-kulubu" to "Galata Spor Kulubu",
+        "golcukspor" to "Golcukspor",
+        "leventspor" to "Leventspor",
+        "karabuk-adatepe-dokecek-spor" to "Karabuk Adatepe Dokecek Spor",
+        "karadeniz-eregli-belediye-spor" to "Karadeniz Eregli Belediye Spor",
+        "istanbul-sinop-spor" to "Istanbul Sinop Spor",
+        "orduspor-1967-spor-kulubu" to "Orduspor 1967 Spor Kulubu",
+        "pazarspor" to "Pazarspor",
+        "silivrispor" to "Silivrispor",
+        "tokat-belediye-plevne-spor" to "Tokat Belediye Plevne Spor",
+        "yalova-yesilova-spor" to "Yalova Yesilova Spor",
+        "zonguldak-komurspor" to "Zonguldak Komurspor",
+        "meram-kara-kartallar-spor" to "Meram Kara Kartallar Spor",
+        "alanya-kestelspor" to "Alanya Kestelspor",
+        "altay-sk" to "Altay Sk",
+        "ayvalikgucu-belediye-spor" to "Ayvalikgucu Belediye Spor",
+        "balikesirspor" to "Balikesirspor",
+        "bigaspor" to "Bigaspor",
+        "bucaspor-1928" to "Bucaspor 1928",
+        "gemlik-vefa-spor" to "Gemlik Vefa Spor",
+        "bursa-yildirim-spor" to "Bursa Yildirim Spor",
+        "serinhisarspor" to "Serinhisarspor",
+        "anadolu-universitesi" to "Anadolu Universitesi",
+        "eskisehirspor" to "Eskisehirspor",
+        "etimesgut-belediyespor" to "Etimesgut Belediyespor",
+        "karsiyaka" to "Karsiyaka",
+        "kepez-belediyespor" to "Kepez Belediyespor",
+        "didimspor" to "Didimspor",
+        "buca-zaferspor" to "Buca Zaferspor",
+        "usak-spor" to "Usak Spor",
+        "adanaspor" to "Adanaspor",
+        "agri-1970-spor" to "Agri 1970 Spor",
+        "bitlis-ozguzelderespor" to "Bitlis Ozguzelderespor",
+        "diyarbekir-spor" to "Diyarbekir Spor",
+        "talasgucu-belediyespor" to "Talasgucu Belediyespor",
+        "karakopru-belediye-spor" to "Karakopru Belediye Spor",
+        "karaman-belediyespor" to "Karaman Belediyespor",
+        "kirikkale-buyuk-anadolu-spor" to "Kirikkale Buyuk Anadolu Spor",
+        "kirsehir-belediye-spor" to "Kirsehir Belediye Spor",
+        "malatya-yesilyurt-belediyespor" to "Malatya Yesilyurt Belediyespor",
+        "mazidagi-fosfat-spor" to "Mazidagi Fosfat Spor",
+        "nigde-belediyesi-spor" to "Nigde Belediyesi Spor",
+        "osmaniyespor-fk" to "Osmaniyespor Fk",
+        "medcem-silifke-belediye-spor" to "Medcem Silifke Belediye Spor",
+        "adana-adaletgucu-spor" to "Adana Adaletgucu Spor",
+        "yeni-malatyaspor" to "Yeni Malatyaspor",
+        "icel-idmanyurdu-sk" to "Icel Idmanyurdu Sk",
+        "yozgat-belediyesi-bozok-spor" to "Yozgat Belediyesi Bozok Spor",
+        "karsiyaka" to "Karsiyaka",
+        "belediye-kutahyaspor" to "Belediye Kütahyaspor",
+        "ayvalikgucu-belediye-spor" to "Ayvalikgucu Belediye Spor",
+        "bergama-belediyespor" to "Bergama Belediyespor",
+        "halilbeylispor" to "Halilbeylispor",
+        "didimspor" to "Didimspor",
+        "eskisehirspor" to "Eskisehirspor",
+        "nazilli-belediyespor" to "Nazilli Belediyespor",
+        "anadolu-universitesi" to "Anadolu Universitesi",
+        "afjet-afyonspor" to "Afjet Afyonspor",
+        "alanya-kestelspor" to "Alanya Kestelspor",
+        "altay-sk" to "Altay Sk",
+        "balikesirspor" to "Balikesirspor",
+        "serinhisarspor" to "Serinhisarspor",
+        "buca-zaferspor" to "Buca Zaferspor",
+        "usak-spor" to "Usak Spor"
+    )
+
+    private val SQUAD_DATA = mapOf(
+        "T3A" to listOf(
+            Triple("37983", "amasyaspor-1968-fk", listOf(Triple("Yusuf Aklan", "GK", 47),Triple("Orhan Can Bostan", "GK", 54),Triple("Mücahit Çakır", "CB", 61),Triple("Mert Erol", "CB", 4),Triple("Fatih Ergen", "CB", 30),Triple("Hüseyin Can Şavur", "CB", 45),Triple("Ali Erkin", "FB", 88),Triple("Murat Şevik", "FB", 35),Triple("Atalay Gürel", "DM", 6),Triple("Buğrahan Bekar", "DM", 16),Triple("Muhammet Doğukan Kalkışım", "DM", 21),Triple("Mikail Olgun", "CM", 29),Triple("Muhammet Taha Ağdağ", "DM", 34),Triple("Serdar Eylik", "WG", 8),Triple("Yunus Emre Kobya", "WG", 26),Triple("Hasan Çelik", "WG", 7),Triple("Savaş Çakır", "WG", 10),Triple("Safa Kınalı", "WG", 17),Triple("Ahmet Aksakal", "WG", 23),Triple("Muhammed Öztürk", "ST", 9),Triple("Muhammet Karahan", "ST", 99))),
+            Triple("39805", "tuzlaspor", listOf(Triple("Kurtuluş Yurt", "GK", 35),Triple("Mert Danışmaz", "GK", 85),Triple("Görkem Yalçıner", "CB", 5),Triple("Alperen Arslan", "CB", 22),Triple("Utku Burak Kunduzcu", "CB", 28),Triple("Enes Hakan Sığırcı", "CB", 58),Triple("Erhan Kara", "FB", 23),Triple("Birkan Öksüz", "FB", 96),Triple("Berat Köşker", "FB", 2),Triple("Dursun Ali Emirhan Topal", "FB", 7),Triple("Arda Taşar", "FB", 31),Triple("Oğuzhan Yılmaz", "DM", 4),Triple("Abdullah Yıldızer", "DM", 6),Triple("Utku Kayra Yılmaz", "DM", 37),Triple("Savaş Yorulmaz", "CM", 8),Triple("Merdan Erdinç", "CM", 17),Triple("Anıl Emre Yılmaz", "CM", 88),Triple("Erdem Baytaroğlu", "CM", 11),Triple("Alpay Koçaklı", "WG", 67),Triple("Burak Temir", "WG", 70),Triple("Berat Altındiş", "ST", 9),Triple("Onur Arı", "ST", 10))),
+            Triple("14933", "bagcilar-spor-kulubu", listOf(Triple("Boran Güngör", "GK", 1),Triple("Serkan Polat", "GK", 81),Triple("Kadir Mert Örentepe", "CB", 34),Triple("Ender Alkan", "CB", 3),Triple("Emirhan Verep", "FB", 5),Triple("Taha Çavdaroğlu", "FB", 61),Triple("Yiğit Canguru", "FB", 77),Triple("Ege Ketahte", "FB", 2),Triple("Ahmet Efe Şimşek", "DM", 44),Triple("Onur Akdoğan", "DM", 6),Triple("Ada Eseller", "DM", 8),Triple("Mert Altınöz", "CM", 17),Triple("Selim Kayacı", "CM", 20),Triple("Ömer Salihoğlu", "AM", 11),Triple("Yiğit Can Korkmaz", "AM", 10),Triple("Abdurrahman Emek", "WG", 9),Triple("Enes Alp", "WG", 19),Triple("Ümit Kurt", "WG", 60),Triple("Buğra Usta", "WG", 70),Triple("İsa Nalbant", "WG", 41),Triple("Emre Avan", "WG", 30),Triple("Ozan Tanaydın", "WG", 35),Triple("Enes Dilekli", "ST", 40))),
+            Triple("45738", "bulvarspor", listOf(Triple("Hakan Aydın", "GK", 1),Triple("Muhammed Emin Çelik", "GK", 23),Triple("Ali Deniz Erdoğan", "GK", 58),Triple("Serhat Emirler", "CB", 3),Triple("Kaan Arslan", "CB", 14),Triple("Erkin Kocakahya", "CB", 4),Triple("Berat Aktay", "CB", 21),Triple("Tahir Derge", "FB", 33),Triple("Efe Yüksel Abdikoğlu", "FB", 77),Triple("Ahmet Arda Çakmak", "FB", 88),Triple("Fatih Kızılay", "FB", 70),Triple("Oğuzhan Turan", "FB", 2),Triple("Can Bayırkan", "CM", 30),Triple("Furkan Akın", "CM", 54),Triple("Kaan Güdü", "CM", 61),Triple("Beratcan Ot", "CM", 6),Triple("Çağlar Özel", "WG", 10),Triple("Ömer Faruk Uğurlu", "WG", 11),Triple("Halit Furkan Kaya", "WG", 25),Triple("Alaattin Öner", "WG", 20),Triple("Mertkan Cengiz", "ST", 7),Triple("Gülhan Üreyen", "ST", 9),Triple("Orkun Kocakahya", "ST", 17),Triple("Ahmet Mert Koşar", "ST", 99),Triple("Burak Yılmaz", "ST", 19))),
+            Triple("20333", "duzce-spor", listOf(Triple("Ersin Aydın", "GK", 1),Triple("Akil Şakirt", "GK", 27),Triple("Gökdeniz Durnaoğlu", "GK", 77),Triple("Amed Tangüner", "CM", 72),Triple("Kadir Turhan", "CB", 17),Triple("Abdurrahman Ayhanoğlu", "CB", 29),Triple("Doğukan Ateş", "CB", 33),Triple("Arda Doruk Kılıççeken", "CB", 4),Triple("Onur Seis", "FB", 61),Triple("Emrullah Ertuş", "FB", 7),Triple("Kaan Onaran", "DM", 6),Triple("Enishan Ceylan", "DM", 20),Triple("Yusuf Enes Çoşkun", "DM", 14),Triple("Ali Alperen Çelik", "DM", 58),Triple("Bilal Güney", "CM", 5),Triple("Hakan Akgül", "CM", 23),Triple("Mahmut Esat Çelebi", "CM", 11),Triple("Oğuz Çakıroğlu", "CM", 81),Triple("Emirhan Kayar", "AM", 8),Triple("Caner Doğan", "WG", 21),Triple("Samet Bulut", "ST", 9),Triple("Batuhan Kurt", "ST", 99),Triple("Ömer Faruk Uzun", "ST", 74))),
+            Triple("22089", "fatsa-belediyespor", listOf(Triple("Erdem Çakaltarla", "GK", 1),Triple("Mustafa Gürbüz", "GK", 44),Triple("Yunus Emre Bozdemir", "CM", 57),Triple("Emre Tosun", "CB", 5),Triple("Kerem Hayta", "CB", 35),Triple("Yasin Ayan", "CB", 4),Triple("Ömer Temurcan", "CB", 6),Triple("Selim Kaan Altunkaynak", "CB", 34),Triple("Ali Ayberk Selvili", "CB", 99),Triple("Oruç Yılmaz", "FB", 11),Triple("Metin Nilifırka", "FB", 27),Triple("İrfan Köse", "FB", 17),Triple("Fatih Onay", "FB", 25),Triple("Serkan Yeşilyurt", "FB", 88),Triple("Muhammet Fatih Karasu", "DM", 18),Triple("Umut Kerem Yeşil", "DM", 19),Triple("Kayra Elmalı", "DM", 28),Triple("Erdem Çalık", "CM", 8),Triple("Berat Satır", "CM", 14),Triple("İbrahim Topaloğlu", "CM", 53),Triple("Osman Işıklı", "CM", 61),Triple("Alp Huy", "CM", 20),Triple("Halil İbrahim Pekşen", "WG", 7),Triple("Arda Köksal", "WG", 10),Triple("Hasan Alp Altınoluk", "WG", 26),Triple("Ulaş Şimşek", "WG", 77),Triple("Arda Kaya", "WG", 71),Triple("Kayrahan Yılmaz", "ST", 58),Triple("Sebahattin Göktuğ Zengin", "ST", 9))),
+            Triple("74559", "galata-spor-kulubu", listOf(Triple("Edis Köksaldı", "GK", 95),Triple("Kaan Mert Vardar", "GK", 70),Triple("Yiğit İfet Has", "CB", 5),Triple("Muharrem Öner", "CB", 19),Triple("Demir Mermerci", "CB", 22),Triple("Doğan Çamlı", "CB", 35),Triple("Bartu Ermiş", "FB", 88),Triple("Cihangir Çağlıyan", "FB", 29),Triple("Aziz Aksoy", "FB", 55),Triple("Ahmed Safa Ateş", "DM", 6),Triple("Enes Bal", "CM", 94),Triple("Ali Özdemir", "CM", 18),Triple("Ökkeş Karaoğlu", "CM", 27),Triple("Berkay Kençtemur", "AM", 10),Triple("Abdülmecid Dönmez", "AM", 14),Triple("Ömer Turan", "AM", 21),Triple("Muhammet Ali Apaydın", "AM", 80),Triple("Arda Çeşmebaşı", "WG", 11),Triple("Deha Bayramoğlu", "WG", 20),Triple("Ethem Eren Vardar", "WG", 30),Triple("Hasan Hüseyin Öztürk", "WG", 42),Triple("Yıldıray Koçal", "ST", 7),Triple("Azad Demir", "ST", 9),Triple("Muhammed Said Sipahiler", "ST", 28))),
+            Triple("2751", "golcukspor", listOf(Triple("Mert Can Tunca", "GK", 1),Triple("Servet Gaburga", "GK", 24),Triple("İbrahim Demirer", "CB", 23),Triple("Kuban Altunbudak", "CB", 44),Triple("Emir Kaan Baş", "CB", 3),Triple("Erdin Üzer", "CB", 22),Triple("Atakan Kargoğlu", "FB", 33),Triple("Emir Can Yusuf", "FB", 41),Triple("Abdulsamet Demirtürk", "FB", 2),Triple("Umut Karataş", "FB", 38),Triple("Furkan Taştemir", "DM", 4),Triple("Emirhan Durmuş", "CM", 11),Triple("Olcay Meydan", "CM", 10),Triple("Umut Doğdu", "CM", 80),Triple("Eren Yavuz", "CM", 6),Triple("Arif Ensar Aksoy", "CM", 30),Triple("Burak Başkaya", "AM", 17),Triple("Hamza Selen", "WG", 91),Triple("Azat Çakar", "ST", 90),Triple("Efkan Kargoğlu", "ST", 8),Triple("Sercan Tüktaş", "ST", 65))),
+            Triple("45027", "leventspor", listOf(Triple("Emre Çiğdem", "GK", 58),Triple("Çağan Yılmazer", "GK", 1),Triple("Kubilay Altunay", "GK", 35),Triple("Emrah Taysi", "CB", 5),Triple("Muhammed Enes Doğan", "CB", 27),Triple("Tugay Gündem", "CB", 66),Triple("Süleyman Emre Atalı", "CB", 4),Triple("Ahmet Durmuşoğlu", "FB", 3),Triple("Berkay Özdeniz", "FB", 77),Triple("Rüstem Yiğit Yıkılmaz", "FB", 20),Triple("Ertuğrul Gazi Demirel", "FB", 47),Triple("Berkay Arslan", "DM", 24),Triple("Berke Açan", "CM", 6),Triple("Hasan Şen", "CM", 26),Triple("Ömer Bozan", "AM", 10),Triple("Doğukan Saral", "AM", 11),Triple("Efe Tecimer", "WG", 53),Triple("Batuhan Recep Atay", "WG", 7),Triple("Berkay Tekke", "ST", 9),Triple("Ahmet Demirli", "ST", 23),Triple("Sarp Ekinci", "ST", 29))),
+            Triple("99649", "karabuk-adatepe-dokecek-spor", listOf(Triple("Berat Çelebi", "GK", 1),Triple("Furkan Yasin Çevik", "GK", 33),Triple("Mustafa Kırkıkoğlu", "GK", 45),Triple("İlker Akar", "CB", 41),Triple("Muhammed Eren Erdinç", "CB", 4),Triple("Emirhan Tavukçu", "CB", 19),Triple("Mert Mehmet Çakmak", "CB", 60),Triple("Ahmet Sezer", "FB", 78),Triple("Berat Can Sebat", "FB", 2),Triple("Tolga Aslan", "FB", 16),Triple("Semih Kocatürk", "FB", 23),Triple("Osman Boz", "DM", 6),Triple("Melik Ahmet İpek", "DM", 25),Triple("Mevlüt Han Ekelik", "CM", 8),Triple("Taner Yıldız", "CM", 10),Triple("Necdet Burak Okan", "CM", 24),Triple("Mücahit Emre Sivri", "WG", 26),Triple("Özgür Dağdelen", "WG", 7),Triple("Halil İbrahim Kaya", "WG", 11),Triple("Hasan Türkyılmaz", "ST", 97),Triple("Berkcan Cengiz", "ST", 9),Triple("Kaan Erdoğan", "ST", 99))),
+            Triple("47833", "karadeniz-eregli-belediye-spor", listOf(Triple("Deniz Aydın", "GK", 1),Triple("Mert Kaya", "GK", 15),Triple("Ada Çınar Asil", "GK", 61),Triple("Berkehan Biçer", "CB", 23),Triple("Mehmet Can Gülerer", "CB", 4),Triple("Salih Mert Aksungur", "CB", 5),Triple("Vedat Saygı", "FB", 59),Triple("Selman Dibek", "FB", 2),Triple("Cömert Kandemir", "FB", 7),Triple("Rojhat Sağlam", "CM", 6),Triple("Emir Hakan Patan", "CM", 80),Triple("Ahmet Efe Bektaşlı", "CM", 8),Triple("Mehmet Eren Aktaş", "CM", 34),Triple("Emirhan Tekgül", "WG", 77),Triple("Onurcan Güler", "AM", 48),Triple("Enginalp Yamaç", "AM", 14),Triple("Muhammed Kurt", "WG", 11),Triple("Miraç Asıltekin", "WG", 26),Triple("Hüseyin Mevlütoğlu", "ST", 9),Triple("Yakal Taylan", "ST", 18),Triple("Serkan Dursun", "ST", 19),Triple("Alperen Duyar", "ST", 94))),
+            Triple("83976", "istanbul-sinop-spor", listOf(Triple("Ensar Akdağ", "GK", 21),Triple("Kaan Ün", "GK", 57),Triple("Emir Aydın", "CB", 3),Triple("Emir Mustafa Vuruşaner", "FB", 34),Triple("Mehmet Can Kocabaş", "FB", 35),Triple("Enes İlhan", "FB", 61),Triple("Burak Can Alakuş", "FB", 70),Triple("Efe Can Baran", "FB", 22),Triple("Oğuz Aksoy", "DM", 4),Triple("Fatih Mert Çırtlık", "DM", 14),Triple("Kerem Yorulmaz", "DM", 24),Triple("Emre Oymak", "CM", 19),Triple("Hakan Erçelik", "CM", 20),Triple("Tugay Yıldırım", "CM", 8),Triple("Ömer Gücel", "CM", 88),Triple("Alişan Durmuş", "WG", 7),Triple("Atalay Yıldırım", "WG", 10),Triple("Doğanay Avcı", "WG", 15),Triple("Hazarhan Karaca", "WG", 77),Triple("Ahmet Gökbayrak", "ST", 23),Triple("Yusuf Ensar Kaya", "ST", 91))),
+            Triple("69593", "orduspor-1967-spor-kulubu", listOf(Triple("Onur Güney", "GK", 52),Triple("Mehmet Yağmur", "GK", 1),Triple("Emircan Dinar", "GK", 77),Triple("Yiğit Utku Gök", "CB", 3),Triple("Nihat Koç", "CB", 34),Triple("Barış Gün", "CB", 45),Triple("Egehan Şensoy", "CB", 99),Triple("Mustafa Emre Can", "FB", 5),Triple("Emre Hürcan", "FB", 37),Triple("Samet Güneş", "FB", 18),Triple("Recep Metin", "DM", 4),Triple("Fatih Ergen", "DM", 8),Triple("Mustafa Efe Berber", "CM", 20),Triple("Gökdeniz Şensoy", "CM", 25),Triple("Berat Fidan", "CM", 29),Triple("Yiğit Tiryaki", "CM", 88),Triple("Uğur Kurt", "AM", 61),Triple("Berat Kalkan", "WG", 7),Triple("Hasan Gündoğdu", "WG", 21),Triple("Abdullah Soğucak", "WG", 97),Triple("Ferdi Güzelsu", "WG", 19),Triple("Gökberk Efe", "ST", 9),Triple("Taha Balsu", "ST", 94))),
+            Triple("9197", "pazarspor", listOf(Triple("Dursun Miraç Vural", "GK", 1),Triple("Eren Girgin", "GK", 30),Triple("Aslan İlidi", "GK", 73),Triple("Emre Akgün", "CB", 39),Triple("Eren Türkkal", "CB", 41),Triple("Alperen Çağlayan", "CB", 4),Triple("Aykut Civelek", "FB", 53),Triple("Volkan Genç", "FB", 19),Triple("Erencan Uçak", "FB", 33),Triple("Yusuf Işık", "FB", 23),Triple("Abdullah Şahin", "FB", 55),Triple("Mete Han Genç", "DM", 6),Triple("Serhat Hazır", "DM", 3),Triple("Can Efe Bozacı", "DM", 8),Triple("Berat Kartal", "CM", 89),Triple("Erhan Şengül", "CM", 5),Triple("Muhammed Baltacı", "AM", 11),Triple("Denizalp Özdemir", "WG", 77),Triple("Efe Sayhan", "WG", 99),Triple("Cengiz Özuslu", "WG", 27),Triple("Aziz Demir", "WG", 7),Triple("Gökdeniz Karahan", "WG", 10),Triple("Seçkin Batuhan Fırıncı", "ST", 9),Triple("Ata Kurtuluş", "ST", 17))),
+            Triple("37974", "silivrispor", listOf(Triple("Onur Alp Sarman", "GK", 1),Triple("Onur Yıldırım", "GK", 23),Triple("İlker Terzi", "GK", 12),Triple("Miraç Yaman Karakaş", "GK", 16),Triple("Enes An", "CB", 4),Triple("Yusuf Saitoğlu", "CB", 70),Triple("Mertcan Akkaya", "FB", 21),Triple("Fatih Mankır", "FB", 27),Triple("Atakan Aksoy", "FB", 2),Triple("Baran Işık", "DM", 8),Triple("Salih Sebetci", "DM", 30),Triple("Mehmet Aydın", "DM", 6),Triple("Abdussamet Yılmaz", "DM", 15),Triple("Emirhan Türkmen", "CM", 14),Triple("İbrahim Aksu", "CM", 20),Triple("Efe Baran Kara", "CM", 61),Triple("Bilal Musa Şentürk", "AM", 11),Triple("Said Can Açıkalın", "AM", 22),Triple("Mustafa Karaman", "WG", 10),Triple("Hafız Görkem Vardar", "WG", 7),Triple("Efe Eriş", "WG", 17),Triple("Yasin Atiş", "WG", 19),Triple("Muhammed İlham Mallayev", "WG", 88),Triple("Umut Aydın", "ST", 9),Triple("Eray Pazar", "ST", 99))),
+            Triple("99680", "tokat-belediye-plevne-spor", listOf(Triple("Kadem Yaşar", "GK", 53),Triple("Abdullah Özçelik", "GK", 24),Triple("Mehmet Albayrak", "CB", 4),Triple("Seyit Ahmet Altın", "CB", 44),Triple("Efe Oktar", "CB", 5),Triple("Mustafa Tarık Obut", "CB", 35),Triple("Ali Sefer", "FB", 22),Triple("Serhat Ahmetoğlu", "FB", 27),Triple("Osman Çalış", "DM", 26),Triple("İlbey İnanç Çekiç", "DM", 21),Triple("Eren Özdemir", "CM", 25),Triple("Murat Ünlüer", "CM", 8),Triple("Yusuf Kara", "AM", 17),Triple("Volkan Diyenli", "AM", 29),Triple("Berkay Görmez", "WG", 10),Triple("Eray Uysal", "WG", 11),Triple("Gürkan Varlık", "WG", 99),Triple("Fatih Dalgıç", "WG", 14),Triple("Alperen Öztaş", "WG", 77),Triple("Yiğit Kotan", "ST", 7),Triple("Gökdeniz Varol", "ST", 45),Triple("Deniz Pala", "ST", 9))),
+            Triple("107563", "yalova-yesilova-spor", listOf(Triple("Mustafa Çalışkan", "GK", 1),Triple("Enes Kalyoncu", "GK", 18),Triple("Kaan Sarman", "GK", 34),Triple("Gençer Cansev", "CB", 66),Triple("Muhammed Efe Küçük", "CB", 41),Triple("Çağatay Furkan Kafkas", "CB", 70),Triple("Umut Can Aslan", "FB", 21),Triple("Ömer Efe Ecin", "FB", 3),Triple("İsmail Kayalı", "FB", 87),Triple("Altuğ Tınaz", "FB", 2),Triple("Rıdvan Özdemir", "DM", 6),Triple("Hüseyin Tunay", "CM", 44),Triple("Yusuf Yucer", "DM", 49),Triple("Kuzey Biçer", "CM", 52),Triple("Mehmet Emir Danış", "AM", 8),Triple("Cuma Menize", "AM", 35),Triple("Yusuf Can Karademir", "AM", 38),Triple("Esat Narin", "AM", 94),Triple("Diyar Kılıççeken", "AM", 11),Triple("Bünyamin Dalkılıç", "WG", 17),Triple("Oguzhan Sivrikaya", "ST", 7),Triple("Kubilay Yilmaz", "ST", 9),Triple("Osman Katipoğlu", "ST", 10),Triple("Bora Alp Yüksel", "CM", 77),Triple("Enes Şenyiğit", "ST", 99))),
+            Triple("1515", "zonguldak-komurspor", listOf(Triple("Bilal Karataş", "GK", 1),Triple("Osman Topçu", "GK", 23),Triple("Hakan Çinemre", "CB", 5),Triple("Necmican Cebeci", "CB", 15),Triple("Sabahattin Emir Boz", "CB", 32),Triple("Doğukan Nelik", "CB", 93),Triple("Ahmet Gülay", "FB", 25),Triple("Yusuf Mert Aydın", "FB", 3),Triple("Umut Ayar", "FB", 17),Triple("Mert Kabasakal", "DM", 8),Triple("Beraat Doğan Yıldız", "DM", 49),Triple("Berkan Ünal", "DM", 6),Triple("Emre Topçu", "CM", 48),Triple("Yusuf Emre Alyaprak", "CM", 88),Triple("Aykut Yakut", "AM", 10),Triple("Eren Büyükkaya", "AM", 20),Triple("Ufuk Birdal", "AM", 70),Triple("Serhat Baştan", "WG", 11),Triple("Nevzat Bilen", "WG", 53),Triple("Muhammed Leyis Alzın", "WG", 77),Triple("Adem Barkın", "WG", 19),Triple("Bertuğ Bayar", "ST", 9),Triple("Anıl Başaran", "ST", 29),Triple("Emre Köroğlu", "ST", 7)))
+        ),
+        "T3B" to listOf(
+            Triple("99652", "meram-kara-kartallar-spor", listOf(Triple("Yusuf Yılmaz", "GK", 13),Triple("Mehmet Hamza Sincar", "GK", 23),Triple("Ege Can Taşyurt", "GK", 35),Triple("Furkan Tuncer", "CB", 47),Triple("Ali Can Özer", "CB", 5),Triple("Berat Bakırcı", "CB", 25),Triple("Yasin Akyol", "CB", 42),Triple("Mustafa Eraslan", "CB", 45),Triple("Ramazan Küçükkoyuncu", "FB", 3),Triple("Ömer Faruk Halaç", "FB", 72),Triple("Taha Cevahiroğlu", "FB", 2),Triple("Berat Karaboyacı", "FB", 19),Triple("Can Demir", "FB", 32),Triple("Ali Karakaya", "DM", 33),Triple("Osman Tokay", "DM", 6),Triple("Emirhan Adak", "CM", 80),Triple("Semih Berk Çakır", "CM", 22),Triple("Osman Gümüş", "AM", 94),Triple("Furkan Koyuncu", "WG", 7),Triple("Arif Asaf Gültekin", "WG", 11),Triple("Samet Dağlı", "WG", 10),Triple("Akın Arıcan", "ST", 9),Triple("Uğur Özder", "ST", 26),Triple("Mevlana Halis Erdoğdu", "ST", 99))),
+            Triple("70142", "alanya-kestelspor", listOf(Triple("Musa Koç", "GK", 1),Triple("Fatih Değirmenci", "GK", 35),Triple("Ozan Gündüz", "GK", 88),Triple("Nejdet Bilin", "CB", 16),Triple("Alper Demir", "CB", 4),Triple("Mikdat Çil", "CB", 5),Triple("Yaşar Kavas", "CB", 42),Triple("Ferhat Canlı", "FB", 44),Triple("Kadir Altıntaş", "FB", 19),Triple("Emre Koskor", "FB", 21),Triple("Seyfullah Çamkerten", "CM", 53),Triple("Emirhan Gücenoğlu", "DM", 54),Triple("Yusuf Kadir Ölmez", "DM", 61),Triple("Salih Polatdemir", "CM", 23),Triple("Süleyman Cebeci", "AM", 7),Triple("Samet Çolak", "AM", 8),Triple("Kubilay Köylü", "WG", 9),Triple("Uğurcan İkikardeş", "WG", 11),Triple("Ediz Gürol", "WG", 40),Triple("Şükrü Mert Şanlı", "ST", 17),Triple("Eren Eker", "ST", 55))),
+            Triple("2375", "altay-sk", listOf(Triple("Ulaş Hasan Özçelik", "GK", 1),Triple("Semih Mendeş", "GK", 98),Triple("Arhan Deniz", "GK", 13),Triple("Sefa Özdemir", "CB", 5),Triple("Yunus Efe Sarıkaya", "CB", 30),Triple("Arif Yanarlı", "CB", 4),Triple("Ahmet Yakup Çoban", "CB", 15),Triple("Salih Oktay", "FB", 18),Triple("İbrahim Kıravi", "FB", 3),Triple("Nurullah Efe Kocatürk", "FB", 28),Triple("Mert Yıldırım", "FB", 20),Triple("Anıl Serhan Öztürk", "FB", 34),Triple("İsa Toygar Ekinci", "DM", 25),Triple("Kemal Şen", "CM", 23),Triple("Özay Hepgüler", "DM", 33),Triple("Sani Gerçek", "CM", 27),Triple("Ali Kızılkuyu", "AM", 35),Triple("Oktay Özdede", "AM", 48),Triple("Caner Baycan", "WG", 7),Triple("Efe Pehlivan", "WG", 14),Triple("Mehmet Kaymaz", "WG", 22),Triple("Onur Yıldız", "ST", 9),Triple("Murat Uluç", "ST", 11),Triple("Ünal Alihan Kavlak", "ST", 17),Triple("Deniz Kadah", "ST", 63),Triple("Mehmet Baran Köse", "CM", 26),Triple("Enes Türker Türkoğlu", "ST", 53),Triple("Ferhat Öncel", "ST", 99))),
+            Triple("39798", "ayvalikgucu-belediye-spor", listOf(Triple("Bartu Dinç", "GK", 31),Triple("Ali Ali", "GK", 1),Triple("Görkem Mehmet Tugan", "GK", 25),Triple("Batuhan Akyüz", "CB", 2),Triple("Burak Gürler", "CB", 29),Triple("Furkan Kozhan", "CB", 5),Triple("Halil Cengiz", "CB", 26),Triple("Cuma Ali Üzüm", "FB", 11),Triple("Melih Turğut", "FB", 7),Triple("Mustafa Miroğlu", "FB", 14),Triple("Bekir Mustafa Meral", "FB", 55),Triple("Osman Kuzucu", "DM", 19),Triple("Ufuk Özcan", "CM", 8),Triple("Hüseyin Erkan", "CM", 34),Triple("Zekican Kelesoglu", "CM", 6),Triple("Yavuz Selim Taşer", "CM", 41),Triple("Emirhan Özyaşar", "AM", 27),Triple("Taha Aksu", "WG", 77),Triple("Abdülkadir Çelik", "ST", 17),Triple("Çınar Fırat", "CM", 22),Triple("Atakan Akbulut", "ST", 71),Triple("Yağız Haydar Doğan", "ST", 99))),
+            Triple("20698", "balikesirspor", listOf(Triple("Yiğit Berber", "GK", 1),Triple("Arda Akbulut", "GK", 13),Triple("Harun Toprak", "CB", 4),Triple("Erdoğan Kaya", "CB", 30),Triple("Furkan Çetinkaya", "CB", 57),Triple("Hüseyin Ayan", "CB", 58),Triple("Ahmet Necat Aydın", "FB", 29),Triple("Ferit Özler", "FB", 70),Triple("Mustafa Mete Tetik", "DM", 80),Triple("Serhat Velioğlu", "DM", 5),Triple("Sedat Kurnaz", "CM", 24),Triple("Furkan Say", "CM", 35),Triple("Muhammed Raşit Şahingöz", "AM", 8),Triple("Göktuğ Yılmaz", "WG", 20),Triple("Emir Dede", "WG", 7),Triple("Sinan Gayla", "WG", 11),Triple("Erdal Kaya", "WG", 17),Triple("Emre Gemici", "ST", 10),Triple("Tibet Durakçay", "ST", 49),Triple("Ali Topcu", "ST", 9))),
+            Triple("43700", "bigaspor", listOf(Triple("Emre Şanal", "GK", 1),Triple("Haktan Şentürk", "GK", 94),Triple("Ayberk Güneş", "GK", 88),Triple("Görkem Ene", "GK", 92),Triple("Melih Şencan", "CB", 14),Triple("Mustafa Aydoğdu", "CB", 4),Triple("Emir Sezgin", "CB", 16),Triple("Kaan Şentürk", "CB", 23),Triple("Oktay Kancı", "FB", 3),Triple("Erkul Küçük", "FB", 33),Triple("Uğur Aygören", "FB", 17),Triple("Mert Tekin", "FB", 2),Triple("İlyas Etik", "DM", 6),Triple("Mert Ba", "DM", 20),Triple("Alp Eren Doruk", "CM", 25),Triple("Yağız Yolcu", "DM", 41),Triple("Eren Akkaya", "CM", 99),Triple("Arda Berkay Araz", "CM", 5),Triple("Hüseyin Öztürk", "CM", 8),Triple("Mustafa Can Karagöz", "CM", 11),Triple("Eren Makul", "CM", 61),Triple("Nurettin Çağlar", "AM", 10),Triple("Fatih Deniz", "WG", 9),Triple("Berk Zerenman", "WG", 70),Triple("Koray Öz", "ST", 7),Triple("Fırat Tulgayoğlu", "ST", 29),Triple("Mehmet Anıl Yörük", "ST", 48))),
+            Triple("44286", "bucaspor-1928", listOf(Triple("Muhammet Furkan Şanlı", "GK", 12),Triple("Emre Tayfun Aktaş", "GK", 76),Triple("Egehan Çakırca", "CM", 26),Triple("Hasancan Yıldız", "CB", 15),Triple("Buğra Çiçek", "CB", 91),Triple("Furkan Usluer", "CB", 4),Triple("Umut Hepdemirgil", "FB", 17),Triple("Dorukhan Dülger", "FB", 78),Triple("Ahmet Yusuf Geçgel", "DM", 6),Triple("Muammer Kağan Uslu", "CM", 30),Triple("Dora Çağrı Derbent", "CM", 24),Triple("Aybars Gök", "CM", 18),Triple("Oğuz Taylan Caner", "CM", 87),Triple("Çağlayan Bakar", "WG", 11),Triple("Yağız Mete Daş", "WG", 77),Triple("Berke Örer", "ST", 9),Triple("Burak Bozkuyu", "ST", 63),Triple("Taha Özkan Dağ", "CM", 99),Triple("Kerem Aktürk", "ST", 19),Triple("Enes Sığınak", "CM", 28),Triple("Rıdvan Alev", "CM", 49))),
+            Triple("83917", "gemlik-vefa-spor", listOf(Triple("Taha Ayan", "GK", 31),Triple("Erkam Erginsoy", "GK", 39),Triple("Ahmet Memiş", "CB", 5),Triple("Kağan Köroğlu", "CB", 15),Triple("Burak Büyükkaya", "CB", 4),Triple("Habil Özbakır", "CB", 61),Triple("Abdulcebrail Akbulut", "FB", 12),Triple("Talha Kumaş", "FB", 55),Triple("Arda Keser", "DM", 58),Triple("Halil İbrahim Sevinç", "DM", 90),Triple("Muzaffer Kocaer", "CM", 6),Triple("Aziz Eren Balaban", "CM", 8),Triple("Yusuf Delen", "CM", 14),Triple("Miraç Toklu", "CM", 88),Triple("Ali Eray Bozkurt", "CM", 34),Triple("Barış Şen", "AM", 17),Triple("Vural Akkurt", "WG", 46),Triple("Alperen Doğan", "WG", 7),Triple("Mehmet Güneş", "WG", 11),Triple("Burak Özdemir", "WG", 27),Triple("Serhan Üresin", "WG", 76),Triple("Mehmet Küçükdurmuş", "ST", 10))),
+            Triple("69493", "bursa-yildirim-spor", listOf(Triple("Recep Kaya", "GK", 1),Triple("Hüseyin Arslan", "GK", 54),Triple("Arda Keskin", "GK", 16),Triple("Efe Karaoğlu", "CB", 5),Triple("Halil Bora", "CB", 3),Triple("Tarık Yusuf Karakaya", "CB", 94),Triple("Berat Yaman", "FB", 11),Triple("Mustafa Kocabaş", "FB", 43),Triple("Semih Görer", "FB", 22),Triple("Benjamin Ürgenç", "FB", 30),Triple("Enes Can", "FB", 66),Triple("Ulaş Oktay Yıldız", "DM", 29),Triple("Taha Karataş", "DM", 53),Triple("Furkan Yasin Yalçın", "DM", 77),Triple("Muhammet Talha Çat", "CM", 6),Triple("Berat Badak", "CM", 32),Triple("Yusuf Akyel", "AM", 10),Triple("Arda Çağdaş", "AM", 23),Triple("Hakan Öztürk", "WG", 7),Triple("Okan Deniz", "WG", 9),Triple("Tahsin Özler", "WG", 21),Triple("Arel Polat", "WG", 27),Triple("Muhammet Mustafa Aşkar", "WG", 97),Triple("Fuat Gölbaşı", "ST", 99),Triple("Efe Yüceer", "ST", 19))),
+            Triple("66738", "serinhisarspor", listOf(Triple("Umutcan Yenisoy", "GK", 28),Triple("Ramazan Arda Şahin", "GK", 1),Triple("Emirhan Kahraman", "CB", 3),Triple("Kemal Bayrak", "CB", 4),Triple("Yunus Emre Bilgin", "CB", 16),Triple("Mustafa Çolak", "FB", 33),Triple("Şevket Yıldız", "FB", 27),Triple("Hakan Kapukıran", "FB", 67),Triple("Mehmet Deveci", "DM", 5),Triple("Mahmut Er", "CM", 17),Triple("Yavuz Göçenoğlu", "DM", 71),Triple("Tolga Yakut", "CM", 26),Triple("Yavuz Selim Tatar", "CM", 99),Triple("Atakan Üner", "AM", 11),Triple("Emre Işık", "AM", 25),Triple("Arda Mutlu", "AM", 10),Triple("Tusan Ubuz", "AM", 19),Triple("Alperen Kahraman", "WG", 23),Triple("Abdulkadir Açar", "WG", 9),Triple("Ömer Arda Bilici", "WG", 65))),
+            Triple("48569", "anadolu-universitesi", listOf(Triple("Ege Baran Sahillioğlu", "GK", 1),Triple("Abdullah Kaan Karaca", "GK", 26),Triple("Taha Atay", "CB", 53),Triple("Enes Yiğit", "CB", 88),Triple("Muhammed Düzgüner", "CB", 94),Triple("Hasan Ekici", "FB", 23),Triple("Ertuğrul Kıraç", "FB", 3),Triple("Muhammed Burak Çelik", "DM", 47),Triple("Hakan Özden", "CM", 97),Triple("Enes Alphan", "CM", 24),Triple("Bedirhan Akçay", "CM", 25),Triple("İsmail Can Fidan", "CM", 17),Triple("Anıl Özçelik", "AM", 15),Triple("Mert Yusuf Torlak", "AM", 61),Triple("Yunus Emre Özdemir", "AM", 10),Triple("Arda Akgün", "WG", 22),Triple("Sıddık İstemi", "WG", 21),Triple("Berkay Güntay", "WG", 11),Triple("Enescan Özdemir", "ST", 7),Triple("Kaan Kılıçaslan", "ST", 9),Triple("Osman Destan", "ST", 99))),
+            Triple("825", "eskisehirspor", listOf(Triple("Bora Göymen", "GK", 1),Triple("Kaan Çinkaya", "GK", 54),Triple("Arda Pehlivan", "GK", 98),Triple("Abdulkadir Öksüz", "CB", 4),Triple("Ertuğrul Kurtuluş", "CB", 16),Triple("Arda Okumuş", "CB", 26),Triple("Ahmet Kara", "FB", 3),Triple("Sarper Çağlar", "FB", 97),Triple("Murat Şenel", "FB", 22),Triple("Mustafa Eren Damar", "FB", 23),Triple("Mehmet Bağlı", "DM", 14),Triple("Tayfun Tatlı", "CM", 8),Triple("Emre Tangeldi", "CM", 35),Triple("Fırat Sarı", "CM", 80),Triple("Kerem Baykuş", "AM", 20),Triple("Mert Başer", "AM", 11),Triple("Beykan Şimşek", "WG", 10),Triple("Hasan Kaya", "WG", 28),Triple("Osman Arslantaş", "ST", 45))),
+            Triple("44290", "etimesgut-belediyespor", listOf(Triple("Siraç Tüfekçi", "GK", 34),Triple("Halit Birçerpanlı", "GK", 1),Triple("Mehmet Akif Oruç", "GK", 41),Triple("Muhammet Yeşil", "CB", 14),Triple("Bora Ulu", "CB", 4),Triple("Mertcan Albayrak", "CB", 24),Triple("Yusuf Tekin", "FB", 88),Triple("Efecan Mızrakcı", "FB", 77),Triple("Baran Kayikci", "FB", 2),Triple("Oktay Kısaoğlu", "DM", 8),Triple("Ahmet Şahin", "DM", 16),Triple("Hasan Kılıç", "CM", 6),Triple("Efe Arıgün", "CM", 52),Triple("Eren Emre Aydın", "AM", 53),Triple("Güney Tutcuoğlu", "AM", 66),Triple("Batuhan Yılmaz", "AM", 90),Triple("Sedat Şahintürk", "WG", 10),Triple("Enes Durmuş", "WG", 17),Triple("Zekeriya Bulut", "WG", 61),Triple("Hayrullah Erkip", "WG", 22),Triple("Furkan Ceylan", "ST", 7),Triple("Yasin Ozan", "ST", 9))),
+            Triple("2330", "karsiyaka", listOf(Triple("Burak Tuğ", "GK", 98),Triple("Sadri Ege Dipci", "GK", 1),Triple("Hıdır Aytekin", "CB", 23),Triple("Aykut Çolakoğlu", "CB", 30),Triple("Erol Zöngür", "CB", 41),Triple("Gökdeniz Tandoğan", "FB", 33),Triple("Selim Demirci", "FB", 93),Triple("Mahmut Şat", "FB", 2),Triple("Arda Baran Eren", "FB", 22),Triple("Alpay Eroğlu", "DM", 6),Triple("Efe Utku Özgan", "DM", 5),Triple("Mücahit Aslan", "CM", 8),Triple("Enes Karakaş", "CM", 28),Triple("Samet Sargın", "CM", 37),Triple("Mevlüt Can Kaynak", "AM", 19),Triple("Emircan Aytekin", "AM", 61),Triple("Tuğay Adamcıl", "WG", 7),Triple("Erhan Öztürk", "WG", 10),Triple("Veysel Ünal", "WG", 70),Triple("Yiğit Evin", "WG", 11),Triple("Eren Arda Şan", "ST", 9),Triple("Ömer Sezgin", "ST", 17),Triple("Fehmi Koç", "ST", 96))),
+            Triple("31787", "kepez-belediyespor", listOf(Triple("Erten Ersu", "GK", 13),Triple("Yakup Akbaba", "GK", 1),Triple("Burak Karapınar", "CB", 3),Triple("Oğuzhan Kolak", "CB", 4),Triple("Emin Özkul", "CB", 5),Triple("Özkan Kuray", "CB", 21),Triple("Semih Nazım Küçük", "FB", 88),Triple("Kutay Yalçın", "FB", 22),Triple("Turan Demirci", "FB", 12),Triple("Kağan İkiz", "FB", 33),Triple("Gökalp Özdemir", "FB", 57),Triple("Ergün Nazlı", "DM", 6),Triple("Emir Can Gencel", "CM", 10),Triple("Ender Aygören", "CM", 17),Triple("Barışcan Altunbaş", "CM", 19),Triple("Furkan Yazıcı", "CM", 20),Triple("Emre Ak", "AM", 8),Triple("Abdurrahman Bayram", "WG", 61),Triple("Fatih Kılıç", "WG", 7),Triple("Tolga Cevher", "ST", 9),Triple("Muhammed Agit Doğan", "CM", 11))),
+            Triple("79085", "didimspor", listOf(Triple("Yiğit Yitmez", "GK", 1),Triple("Yiğit Zorluer", "GK", 30),Triple("Hamza Kayra Koçer", "GK", 96),Triple("Eren Paşahan", "CB", 18),Triple("Deniz Solmaz", "CB", 24),Triple("Tunahan Demir", "CB", 4),Triple("Görkem Özalper", "CB", 35),Triple("Yiğithan Turhan", "CB", 40),Triple("Çınar Çağda Sesli", "FB", 19),Triple("Talha Özen", "FB", 23),Triple("Selim Emre Ön", "FB", 90),Triple("Enes Efe Gül", "FB", 13),Triple("Cengizhan Şen", "DM", 95),Triple("Şahin Kalınsazlıoğlu", "DM", 8),Triple("Eren Çakır", "CM", 10),Triple("Boran Yılmaz", "CM", 83),Triple("Yağız Bağcı", "AM", 80),Triple("Kağan Bağış", "WG", 7),Triple("Batuhan Güner", "WG", 11),Triple("Berhan Deniz", "ST", 9),Triple("Batuhan Kuru", "ST", 20),Triple("Muhammed Emin Temel", "ST", 50))),
+            Triple("89159", "buca-zaferspor", listOf(Triple("İbrahim Karaca", "GK", 1),Triple("Egeberk Gabel", "GK", 13),Triple("Emir Efe Kodalak", "CM", 29),Triple("Onur Şirin", "CB", 4),Triple("Ege Batur", "CB", 44),Triple("Enes Filiz", "CB", 45),Triple("Anıl Doyuran", "FB", 3),Triple("Sedat Yahşi", "FB", 17),Triple("Murat Efe Akdemir", "FB", 5),Triple("Alperen Kızkapan", "FB", 7),Triple("Murat Erdemir", "DM", 25),Triple("Kemal Güzel", "CM", 8),Triple("İsmail Kaçaranoğlu", "CM", 53),Triple("Arda Çelik", "CM", 66),Triple("Metehan Mollaoğlu", "CM", 99),Triple("Efe Uymur", "CM", 3),Triple("Arda Kardaş", "CM", 88),Triple("Emin Can Uysal", "AM", 98),Triple("Emir Enes Araz", "AM", 27),Triple("Emirhan Özkan", "WG", 11),Triple("Gökhan Bozca", "WG", 9),Triple("Onur Efe", "WG", 77),Triple("Mustafa Çalışkan", "WG", 10),Triple("Işıkcan Koca", "WG", 47),Triple("Miraç Furkan Türközü", "ST", 90),Triple("Kadir Otçeken", "ST", 18))),
+            Triple("37978", "usak-spor", listOf(Triple("Mert Topuz", "GK", 59),Triple("Mert Can Salık", "GK", 66),Triple("Mustafa Tuna", "GK", 31),Triple("Çağan Erciyas", "CB", 2),Triple("Doğan Can Otman", "CB", 4),Triple("Halil Ertürk", "CB", 22),Triple("Ömer Yiğit Kirişkuzu", "CB", 19),Triple("Ekin Arda Atmaca", "CB", 36),Triple("Tahir Kaan Özdoğan", "FB", 3),Triple("Muhammed Arif Akbaş", "FB", 12),Triple("Berkcan Aytaç", "FB", 27),Triple("Denizhan Akçay", "FB", 75),Triple("Nizamettin Çalışkan", "DM", 6),Triple("Emirhan Zaman", "DM", 8),Triple("Hakan Gençay", "DM", 60),Triple("Fatih Karadirek", "DM", 61),Triple("Ercan Çifci", "CM", 5),Triple("Murat Komili", "CM", 35),Triple("Eray Gürcan", "AM", 20),Triple("Yakup Karadağ", "AM", 23),Triple("İbrahim Demir", "WG", 11),Triple("Anıl Arıcıoğlu", "WG", 99),Triple("Miralay Bekir Bakır", "WG", 17),Triple("Yusufhan Çalık", "WG", 70),Triple("Tahsin Hacımustafaoğlu", "WG", 10),Triple("İzzet Topatar", "WG", 52),Triple("Efecan Akyıldız", "WG", 77),Triple("Yasin Öztekin", "ST", 7),Triple("Efecan Barlık", "ST", 9)))
+        ),
+        "T3C" to listOf(
+            Triple("6", "adanaspor", listOf(Triple("Saffet Vehbi Urhan", "GK", 79),Triple("Mustafa Talha Öz", "CB", 2),Triple("Ömer Faruk Gökalp", "CB", 4),Triple("Arda Bulca", "FB", 66),Triple("Ulaş Uzun", "FB", 88),Triple("Bilal Zirak", "FB", 25),Triple("Serdar Yakıcı", "DM", 8),Triple("Görkem Gökçe", "DM", 19),Triple("Muhammed Tap", "CM", 6),Triple("Deniz Devrim Özcan", "CM", 9),Triple("Çağan Gediktaş", "AM", 28),Triple("Ayaz Kestir", "AM", 94),Triple("İsmail Solmaz", "WG", 72),Triple("Mehmet Taşçı", "WG", 7),Triple("Deniz Eşer", "WG", 11),Triple("Mücahit Beliren", "WG", 83),Triple("Bünyamin Oklu", "WG", 22),Triple("Kürşad Duran Şaş", "ST", 23),Triple("Cebeli Baturhan Ünal", "ST", 24),Triple("Türker Kaplan", "ST", 77))),
+            Triple("55732", "agri-1970-spor", listOf(Triple("Ömercan Avci", "GK", 29),Triple("Can Türk", "GK", 1),Triple("Atalay Kalma", "CB", 3),Triple("Halitcan Hicin", "CB", 4),Triple("Ertuğrul Usta", "CB", 61),Triple("Berkant Yaylan", "FB", 19),Triple("Hivan Özkurt", "FB", 93),Triple("Ali Tarkan", "FB", 55),Triple("Emirhan Balarısı", "FB", 2),Triple("Serkan Gürses", "DM", 60),Triple("Üzeyir Kaya", "DM", 27),Triple("Bayduhan Taşova", "DM", 30),Triple("Mustafa Kerim Sözen", "CM", 58),Triple("Musa Orak", "CM", 7),Triple("Alper Efe Pazar", "CM", 14),Triple("Ali Gündoğdu", "AM", 10),Triple("Yusuf Akdeniz", "AM", 8),Triple("Gökay Eser", "WG", 77),Triple("Hüseyin Emir İkiz", "WG", 88),Triple("İbrahimcan Dursun", "WG", 69),Triple("Alperen Yılmaz", "ST", 9),Triple("Ahmed Kağan Gürbüz", "ST", 33))),
+            Triple("50907", "bitlis-ozguzelderespor", listOf(Triple("Mücahit Çıra", "GK", 1),Triple("Eren Kaya", "GK", 96),Triple("Gürkan Başkan", "CB", 5),Triple("Enes Bağdemir", "CB", 24),Triple("Alper Uludağ", "CB", 25),Triple("Mert Denizli", "CB", 35),Triple("Vural Altan", "FB", 12),Triple("Ali Kabahasanoğlu", "FB", 3),Triple("Ayaz Arslan", "FB", 21),Triple("Ali Akkuş", "DM", 15),Triple("Okan Toprak", "DM", 72),Triple("Efe Kemal Güler", "DM", 37),Triple("Tuğkan Kamışoğlu", "CM", 20),Triple("Ömer Gümüş", "CM", 88),Triple("Mert Çayir", "WG", 17),Triple("Enes İlkin", "WG", 7),Triple("Halil Yılmaz", "WG", 28),Triple("Yusuf Efe Saydam", "WG", 19),Triple("Muhammet Arslantaş", "ST", 9),Triple("Stanley Ohawuchi", "ST", 13))),
+            Triple("39807", "diyarbekir-spor", listOf(Triple("Alp Köseer", "GK", 1),Triple("Emre Demiroğlu", "GK", 13),Triple("Muhammed Kaplan", "CM", 87),Triple("Mevlüt Çelik", "CB", 44),Triple("Bilal Ceylan", "CB", 58),Triple("Sefa Karan", "CB", 34),Triple("Emir Koldere", "FB", 3),Triple("Ali Fırat Horasan", "FB", 26),Triple("Behiç Baran Ölmezer", "FB", 77),Triple("Şerif Doğan", "FB", 33),Triple("Tarık Furkan Çalışır", "FB", 55),Triple("Furkan Söyler", "DM", 22),Triple("Amed İnal", "CM", 62),Triple("Ozan Resuloğlu", "DM", 83),Triple("Seymen Yağmur", "CM", 21),Triple("Yunus Tarhan", "CM", 30),Triple("Halit Çokyaşar", "AM", 81),Triple("Yusuf Yağmur", "WG", 10),Triple("Umut Taniş", "WG", 73),Triple("Osman Tukul", "WG", 35),Triple("Emrullah Sayar", "ST", 99),Triple("Alper Konuk", "CM", 7),Triple("Yunus Emre Atsız", "ST", 9))),
+            Triple("44352", "talasgucu-belediyespor", listOf(Triple("Kerem Yandal", "GK", 1),Triple("Yağız Efe Dere", "GK", 12),Triple("Mehmet Eksik", "CB", 2),Triple("Hakan Eren Atabey", "CB", 3),Triple("Halil Duman", "CB", 4),Triple("Batuhan Özgan", "CB", 38),Triple("Hüseyincan Kırıkcı", "CB", 74),Triple("Ensar Bilir", "FB", 54),Triple("Batuhan Kazancı", "FB", 61),Triple("Kemal Çetinkaya", "FB", 22),Triple("Utkan Gökçen", "FB", 77),Triple("Caner Kaban", "DM", 6),Triple("Mikail Koçak", "DM", 66),Triple("Güney Gençel", "DM", 5),Triple("Burak Efe Arslan", "DM", 18),Triple("Fatih Şanlıtürk", "CM", 11),Triple("Seyit Ali Kahya", "CM", 17),Triple("Mehmet Tosun", "AM", 8),Triple("Çağrı Yağız Yasak", "WG", 7),Triple("Osman Şahin", "WG", 10),Triple("İlkay İşler", "WG", 19),Triple("Berkay Ekici", "ST", 23),Triple("Ali Kılıç", "ST", 99))),
+            Triple("50821", "karakopru-belediye-spor", listOf(Triple("Mustafa Erdem Uysal", "GK", 77),Triple("Seyhan Karadaş", "GK", 1),Triple("Süleyman Enes Yıldırım", "CM", 23),Triple("Metin Peker", "CB", 22),Triple("İbrahim Başer", "CB", 6),Triple("Alperen Erdoğan", "FB", 4),Triple("Furkan Yaşa", "FB", 53),Triple("Ahmet Enes Akkan", "FB", 2),Triple("Turhan Orhan", "FB", 48),Triple("Hasan Yurtseven", "DM", 7),Triple("Mehmet Sarpkaya", "CM", 60),Triple("Muhammed Emin Yavaş", "CM", 8),Triple("Tugay Güner", "CM", 20),Triple("Rüstem Patlar", "CM", 27),Triple("Yavuz Koç", "AM", 10),Triple("Yusuf Şengüler", "AM", 17),Triple("Mehmet Ali Bakar", "AM", 9),Triple("Tahsin Yılmaz", "AM", 72),Triple("Emirkan Demir", "WG", 21),Triple("Enes Karadeniz", "WG", 19),Triple("Muhammet Furkan Kılıç", "WG", 61),Triple("Yavuz Alemdar", "WG", 11))),
+            Triple("37962", "karaman-belediyespor", listOf(Triple("Oğuzhan Yeşilyurt", "GK", 23),Triple("Yavuz Ulaş Genç", "GK", 25),Triple("Orhan İbrahim Güven", "GK", 31),Triple("Mustafa Emir Meşe", "CB", 6),Triple("Yasin Cengiz", "CB", 3),Triple("Berat Askan", "CB", 4),Triple("Arda Soylu", "CB", 33),Triple("Yasin Küçük", "CB", 42),Triple("Arda Ertekin", "FB", 12),Triple("Mertcan Aşcı", "FB", 67),Triple("Hasan Berke Kayacan", "FB", 35),Triple("Mehmet Kaan Gündüz", "DM", 8),Triple("Emir Çeşme", "CM", 20),Triple("Talha Şeker", "CM", 61),Triple("Harun Yerlikaya", "AM", 14),Triple("Melih Eren Uluer", "AM", 70),Triple("Cem Aktaş", "WG", 7),Triple("Enes Rıza Asarkaya", "WG", 77),Triple("Bedirhan Akbaba", "WG", 17),Triple("Batuhan Nizam", "WG", 97),Triple("Hasan Akpınar", "ST", 9),Triple("Fahri Yağız Parlak", "ST", 22),Triple("Ömer Tuğ", "ST", 41))),
+            Triple("50349", "kirikkale-buyuk-anadolu-spor", listOf(Triple("Hakan Canbazoğlu", "GK", 37),Triple("Ömer Bircan Camcı", "GK", 58),Triple("Şahin Şafakoğlu", "CB", 20),Triple("Alperen Bekli", "CB", 41),Triple("Efe Can Mete", "CB", 35),Triple("Metin Polat", "CB", 50),Triple("Berkay Arı", "CB", 70),Triple("Enes Yetim", "FB", 3),Triple("Talha Akkaya", "FB", 25),Triple("Hamza Arıkan", "FB", 99),Triple("Kerem Kurşun", "DM", 6),Triple("Batuhan Tunçay", "DM", 5),Triple("Mümin Uyar", "CM", 8),Triple("Kaan Baysal", "CM", 96),Triple("Furkan Şamil Çetin", "WG", 7),Triple("Yasin Polat", "WG", 27),Triple("Eray Sürül", "WG", 11),Triple("Güney Sağır", "WG", 14),Triple("İsmail Cem Kara", "WG", 80),Triple("Yusuf Tunç", "ST", 10),Triple("Christopher Kröhn", "ST", 55),Triple("Baha Kısacık", "ST", 9),Triple("Eray Halidi", "ST", 19))),
+            Triple("41556", "kirsehir-belediye-spor", listOf(Triple("Yiğit Yıldız", "GK", 1),Triple("Evra Gülal", "GK", 24),Triple("Efehan Kaptan", "GK", 35),Triple("Arda Kurt", "CB", 5),Triple("Metin Esmer", "CB", 19),Triple("Alper Aşkın", "CB", 33),Triple("Muhammet Özkal", "CB", 41),Triple("Yunus Emre Köse", "CB", 32),Triple("Denizhan Berber", "CB", 61),Triple("İbrahim Yüksel", "FB", 83),Triple("Caner Uzun", "FB", 20),Triple("Tayfun Çulha", "DM", 8),Triple("Çağdaş Şendur", "DM", 88),Triple("Mikdat Can Türkmen", "DM", 6),Triple("Arda Abbak", "DM", 48),Triple("Mustafa Haydar Kaya", "CM", 49),Triple("Harun Atalay", "CM", 10),Triple("Mustafa Pınarcı", "CM", 11),Triple("Efe Can Saçıkara", "AM", 30),Triple("Furkan Güneş", "WG", 9),Triple("Alperen Akar", "WG", 17),Triple("Ömer Faruk Karahan", "WG", 55),Triple("Güney Yılmaz", "WG", 7),Triple("Alihan Bel", "WG", 70),Triple("Muhammed Ergin", "WG", 93),Triple("Musa Bulut", "ST", 27),Triple("Enes Savucu", "ST", 44),Triple("Ozan Can Dursun", "ST", 99))),
+            Triple("50820", "malatya-yesilyurt-belediyespor", listOf(Triple("Halil Bağcı", "GK", 1),Triple("Ramazan Özkanlı", "GK", 32),Triple("Admir Carlos Balat", "GK", 99),Triple("Fadıl Kocaoğlu", "CB", 4),Triple("Furkan Çolak", "CB", 5),Triple("Koray Uzun", "CB", 22),Triple("Yiğit Ulaş", "CB", 44),Triple("Mert Göze", "CB", 58),Triple("Eren Şimşek", "FB", 14),Triple("Oktay Gürdal", "FB", 50),Triple("Aykut Sarıdoğan", "DM", 73),Triple("Eyüp Değirmenci", "DM", 20),Triple("Mustafa Alşimşek", "DM", 21),Triple("Cemal Kaya", "DM", 34),Triple("Görkem Koca", "CM", 8),Triple("Ümitcan Ekşi", "CM", 90),Triple("Ahmet Yağız Mengi", "CM", 81),Triple("Enes Nalbantoğlu", "WG", 10),Triple("Yılmaz Basravi", "WG", 27),Triple("Emre Furtana", "WG", 77),Triple("Kadir Can Gündoğdu", "WG", 7),Triple("Berkay Kumlu", "WG", 88),Triple("Enes Yılmaz", "ST", 11),Triple("Tayyib Kanarya", "ST", 39))),
+            Triple("85234", "mazidagi-fosfat-spor", listOf(Triple("Ali Kırmızıtaş", "GK", 34),Triple("Miraçcan Yavuz", "GK", 41),Triple("Kamil İçer", "CB", 4),Triple("İslam Çerioğlu", "CB", 20),Triple("Mehmet Bağcı", "CB", 66),Triple("Yiğit Epözdemir", "CB", 33),Triple("Musa Şahindere", "FB", 3),Triple("Emir Toprak Dinç", "FB", 88),Triple("Erkam Kömür", "FB", 25),Triple("Ömer Gündüz", "DM", 6),Triple("Cihan Canpolat", "DM", 67),Triple("Furkan Çakar", "CM", 72),Triple("Emre Eser", "CM", 23),Triple("Sefa Küpeli", "CM", 24),Triple("Mustafa Köroğlu", "CM", 22),Triple("Serdar Yelmer", "CM", 70),Triple("Bedirhan Salih", "AM", 10),Triple("Murat Elkatmış", "WG", 99),Triple("Muhlis İstemi", "WG", 11),Triple("Salih Akçay", "WG", 93),Triple("Serdar Yiğit", "WG", 7),Triple("Ahmet Teker", "WG", 17),Triple("Burak Taşdemir", "ST", 9),Triple("Veysel Aras", "ST", 96))),
+            Triple("84002", "nigde-belediyesi-spor", listOf(Triple("Yuşa Tığrak", "GK", 54),Triple("Yağız Çoğlular", "GK", 1),Triple("Mansur Darende", "GK", 33),Triple("Ebrar Yıldırım", "CB", 4),Triple("Yusuf Balcı", "CB", 18),Triple("Samet Emlik", "CB", 78),Triple("Ahmet Yalçın Öztürk", "CB", 41),Triple("Berkay Ekmekci", "CB", 52),Triple("Emre Öztaş", "FB", 22),Triple("Furkan Uslu", "DM", 5),Triple("Efe Çelik", "CM", 17),Triple("Furkan İncik", "CM", 26),Triple("Samet Erdem Olgaç", "CM", 51),Triple("Bilal Güven", "CM", 8),Triple("İbrahim Çam", "CM", 58),Triple("Burak Çolak", "WG", 10),Triple("Eyüp Can Temiz", "WG", 7),Triple("Kerem Erener", "WG", 97),Triple("Şahin Uzun", "WG", 42),Triple("Faysal Berdan Kaya", "WG", 73),Triple("Yusuf Atasoy", "ST", 9),Triple("Remzi Kolcuoğlu", "ST", 53),Triple("İbrahim Koca", "ST", 99))),
+            Triple("41552", "osmaniyespor-fk", listOf(Triple("Hüseyin Elma", "GK", 72),Triple("Mert İslah", "GK", 1),Triple("İsmail Karakaş", "CB", 3),Triple("Ahmet Baha Bilgin", "CB", 6),Triple("Eren Kıryolcu", "CB", 28),Triple("Berke Çelik", "CB", 4),Triple("Emir Köksal", "FB", 18),Triple("Enes Ertuğrul", "FB", 20),Triple("Efekan Kadir Kıran", "FB", 61),Triple("Burak Yıldız", "FB", 2),Triple("Çağrı Ortakaya", "DM", 65),Triple("Muzaffer Efe Asker", "DM", 17),Triple("Mustafa İnan", "CM", 88),Triple("Furkan Cöcü", "CM", 8),Triple("Murat Çaydemir", "CM", 10),Triple("Çağatay Yılmaz", "WG", 11),Triple("Mustafa Yılmaz", "WG", 7),Triple("Berkecan Çevik", "WG", 23),Triple("Mustafa Durgun", "WG", 24),Triple("Ali Mevran Ablak", "WG", 80),Triple("Yakup Alkan", "ST", 9),Triple("Ömer Şişmanoğlu", "ST", 77))),
+            Triple("50614", "medcem-silifke-belediye-spor", listOf(Triple("Ahmet Sabri Fener", "GK", 42),Triple("Çağrı Güney", "GK", 93),Triple("Umut Kılıç", "GK", 13),Triple("Muhammet Pürdik", "GK", 22),Triple("Ege Asım Duyar", "CB", 4),Triple("Talha Gök", "CB", 5),Triple("Batuhan Öztürk", "CB", 6),Triple("Emre Karataş", "CB", 24),Triple("Ekrem Çalışanlar", "FB", 53),Triple("Cumali Turhan", "FB", 27),Triple("Aygün Duman", "DM", 20),Triple("Emir Tunalı", "CM", 21),Triple("Arda Özkan", "CM", 88),Triple("Yusuf Yiğit Ünal", "CM", 8),Triple("Şevki Çoban", "CM", 14),Triple("Utkucan Boğa", "CM", 77),Triple("Burak Martin", "AM", 80),Triple("İslam Aydın", "WG", 7),Triple("Muhammet Ali Dedik", "WG", 33),Triple("Selahattin Torbacı", "ST", 9),Triple("Abdullah Öner", "CM", 11),Triple("Olcay Atmaca", "ST", 35),Triple("Mehmet Şıralı", "ST", 44),Triple("Bekircan Çoban", "ST", 99))),
+            Triple("119445", "adana-adaletgucu-spor", listOf(Triple("Ender Güneş", "GK", 24),Triple("Gürkan Yamak", "GK", 13),Triple("Engin Reşat Toğaçar", "CM", 23),Triple("Seyit Alperen Ayyıldız", "CB", 3),Triple("Sefa Akın Başıbüyük", "FB", 93),Triple("Abdullah Güler", "FB", 98),Triple("Ahmet Cem Abaş", "FB", 5),Triple("Talha Bora Gökburun", "CM", 17),Triple("Mustafa Emin Şiran", "CM", 20),Triple("Ferhat Delidere", "CM", 21),Triple("Yusuf Yüksekyayla", "CM", 63),Triple("Özgür Nasuh", "CM", 83),Triple("Hami Diri", "CM", 94),Triple("Samican Keskin", "CM", 6),Triple("Sefa Etöz", "CM", 12),Triple("Hüseyin Gündüz", "AM", 19),Triple("Mustafa Hakan Demir", "AM", 10),Triple("Kerem Can Meşe", "WG", 99),Triple("Samet Eker", "WG", 7),Triple("Yılmaz Can Taşkıran", "WG", 11),Triple("Görkem Dalmaz", "WG", 97),Triple("Yunus Nas", "ST", 9))),
+            Triple("19789", "yeni-malatyaspor", listOf()),
+            Triple("69486", "icel-idmanyurdu-sk", listOf(Triple("Emrehan Özçelik", "GK", 1),Triple("Sertaç Güzel", "GK", 33),Triple("Caner Özönen", "GK", 48),Triple("Burak Bilgen", "CB", 3),Triple("Okan Ağrap", "CB", 5),Triple("Ahmet Tırpancı", "CB", 42),Triple("Ali Yahya Bilgin", "CB", 61),Triple("Özgür Ortaç", "FB", 77),Triple("Berkant Alpşanlı", "FB", 21),Triple("Ahmet Dağdevir", "DM", 34),Triple("İbrahim Kıraç Gündüz", "CM", 6),Triple("Rohat Ağca", "CM", 8),Triple("Arda Işık", "CM", 14),Triple("Ege Okka", "CM", 88),Triple("Efe Binici", "CM", 90),Triple("Oğuzhan Erdoğan", "AM", 10),Triple("Mehmet Güneş", "AM", 99),Triple("Mesih Kayabaş", "AM", 7),Triple("Hüseyin Ekici", "WG", 80),Triple("Sedat Peker", "WG", 17),Triple("Ethem Balcı", "WG", 11),Triple("Semih Emir Erdoğan", "WG", 98),Triple("Kerem Yaşa", "ST", 9))),
+            Triple("99693", "yozgat-belediyesi-bozok-spor", listOf(Triple("Gökhan Siverek", "GK", 1),Triple("Nurullah Yıldırım", "GK", 19),Triple("Eyüpcan Delibalta", "CB", 4),Triple("Semih İntepe", "CB", 22),Triple("Serkan Özenc", "CB", 52),Triple("Mert İsmet Aşıcı", "CB", 74),Triple("Caner Taşkıran", "FB", 53),Triple("Halil Karataş", "FB", 24),Triple("İsmail Onur Kalkan", "CM", 5),Triple("Emre Tepegöz", "CM", 78),Triple("Mustafa Eren Gençel", "CM", 8),Triple("Yunusemre Çelik", "CM", 16),Triple("Şamil Başaran", "AM", 66),Triple("Abdullah Beytaş", "WG", 6),Triple("Muhammed Ali Çağlar", "WG", 10),Triple("Engincan Duman", "WG", 77),Triple("Yavuz Selim Yalçınkaya", "WG", 97),Triple("Hasan Karslı", "WG", 61),Triple("Abdullah Kaygısız", "WG", 94),Triple("Ozan Demirbağ", "ST", 7),Triple("Yakup Zorlu", "ST", 9),Triple("Alperen Mustafa Gülel", "ST", 23)))
+        ),
+        "T3D" to listOf(
+            Triple("2330", "karsiyaka", listOf(Triple("Burak Tuğ", "GK", 98),Triple("Sadri Ege Dipci", "GK", 1),Triple("Hıdır Aytekin", "CB", 23),Triple("Aykut Çolakoğlu", "CB", 30),Triple("Erol Zöngür", "CB", 41),Triple("Gökdeniz Tandoğan", "FB", 33),Triple("Selim Demirci", "FB", 93),Triple("Mahmut Şat", "FB", 2),Triple("Arda Baran Eren", "FB", 22),Triple("Alpay Eroğlu", "DM", 6),Triple("Efe Utku Özgan", "DM", 5),Triple("Mücahit Aslan", "CM", 8),Triple("Enes Karakaş", "CM", 28),Triple("Samet Sargın", "CM", 37),Triple("Mevlüt Can Kaynak", "AM", 19),Triple("Emircan Aytekin", "AM", 61),Triple("Tuğay Adamcıl", "WG", 7),Triple("Erhan Öztürk", "WG", 10),Triple("Veysel Ünal", "WG", 70),Triple("Yiğit Evin", "WG", 11),Triple("Eren Arda Şan", "ST", 9),Triple("Ömer Sezgin", "ST", 17),Triple("Fehmi Koç", "ST", 96))),
+            Triple("12497", "belediye-kutahyaspor", listOf(Triple("Hasan Hüseyin Akınay", "GK", 19),Triple("Boğaçhan Kazmaz", "GK", 1),Triple("Emrehan Ceylan", "GK", 34),Triple("Ercan Coşkun", "CB", 5),Triple("Tarkan Serbest", "CB", 15),Triple("Mehmet Yiğit", "CB", 27),Triple("Ender Kılıç", "CB", 43),Triple("İsmet William Gürkan", "CB", 70),Triple("Emir Can Çelik", "FB", 3),Triple("Semih Karadeniz", "FB", 72),Triple("Okan Erdik", "FB", 22),Triple("Latif Aklan", "FB", 47),Triple("Abdurrahman Canlı", "DM", 66),Triple("Bora Yağız Aydın", "DM", 4),Triple("Fatih Somuncu", "CM", 8),Triple("Çınar Tarhan", "AM", 23),Triple("Onur İnan", "AM", 11),Triple("Sedat Cengiz", "AM", 16),Triple("Berk Yıldız", "WG", 7),Triple("Halil İbrahim Sönmez", "WG", 61),Triple("Burak Evren", "WG", 30),Triple("Yiğit Emir Ekiz", "WG", 17),Triple("Adem Yeşilyurt", "WG", 35),Triple("Mustafa Çeçenoğlu", "WG", 10),Triple("Serkan Köse", "ST", 14),Triple("Çağrı Fedai", "ST", 20),Triple("Aykut Çift", "ST", 29))),
+            Triple("39798", "ayvalikgucu-belediye-spor", listOf(Triple("Bartu Dinç", "GK", 31),Triple("Ali Ali", "GK", 1),Triple("Görkem Mehmet Tugan", "GK", 25),Triple("Batuhan Akyüz", "CB", 2),Triple("Burak Gürler", "CB", 29),Triple("Furkan Kozhan", "CB", 5),Triple("Halil Cengiz", "CB", 26),Triple("Cuma Ali Üzüm", "FB", 11),Triple("Melih Turğut", "FB", 7),Triple("Mustafa Miroğlu", "FB", 14),Triple("Bekir Mustafa Meral", "FB", 55),Triple("Osman Kuzucu", "DM", 19),Triple("Ufuk Özcan", "CM", 8),Triple("Hüseyin Erkan", "CM", 34),Triple("Zekican Kelesoglu", "CM", 6),Triple("Yavuz Selim Taşer", "CM", 41),Triple("Emirhan Özyaşar", "AM", 27),Triple("Taha Aksu", "WG", 77),Triple("Abdülkadir Çelik", "ST", 17),Triple("Çınar Fırat", "CM", 22),Triple("Atakan Akbulut", "ST", 71),Triple("Yağız Haydar Doğan", "ST", 99))),
+            Triple("37947", "bergama-belediyespor", listOf(Triple("İsmail Şahinbaş", "GK", 22),Triple("Bartu Barbaros", "GK", 47),Triple("Semih İlgün", "GK", 68),Triple("Berat Polat", "CB", 34),Triple("Mehmet Olgar Sağlam", "CB", 60),Triple("Menderes Şahin", "CB", 94),Triple("Cenk Çalışkan", "FB", 3),Triple("Ege Kaan Yakıcı", "DM", 44),Triple("Berkay Atay", "CM", 6),Triple("Abdullah Eren Türkay", "CM", 16),Triple("Ahmat Emin Gül", "CM", 25),Triple("Kaan Gücavlı", "CM", 30),Triple("Doğan Atiz", "AM", 70),Triple("Yaşar Kılkışlılar", "AM", 77),Triple("Muhammet Özer", "ST", 27),Triple("Alp Öztürk", "ST", 91))),
+            Triple("83987", "halilbeylispor", listOf(Triple("Bartu Saltan", "CB", 6),Triple("Mete Şentürk", "CB", 26),Triple("Batuhan Güner", "CB", 53),Triple("Berke Şenözlüler", "FB", 33),Triple("Ege Karayel", "FB", 70),Triple("Arda Kırgıl", "FB", 2),Triple("Deha Çavuşoğlu", "CM", 88),Triple("Çağan Taş", "WG", 10),Triple("Ahmet Ata Kalaycıoğlu", "ST", 17),Triple("Enver Büyükdere", "ST", 86))),
+            Triple("79085", "didimspor", listOf(Triple("Yiğit Yitmez", "GK", 1),Triple("Yiğit Zorluer", "GK", 30),Triple("Hamza Kayra Koçer", "GK", 96),Triple("Eren Paşahan", "CB", 18),Triple("Deniz Solmaz", "CB", 24),Triple("Tunahan Demir", "CB", 4),Triple("Görkem Özalper", "CB", 35),Triple("Yiğithan Turhan", "CB", 40),Triple("Çınar Çağda Sesli", "FB", 19),Triple("Talha Özen", "FB", 23),Triple("Selim Emre Ön", "FB", 90),Triple("Enes Efe Gül", "FB", 13),Triple("Cengizhan Şen", "DM", 95),Triple("Şahin Kalınsazlıoğlu", "DM", 8),Triple("Eren Çakır", "CM", 10),Triple("Boran Yılmaz", "CM", 83),Triple("Yağız Bağcı", "AM", 80),Triple("Kağan Bağış", "WG", 7),Triple("Batuhan Güner", "WG", 11),Triple("Berhan Deniz", "ST", 9),Triple("Batuhan Kuru", "ST", 20),Triple("Muhammed Emin Temel", "ST", 50))),
+            Triple("825", "eskisehirspor", listOf(Triple("Bora Göymen", "GK", 1),Triple("Kaan Çinkaya", "GK", 54),Triple("Arda Pehlivan", "GK", 98),Triple("Abdulkadir Öksüz", "CB", 4),Triple("Ertuğrul Kurtuluş", "CB", 16),Triple("Arda Okumuş", "CB", 26),Triple("Ahmet Kara", "FB", 3),Triple("Sarper Çağlar", "FB", 97),Triple("Murat Şenel", "FB", 22),Triple("Mustafa Eren Damar", "FB", 23),Triple("Mehmet Bağlı", "DM", 14),Triple("Tayfun Tatlı", "CM", 8),Triple("Emre Tangeldi", "CM", 35),Triple("Fırat Sarı", "CM", 80),Triple("Kerem Baykuş", "AM", 20),Triple("Mert Başer", "AM", 11),Triple("Beykan Şimşek", "WG", 10),Triple("Hasan Kaya", "WG", 28),Triple("Osman Arslantaş", "ST", 45))),
+            Triple("13473", "nazilli-belediyespor", listOf()),
+            Triple("48569", "anadolu-universitesi", listOf(Triple("Ege Baran Sahillioğlu", "GK", 1),Triple("Abdullah Kaan Karaca", "GK", 26),Triple("Taha Atay", "CB", 53),Triple("Enes Yiğit", "CB", 88),Triple("Muhammed Düzgüner", "CB", 94),Triple("Hasan Ekici", "FB", 23),Triple("Ertuğrul Kıraç", "FB", 3),Triple("Muhammed Burak Çelik", "DM", 47),Triple("Hakan Özden", "CM", 97),Triple("Enes Alphan", "CM", 24),Triple("Bedirhan Akçay", "CM", 25),Triple("İsmail Can Fidan", "CM", 17),Triple("Anıl Özçelik", "AM", 15),Triple("Mert Yusuf Torlak", "AM", 61),Triple("Yunus Emre Özdemir", "AM", 10),Triple("Arda Akgün", "WG", 22),Triple("Sıddık İstemi", "WG", 21),Triple("Berkay Güntay", "WG", 11),Triple("Enescan Özdemir", "ST", 7),Triple("Kaan Kılıçaslan", "ST", 9),Triple("Osman Destan", "ST", 99))),
+            Triple("49078", "afjet-afyonspor", listOf(Triple("İlksen Kuttekin", "GK", 41),Triple("Serdar Kaya", "GK", 27),Triple("Alperen Duman", "GK", 58),Triple("Aydoğan Yiğit Akgün", "GK", 79),Triple("Arda Ülker", "CB", 5),Triple("Tolga Uran", "CB", 44),Triple("Batuhan Günsel", "CB", 77),Triple("Ali Eren Konday", "CB", 88),Triple("Toprak Negiz", "FB", 5),Triple("Ömer Latif Ateş", "FB", 23),Triple("Halef Keklik", "FB", 72),Triple("Atilla Ateş", "FB", 88),Triple("Fehmi Talha Akcin", "FB", 2),Triple("İsmail Ak", "DM", 33),Triple("Hüseyin Şahin", "CM", 24),Triple("Mustafa Papatya", "CM", 12),Triple("Mehmet Görkem Aras", "CM", 18),Triple("Efe Veli İçgöz", "CM", 26),Triple("Mustafa Akcil", "CM", 87),Triple("Mehmet Emin Mumcu", "CM", 90),Triple("Eren Moroğlu", "AM", 70),Triple("Çağan Baran Güzbey", "WG", 3),Triple("Bekir Alper Taşdemir", "WG", 97),Triple("Fatih Ateş", "WG", 1),Triple("Emir Arslan", "WG", 7),Triple("Bekir Yusuf Aladaş", "WG", 20),Triple("Muhammed Emin İpek", "WG", 78),Triple("Cihan Akkuş", "ST", 9),Triple("Efe Gök", "ST", 19),Triple("Furkan Arslan", "ST", 38),Triple("Uğurkan Cebeli", "ST", 45))),
+            Triple("70142", "alanya-kestelspor", listOf(Triple("Musa Koç", "GK", 1),Triple("Fatih Değirmenci", "GK", 35),Triple("Ozan Gündüz", "GK", 88),Triple("Nejdet Bilin", "CB", 16),Triple("Alper Demir", "CB", 4),Triple("Mikdat Çil", "CB", 5),Triple("Yaşar Kavas", "CB", 42),Triple("Ferhat Canlı", "FB", 44),Triple("Kadir Altıntaş", "FB", 19),Triple("Emre Koskor", "FB", 21),Triple("Seyfullah Çamkerten", "CM", 53),Triple("Emirhan Gücenoğlu", "DM", 54),Triple("Yusuf Kadir Ölmez", "DM", 61),Triple("Salih Polatdemir", "CM", 23),Triple("Süleyman Cebeci", "AM", 7),Triple("Samet Çolak", "AM", 8),Triple("Kubilay Köylü", "WG", 9),Triple("Uğurcan İkikardeş", "WG", 11),Triple("Ediz Gürol", "WG", 40),Triple("Şükrü Mert Şanlı", "ST", 17),Triple("Eren Eker", "ST", 55))),
+            Triple("2375", "altay-sk", listOf(Triple("Ulaş Hasan Özçelik", "GK", 1),Triple("Semih Mendeş", "GK", 98),Triple("Arhan Deniz", "GK", 13),Triple("Sefa Özdemir", "CB", 5),Triple("Yunus Efe Sarıkaya", "CB", 30),Triple("Arif Yanarlı", "CB", 4),Triple("Ahmet Yakup Çoban", "CB", 15),Triple("Salih Oktay", "FB", 18),Triple("İbrahim Kıravi", "FB", 3),Triple("Nurullah Efe Kocatürk", "FB", 28),Triple("Mert Yıldırım", "FB", 20),Triple("Anıl Serhan Öztürk", "FB", 34),Triple("İsa Toygar Ekinci", "DM", 25),Triple("Kemal Şen", "CM", 23),Triple("Özay Hepgüler", "DM", 33),Triple("Sani Gerçek", "CM", 27),Triple("Ali Kızılkuyu", "AM", 35),Triple("Oktay Özdede", "AM", 48),Triple("Caner Baycan", "WG", 7),Triple("Efe Pehlivan", "WG", 14),Triple("Mehmet Kaymaz", "WG", 22),Triple("Onur Yıldız", "ST", 9),Triple("Murat Uluç", "ST", 11),Triple("Ünal Alihan Kavlak", "ST", 17),Triple("Deniz Kadah", "ST", 63),Triple("Mehmet Baran Köse", "CM", 26),Triple("Enes Türker Türkoğlu", "ST", 53),Triple("Ferhat Öncel", "ST", 99))),
+            Triple("20698", "balikesirspor", listOf(Triple("Yiğit Berber", "GK", 1),Triple("Arda Akbulut", "GK", 13),Triple("Harun Toprak", "CB", 4),Triple("Erdoğan Kaya", "CB", 30),Triple("Furkan Çetinkaya", "CB", 57),Triple("Hüseyin Ayan", "CB", 58),Triple("Ahmet Necat Aydın", "FB", 29),Triple("Ferit Özler", "FB", 70),Triple("Mustafa Mete Tetik", "DM", 80),Triple("Serhat Velioğlu", "DM", 5),Triple("Sedat Kurnaz", "CM", 24),Triple("Furkan Say", "CM", 35),Triple("Muhammed Raşit Şahingöz", "AM", 8),Triple("Göktuğ Yılmaz", "WG", 20),Triple("Emir Dede", "WG", 7),Triple("Sinan Gayla", "WG", 11),Triple("Erdal Kaya", "WG", 17),Triple("Emre Gemici", "ST", 10),Triple("Tibet Durakçay", "ST", 49),Triple("Ali Topcu", "ST", 9))),
+            Triple("66738", "serinhisarspor", listOf(Triple("Umutcan Yenisoy", "GK", 28),Triple("Ramazan Arda Şahin", "GK", 1),Triple("Emirhan Kahraman", "CB", 3),Triple("Kemal Bayrak", "CB", 4),Triple("Yunus Emre Bilgin", "CB", 16),Triple("Mustafa Çolak", "FB", 33),Triple("Şevket Yıldız", "FB", 27),Triple("Hakan Kapukıran", "FB", 67),Triple("Mehmet Deveci", "DM", 5),Triple("Mahmut Er", "CM", 17),Triple("Yavuz Göçenoğlu", "DM", 71),Triple("Tolga Yakut", "CM", 26),Triple("Yavuz Selim Tatar", "CM", 99),Triple("Atakan Üner", "AM", 11),Triple("Emre Işık", "AM", 25),Triple("Arda Mutlu", "AM", 10),Triple("Tusan Ubuz", "AM", 19),Triple("Alperen Kahraman", "WG", 23),Triple("Abdulkadir Açar", "WG", 9),Triple("Ömer Arda Bilici", "WG", 65))),
+            Triple("89159", "buca-zaferspor", listOf(Triple("İbrahim Karaca", "GK", 1),Triple("Egeberk Gabel", "GK", 13),Triple("Emir Efe Kodalak", "CM", 29),Triple("Onur Şirin", "CB", 4),Triple("Ege Batur", "CB", 44),Triple("Enes Filiz", "CB", 45),Triple("Anıl Doyuran", "FB", 3),Triple("Sedat Yahşi", "FB", 17),Triple("Murat Efe Akdemir", "FB", 5),Triple("Alperen Kızkapan", "FB", 7),Triple("Murat Erdemir", "DM", 25),Triple("Kemal Güzel", "CM", 8),Triple("İsmail Kaçaranoğlu", "CM", 53),Triple("Arda Çelik", "CM", 66),Triple("Metehan Mollaoğlu", "CM", 99),Triple("Efe Uymur", "CM", 3),Triple("Arda Kardaş", "CM", 88),Triple("Emin Can Uysal", "AM", 98),Triple("Emir Enes Araz", "AM", 27),Triple("Emirhan Özkan", "WG", 11),Triple("Gökhan Bozca", "WG", 9),Triple("Onur Efe", "WG", 77),Triple("Mustafa Çalışkan", "WG", 10),Triple("Işıkcan Koca", "WG", 47),Triple("Miraç Furkan Türközü", "ST", 90),Triple("Kadir Otçeken", "ST", 18))),
+            Triple("37978", "usak-spor", listOf(Triple("Mert Topuz", "GK", 59),Triple("Mert Can Salık", "GK", 66),Triple("Mustafa Tuna", "GK", 31),Triple("Çağan Erciyas", "CB", 2),Triple("Doğan Can Otman", "CB", 4),Triple("Halil Ertürk", "CB", 22),Triple("Ömer Yiğit Kirişkuzu", "CB", 19),Triple("Ekin Arda Atmaca", "CB", 36),Triple("Tahir Kaan Özdoğan", "FB", 3),Triple("Muhammed Arif Akbaş", "FB", 12),Triple("Berkcan Aytaç", "FB", 27),Triple("Denizhan Akçay", "FB", 75),Triple("Nizamettin Çalışkan", "DM", 6),Triple("Emirhan Zaman", "DM", 8),Triple("Hakan Gençay", "DM", 60),Triple("Fatih Karadirek", "DM", 61),Triple("Ercan Çifci", "CM", 5),Triple("Murat Komili", "CM", 35),Triple("Eray Gürcan", "AM", 20),Triple("Yakup Karadağ", "AM", 23),Triple("İbrahim Demir", "WG", 11),Triple("Anıl Arıcıoğlu", "WG", 99),Triple("Miralay Bekir Bakır", "WG", 17),Triple("Yusufhan Çalık", "WG", 70),Triple("Tahsin Hacımustafaoğlu", "WG", 10),Triple("İzzet Topatar", "WG", 52),Triple("Efecan Akyıldız", "WG", 77),Triple("Yasin Öztekin", "ST", 7),Triple("Efecan Barlık", "ST", 9)))
+        )
+    )
 }
